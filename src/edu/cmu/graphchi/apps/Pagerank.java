@@ -6,6 +6,10 @@ import edu.cmu.graphchi.GraphChiProgram;
 import edu.cmu.graphchi.datablocks.FloatConverter;
 import edu.cmu.graphchi.engine.GraphChiEngine;
 import edu.cmu.graphchi.engine.VertexInterval;
+import edu.cmu.graphchi.util.IdFloat;
+import edu.cmu.graphchi.util.Toplist;
+
+import java.util.TreeSet;
 
 /**
  * @author akyrola
@@ -54,5 +58,11 @@ public class Pagerank implements GraphChiProgram<Float, Float> {
         engine.run(new Pagerank(), 5);
 
         System.out.println("Ready.");
+
+        TreeSet<IdFloat> top20 = Toplist.topListFloat(baseFilename, 20);
+        int i = 0;
+        for(IdFloat vertexRank : top20) {
+            System.out.println(++i + ": " + vertexRank.getVertexId() + " = " + vertexRank.getValue());
+        }
     }
 }

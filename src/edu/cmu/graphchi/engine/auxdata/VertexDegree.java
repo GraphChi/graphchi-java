@@ -15,6 +15,7 @@ package edu.cmu.graphchi.engine.auxdata;
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 public class VertexDegree {
     public int inDegree;
     public int outDegree;
