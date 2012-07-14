@@ -36,7 +36,8 @@ public class VertexAggregator {
                                             ForeachCallback<VertexDataType> callback) throws IOException {
 
         File vertexDataFile = new File(ChiFilenames.getFilenameOfVertexData(baseFilename, conv));
-        BufferedInputStream bis = new BufferedInputStream(new FileInputStream(vertexDataFile));
+        BufferedInputStream bis = new BufferedInputStream(new FileInputStream(vertexDataFile), 1024 * 1024);
+
         int i = 0;
         byte[] tmp = new byte[conv.sizeOf()];
         while (bis.available() > 0) {
