@@ -4,21 +4,18 @@ import edu.cmu.graphchi.ChiFilenames;
 import edu.cmu.graphchi.ChiVertex;
 import edu.cmu.graphchi.GraphChiContext;
 import edu.cmu.graphchi.GraphChiProgram;
-import edu.cmu.graphchi.apps.Pagerank;
 import edu.cmu.graphchi.datablocks.BytesToValueConverter;
-import edu.cmu.graphchi.datablocks.ChiPointer;
 import edu.cmu.graphchi.datablocks.DataBlockManager;
 import edu.cmu.graphchi.engine.auxdata.DegreeData;
+import edu.cmu.graphchi.engine.auxdata.VertexData;
 import edu.cmu.graphchi.engine.auxdata.VertexDegree;
 import edu.cmu.graphchi.shards.MemoryShard;
 import edu.cmu.graphchi.shards.SlidingShard;
 
-import javax.swing.plaf.basic.BasicInternalFrameTitlePane;
 import java.io.*;
 import java.util.ArrayList;
-import java.util.Collection;
-import java.util.List;
-import java.util.concurrent.*;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
@@ -52,6 +49,7 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
     private DataBlockManager blockManager;
     private ExecutorService parallelExecutor;
     private DegreeData degreeHandler;
+    private VertexData<VertexDataType> vertexDataHandler;
 
     protected int subIntervalStart, subIntervalEnd;
 
@@ -122,8 +120,11 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
         initializeSlidingShards();
 
         /* Temporary: keep vertices in memory */
-        int vertexBlockId = blockManager.allocateBlock(numVertices() * vertexDataConverter.sizeOf());
         int maxWindow = 20000000;
+
+        /* Initialize vertex-data handler */
+        vertexDataHandler = new VertexData<VertexDataType>(baseFilename, vertexDataConverter);
+        vertexDataHandler.setBlockManager(blockManager);
 
         for(int iter=0; iter < niters; iter++) {
             chiContext.setIteration(iter);
@@ -154,8 +155,9 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
                     ChiVertex<VertexDataType, EdgeDataType>[] vertices = new
                             ChiVertex[nvertices];
 
+                    vertexDataHandler.load(subIntervalStart, subIntervalEnd);
                     System.out.println("Init vertices...");
-                    initVertices(vertexBlockId, nvertices, vertices);
+                    initVertices(nvertices, vertices);
 
                     System.out.println("Loading...");
                     loadBeforeUpdates(vertices);
@@ -163,6 +165,7 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
                     execUpdates(program, vertices);
 
                     subIntervalStart = subIntervalEnd + 1;
+                    vertexDataHandler.releaseAndCommit();
                 }
 
 
@@ -189,7 +192,7 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
         }
     }
 
-    protected void initVertices(int vertexBlockId, int nvertices, ChiVertex<VertexDataType, EdgeDataType>[] vertices)
+    protected void initVertices(int nvertices, ChiVertex<VertexDataType, EdgeDataType>[] vertices)
     {
         ChiVertex.edgeValueConverter = edataConverter;
         ChiVertex.vertexValueConverter = vertexDataConverter;
@@ -197,7 +200,7 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
         for(int j=0; j < nvertices; j++) {
             VertexDegree degree = degreeHandler.getDegree(j + subIntervalStart);
             ChiVertex<VertexDataType, EdgeDataType> v = new ChiVertex<VertexDataType, EdgeDataType>(j + subIntervalStart, degree);
-            v.setDataPtr(new ChiPointer(vertexBlockId, (int) v.getId() * vertexDataConverter.sizeOf()));
+            v.setDataPtr(vertexDataHandler.getVertexValuePtr(j + subIntervalStart));
             vertices[j] = v;
 
             if (j % 200000 == 0)
