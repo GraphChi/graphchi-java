@@ -6,6 +6,7 @@ import edu.cmu.graphchi.GraphChiProgram;
 import edu.cmu.graphchi.datablocks.IntConverter;
 import edu.cmu.graphchi.engine.GraphChiEngine;
 import edu.cmu.graphchi.engine.VertexInterval;
+import edu.cmu.graphchi.util.LabelAnalysis;
 
 /**
  * @author akyrola
@@ -67,6 +68,10 @@ public class ConnectedComponents implements GraphChiProgram<Integer, Integer> {
         engine.setVertexDataConverter(new IntConverter());
         engine.run(new ConnectedComponents(), 5);
 
-        System.out.println("Ready.");
+        System.out.println("Ready. Going to output...");
+
+        LabelAnalysis.computeLabels(baseFilename);
+
+        System.out.println("Finished. See file: " + baseFilename + ".components");
     }
 }
