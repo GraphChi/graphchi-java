@@ -5,7 +5,6 @@ import edu.cmu.graphchi.datablocks.BytesToValueConverter;
 import edu.cmu.graphchi.datablocks.DataBlockManager;
 
 import java.io.*;
-import java.util.ArrayList;
 
 /**
  * Copyright [2012] [Aapo Kyrola, Guy Blelloch, Carlos Guestrin / Carnegie Mellon University]
@@ -103,9 +102,6 @@ public class MemoryShard <EdgeDataType> {
             ChiVertex vertex = null;
             if (vid >= windowStart && vid <= windowEnd) {
                 vertex = vertices[vid - windowStart];
-                if (!vertex.scheduled) {
-                    vertex = null;
-                }
             }
 
             while (--n >= 0) {
@@ -120,10 +116,10 @@ public class MemoryShard <EdgeDataType> {
                 if (target >= windowStart) {
                     if (target <= windowEnd) {
                         ChiVertex dstVertex = vertices[target - windowStart];
-                        if (dstVertex.scheduled) {
+                        if (dstVertex != null) {
                             dstVertex.addInEdge(blockId, edataPtr, vid);
                         }
-                        if (vertex != null) {
+                        if (vertex != null && dstVertex != null) {
                             dstVertex.parallelSafe = false;
                             vertex.parallelSafe = false;
                         }

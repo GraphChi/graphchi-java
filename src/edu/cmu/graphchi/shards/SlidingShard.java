@@ -4,12 +4,10 @@ import edu.cmu.graphchi.ChiVertex;
 import edu.cmu.graphchi.datablocks.BytesToValueConverter;
 import edu.cmu.graphchi.datablocks.ChiPointer;
 import edu.cmu.graphchi.datablocks.DataBlockManager;
+import ucar.unidata.io.RandomAccessFile;
 
-import javax.swing.plaf.basic.BasicInternalFrameTitlePane;
-import java.io.DataInputStream;
 import java.io.File;
 import java.io.IOException;
-import ucar.unidata.io.RandomAccessFile;
 import java.util.ArrayList;
 
 /**
@@ -153,9 +151,9 @@ public class SlidingShard <EdgeDataType> {
                 skip(n);
             } else {
                 ChiVertex vertex = vertices[i];
-                assert(vertex.getId() == curvid);
+                assert(vertex == null || vertex.getId() == curvid);
 
-                if (vertex.scheduled) {
+                if (vertex != null) {
                     while (--n >= 0) {
                         int target = adjFile.readInt();
                         adjOffset += 4;

@@ -49,6 +49,9 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
     private VertexData<VertexDataType> vertexDataHandler;
 
     protected int subIntervalStart, subIntervalEnd;
+    protected boolean enableScheduler = false;
+    protected BitsetScheduler scheduler = null;
+    protected long nupdates = 0;
 
     public GraphChiEngine(String baseFilename, int nShards) throws FileNotFoundException, IOException {
         this.baseFilename = baseFilename;
@@ -112,10 +115,18 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
 
     public void run(GraphChiProgram<VertexDataType, EdgeDataType> program, int niters) throws IOException {
         chiContext.setNumIterations(niters);
-        chiContext.setScheduler(new MockScheduler());
 
         long startTime = System.currentTimeMillis();
         initializeSlidingShards();
+
+        if (enableScheduler) {
+            initializeScheduler();
+            chiContext.setScheduler(scheduler);
+            scheduler.addAllTasks();
+            System.out.println("Using scheduler!");
+        }  else {
+            chiContext.setScheduler(new MockScheduler());
+        }
 
         /* Temporary: keep vertices in memory */
         int maxWindow = 20000000;
@@ -128,6 +139,14 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
             chiContext.setIteration(iter);
             chiContext.setNumVertices(numVertices());
             program.beginIteration(chiContext);
+
+            if (scheduler != null) {
+                if (iter > 0 && !scheduler.hasTasks()) {
+                    System.out.println("No new tasks to run. Terminating.");
+                    break;
+                }
+                scheduler.reset();
+            }
 
             for(execInterval=0; execInterval < nShards; ++execInterval) {
                 int intervalSt = intervals.get(execInterval).getFirstVertex();
@@ -144,26 +163,33 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
                 subIntervalStart = intervalSt;
 
                 while (subIntervalStart < intervalEn) {
-                    subIntervalEnd = determineNextWindow(subIntervalStart, Math.min(intervalEn, subIntervalStart + maxWindow ));
-                    int nvertices = subIntervalEnd - subIntervalStart + 1;
+                    if (anyVertexScheduled(subIntervalStart, Math.min(intervalEn, subIntervalStart + maxWindow ))) {
+                        subIntervalEnd = determineNextWindow(subIntervalStart, Math.min(intervalEn, subIntervalStart + maxWindow ));
+                        int nvertices = subIntervalEnd - subIntervalStart + 1;
 
-                    System.out.println("Subinterval:: " + subIntervalStart + " -- " + subIntervalEnd + " (iteration " + iter + ")");
+                        System.out.println("Subinterval:: " + subIntervalStart + " -- " + subIntervalEnd + " (iteration " + iter + ")");
 
 
-                    ChiVertex<VertexDataType, EdgeDataType>[] vertices = new
-                            ChiVertex[nvertices];
+                        ChiVertex<VertexDataType, EdgeDataType>[] vertices = new
+                                ChiVertex[nvertices];
 
-                    vertexDataHandler.load(subIntervalStart, subIntervalEnd);
-                    System.out.println("Init vertices...");
-                    initVertices(nvertices, vertices);
+                        vertexDataHandler.load(subIntervalStart, subIntervalEnd);
+                        System.out.println("Init vertices...");
+                        initVertices(nvertices, vertices);
 
-                    System.out.println("Loading...");
-                    loadBeforeUpdates(vertices);
+                        /* Clear scheduler bits */
+                        if (scheduler != null) scheduler.removeTasks(subIntervalStart, subIntervalEnd);
 
-                    execUpdates(program, vertices);
+                        System.out.println("Loading...");
+                        loadBeforeUpdates(vertices);
 
-                    subIntervalStart = subIntervalEnd + 1;
-                    vertexDataHandler.releaseAndCommit();
+                        execUpdates(program, vertices);
+
+                        subIntervalStart = subIntervalEnd + 1;
+                        vertexDataHandler.releaseAndCommit();
+                    }  else {
+                        System.out.println("Skipped interval - no vertices scheduled.");
+                    }
                 }
 
 
@@ -181,12 +207,29 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
 
         parallelExecutor.shutdown();
         System.out.println("Engine finished in: " + (System.currentTimeMillis() - startTime) * 0.001 + " secs.");
+        System.out.println("Updates: " + nupdates);
+    }
+
+    private boolean anyVertexScheduled(int subIntervalStart, int lastVertex) {
+        if (!enableScheduler) return true;
+
+        for(int i=subIntervalStart; i<= lastVertex; i++) {
+            if (scheduler.isScheduled(i)) return true;
+        }
+        return false;
+    }
+
+    private void initializeScheduler() {
+        scheduler = new BitsetScheduler(numVertices());
     }
 
     private void execUpdates(GraphChiProgram<VertexDataType, EdgeDataType> program, ChiVertex<VertexDataType, EdgeDataType>[] vertices) {
         System.out.println("---- Executing updates ---");
         for(ChiVertex<VertexDataType, EdgeDataType> vertex : vertices) {
-            program.update(vertex, chiContext);
+            if (vertex != null) {
+                nupdates++;
+                program.update(vertex, chiContext);
+            }
         }
     }
 
@@ -197,6 +240,10 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
         ChiVertex.blockManager = blockManager;
         for(int j=0; j < nvertices; j++) {
             VertexDegree degree = degreeHandler.getDegree(j + subIntervalStart);
+
+            if (enableScheduler && !scheduler.isScheduled(j + subIntervalStart)) {
+                continue;
+            }
             ChiVertex<VertexDataType, EdgeDataType> v = new ChiVertex<VertexDataType, EdgeDataType>(j + subIntervalStart, degree);
             v.setDataPtr(vertexDataHandler.getVertexValuePtr(j + subIntervalStart));
             vertices[j] = v;
@@ -281,9 +328,14 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
         int edataSizeOf = edataConverter.sizeOf();
 
         for(int i=0; i< maxInterval; i++) {
+            if (enableScheduler) {
+                if (!scheduler.isScheduled(i + subIntervalStart)) continue;
+            }
             VertexDegree deg = degreeHandler.getDegree(i + subIntervalStart);
             int inc = deg.inDegree;
             int outc = deg.outDegree;
+
+
             // Following calculation contains some perhaps reasonable estimates of the
             // overhead of Java objects.
             memReq += vertexDataSizeOf + 256 + (edataSizeOf + 4 + 4 + 4) * (inc + outc);
@@ -292,6 +344,14 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
             }
         }
         return maxVertex;
+    }
+
+    public boolean isEnableScheduler() {
+        return enableScheduler;
+    }
+
+    public void setEnableScheduler(boolean enableScheduler) {
+        this.enableScheduler = enableScheduler;
     }
 
     public void setVertexDataConverter(BytesToValueConverter<VertexDataType> vertexDataConverter) {
@@ -308,7 +368,7 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
 
         }
 
-        public void removeTasks() {
+        public void removeTasks(int from, int to) {
         }
 
         public void addAllTasks() {
@@ -316,6 +376,10 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
         }
 
         public boolean hasTasks() {
+            return true;
+        }
+
+        public boolean isScheduled(int i) {
             return true;
         }
     }

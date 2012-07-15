@@ -43,7 +43,6 @@ public class ChiVertex<VertexValue, EdgeValue> {
     private int[] outEdgeVertexIds = null;
 
     /* Internal management */
-    public boolean scheduled = true;
     public boolean parallelSafe = true;
 
     private ChiPointer vertexPtr;

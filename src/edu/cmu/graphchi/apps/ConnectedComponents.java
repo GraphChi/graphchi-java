@@ -66,6 +66,7 @@ public class ConnectedComponents implements GraphChiProgram<Integer, Integer> {
         GraphChiEngine<Integer, Integer> engine = new GraphChiEngine<Integer, Integer>(baseFilename, nShards);
         engine.setEdataConverter(new IntConverter());
         engine.setVertexDataConverter(new IntConverter());
+        engine.setEnableScheduler(true);
         engine.run(new ConnectedComponents(), 5);
 
         System.out.println("Ready. Going to output...");
