@@ -10,10 +10,13 @@ write on the command-line:
     ant
 
 
-RUNNING & PREPARING SHARDS
+RUNNING GRAPHCHI & PREPARING SHARDS
 
 To run the pagerank example:
    java -Xmx4096m -cp build  edu.cmu.graphchi.apps.Pagerank [GRAPH-FILENAME] [NUM-OF-SHARDS]
+
+or Connected Components:
+   java -Xmx4096m -cp build  edu.cmu.graphchi.apps.ConnectedComponents [GRAPH-FILENAME] [NUM-OF-SHARDS]
 
 Unfortunately, at this stage you need to use the C++ version to prepare shards. 
 It is easy though:
