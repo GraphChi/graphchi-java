@@ -17,6 +17,8 @@ package edu.cmu.graphchi;
  */
 public class GraphChiContext {
 
+    private Scheduler scheduler;
+
     public GraphChiContext() {}
 
     public int getIteration() {
@@ -33,6 +35,14 @@ public class GraphChiContext {
 
     public void setNumIterations(int numIterations) {
         this.numIterations = numIterations;
+    }
+
+    public Scheduler getScheduler() {
+        return scheduler;
+    }
+
+    public void setScheduler(Scheduler scheduler) {
+        this.scheduler = scheduler;
     }
 
     public long getNumEdges() {

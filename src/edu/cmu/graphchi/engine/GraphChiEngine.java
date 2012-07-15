@@ -1,9 +1,6 @@
 package edu.cmu.graphchi.engine;
 
-import edu.cmu.graphchi.ChiFilenames;
-import edu.cmu.graphchi.ChiVertex;
-import edu.cmu.graphchi.GraphChiContext;
-import edu.cmu.graphchi.GraphChiProgram;
+import edu.cmu.graphchi.*;
 import edu.cmu.graphchi.datablocks.BytesToValueConverter;
 import edu.cmu.graphchi.datablocks.DataBlockManager;
 import edu.cmu.graphchi.engine.auxdata.DegreeData;
@@ -115,6 +112,7 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
 
     public void run(GraphChiProgram<VertexDataType, EdgeDataType> program, int niters) throws IOException {
         chiContext.setNumIterations(niters);
+        chiContext.setScheduler(new MockScheduler());
 
         long startTime = System.currentTimeMillis();
         initializeSlidingShards();
@@ -302,5 +300,23 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
 
     public void setEdataConverter(BytesToValueConverter<EdgeDataType> edataConverter) {
         this.edataConverter = edataConverter;
+    }
+
+    private class MockScheduler implements Scheduler {
+
+        public void addTask(int vertexId) {
+
+        }
+
+        public void removeTasks() {
+        }
+
+        public void addAllTasks() {
+
+        }
+
+        public boolean hasTasks() {
+            return true;
+        }
     }
 }

@@ -59,7 +59,7 @@ public class ChiVertex<VertexValue, EdgeValue> {
     }
 
 
-    public long getId() {
+    public int getId() {
         return this.id;
     }
 
@@ -118,6 +118,9 @@ public class ChiVertex<VertexValue, EdgeValue> {
         else return outEdge(i - nInedges);
     }
 
+    public int numEdges() {
+        return nInedges + nOutedges.get();
+    }
 
 
     class Edge implements ChiEdge<EdgeValue> {
