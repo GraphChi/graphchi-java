@@ -33,14 +33,10 @@ public class ChiVertex<VertexValue, EdgeValue> {
     public static BytesToValueConverter edgeValueConverter;
 
     private int nInedges = 0;
-    private int[] inEdgeDataChunks = null;
-    private int[] inEdgeDataOffsets = null;
-    private int[] inEdgeVertexIds = null;
+    private int[] inEdgeDataArray = null;
 
     private AtomicInteger nOutedges = new AtomicInteger(0);
-    private int[] outEdgeDataChunks = null;
-    private int[] outEdgeDataOffsets = null;
-    private int[] outEdgeVertexIds = null;
+    private int[] outEdgeDataArray = null;
 
     /* Internal management */
     public boolean parallelSafe = true;
@@ -49,12 +45,8 @@ public class ChiVertex<VertexValue, EdgeValue> {
 
     public ChiVertex(int id, VertexDegree degree) {
         this.id = id;
-        inEdgeDataChunks = new int[degree.inDegree];
-        inEdgeDataOffsets = new int[degree.inDegree];
-        inEdgeVertexIds = new int[degree.inDegree];
-        outEdgeDataChunks = new int[degree.outDegree];
-        outEdgeDataOffsets = new int[degree.outDegree];
-        outEdgeVertexIds = new int[degree.outDegree];
+        inEdgeDataArray = new int[degree.inDegree * 3];
+        outEdgeDataArray = new int[degree.outDegree * 3];
     }
 
 
@@ -86,9 +78,10 @@ public class ChiVertex<VertexValue, EdgeValue> {
     }
 
     public void addInEdge(int chunkId, int offset, int vertexId) {
-        inEdgeDataChunks[nInedges] = chunkId;
-        inEdgeDataOffsets[nInedges] = offset;
-        inEdgeVertexIds[nInedges] = vertexId;
+        int idx = nInedges * 3;
+        inEdgeDataArray[idx] = chunkId;
+        inEdgeDataArray[idx + 1] = offset;
+        inEdgeDataArray[idx + 2] = vertexId;
         nInedges++;
 
     }
@@ -98,18 +91,21 @@ public class ChiVertex<VertexValue, EdgeValue> {
 
     public void addOutEdge(int chunkId, int offset,  int vertexId) {
         int tmpOutEdges = nOutedges.addAndGet(1) - 1;
-        outEdgeDataChunks[tmpOutEdges] = chunkId;
-        outEdgeDataOffsets[tmpOutEdges] = offset;
-        outEdgeVertexIds[tmpOutEdges] = vertexId;
+        int idx = tmpOutEdges * 3;
+        outEdgeDataArray[idx] = chunkId;
+        outEdgeDataArray[idx + 1] = offset;
+        outEdgeDataArray[idx + 2] = vertexId;
 
     }
 
     public ChiEdge<EdgeValue> inEdge(int i) {
-        return new Edge(new ChiPointer(inEdgeDataChunks[i], inEdgeDataOffsets[i]), inEdgeVertexIds[i]);
+        int idx = i * 3;
+        return new Edge(new ChiPointer(inEdgeDataArray[idx], inEdgeDataArray[idx + 1]), inEdgeDataArray[idx + 2]);
     }
 
     public ChiEdge<EdgeValue>  outEdge(int i) {
-        return new Edge(new ChiPointer(outEdgeDataChunks[i], outEdgeDataOffsets[i]), outEdgeVertexIds[i]);
+        int idx = i * 3;
+        return new Edge(new ChiPointer(outEdgeDataArray[idx], outEdgeDataArray[idx + 1]), outEdgeDataArray[idx + 2]);
     }
 
     public ChiEdge<EdgeValue> edge(int i) {
