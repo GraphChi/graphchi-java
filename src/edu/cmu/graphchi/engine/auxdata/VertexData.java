@@ -6,7 +6,10 @@ import edu.cmu.graphchi.datablocks.ChiPointer;
 import edu.cmu.graphchi.datablocks.DataBlockManager;
 import ucar.unidata.io.RandomAccessFile;
 
+import java.io.File;
+import java.io.FileOutputStream;
 import java.io.IOException;
+
 /**
  * Copyright [2012] [Aapo Kyrola, Guy Blelloch, Carlos Guestrin / Carnegie Mellon University]
  *
@@ -32,11 +35,33 @@ public class VertexData <VertexDataType> {
     private int currentBlockId = (-1);
     private DataBlockManager blockManager;
 
-    public VertexData(String baseFilename, BytesToValueConverter<VertexDataType> converter) throws IOException {
+    public VertexData(int nvertices, String baseFilename, BytesToValueConverter<VertexDataType> converter) throws IOException {
         this.baseFilename = baseFilename;
         this.converter = converter;
+
+        // Check size and create if does not exists
+        File vertexfile = new File(ChiFilenames.getFilenameOfVertexData(baseFilename, converter));
+        if (!vertexfile.exists() || vertexfile.length() < nvertices * converter.sizeOf()) {
+            if (!vertexfile.exists()) {
+                vertexfile.createNewFile();
+            }
+            System.out.println("Vertex data file did not exists, creating it.");
+            FileOutputStream fos = new FileOutputStream(vertexfile);
+            long newSize = converter.sizeOf() * nvertices;
+            byte[] tmp = new byte[32678];
+            long written = 0;
+            while(written < newSize) {
+                long n = Math.min(newSize - written, tmp.length);
+                fos.write(tmp, 0, (int)n);
+                written += n;
+            }
+        }
+
+
         vertexDataFile = new RandomAccessFile(ChiFilenames.getFilenameOfVertexData(baseFilename, converter), "rwd");
         vertexEn = vertexSt = 0;
+
+
     }
 
     public void releaseAndCommit() throws IOException {

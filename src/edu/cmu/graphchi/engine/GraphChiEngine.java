@@ -132,7 +132,7 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
         int maxWindow = 20000000;
 
         /* Initialize vertex-data handler */
-        vertexDataHandler = new VertexData<VertexDataType>(baseFilename, vertexDataConverter);
+        vertexDataHandler = new VertexData<VertexDataType>(numVertices(), baseFilename, vertexDataConverter);
         vertexDataHandler.setBlockManager(blockManager);
 
         for(int iter=0; iter < niters; iter++) {
