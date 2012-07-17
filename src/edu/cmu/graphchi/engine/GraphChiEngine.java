@@ -136,6 +136,7 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
         vertexDataHandler.setBlockManager(blockManager);
 
         for(int iter=0; iter < niters; iter++) {
+            blockManager.reset();;
             chiContext.setIteration(iter);
             chiContext.setNumVertices(numVertices());
             program.beginIteration(chiContext);

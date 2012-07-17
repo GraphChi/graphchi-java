@@ -1,8 +1,6 @@
 package edu.cmu.graphchi.datablocks;
 
 import java.util.ArrayList;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Copyright [2012] [Aapo Kyrola, Guy Blelloch, Carlos Guestrin / Carnegie Mellon University]
@@ -49,6 +47,19 @@ public class DataBlockManager {
         return blocks.get(blockId);    /* Note, not synchronized! */
     }
 
+
+    /**
+     * Called by the engine to clear the registry. All blocks must be null
+     * prior to calling!
+     */
+    public void reset() {
+        for(int i=0; i<blocks.size(); i++) {
+            if (blocks.get(i) != null) {
+                throw new RuntimeException("Tried to reset block manager, but it was non-empty at index: " + i);
+            }
+        }
+        blocks.clear();
+    }
 
     public void release(int blockId) {
         blocks.set(blockId, null);
