@@ -1,14 +1,12 @@
 package edu.cmu.graphchi.engine.auxdata;
 
 import edu.cmu.graphchi.ChiFilenames;
-
-import java.io.File;
-import java.io.IOException;
-
 import edu.cmu.graphchi.datablocks.BytesToValueConverter;
 import edu.cmu.graphchi.datablocks.ChiPointer;
 import edu.cmu.graphchi.datablocks.DataBlockManager;
 import ucar.unidata.io.RandomAccessFile;
+
+import java.io.IOException;
 /**
  * Copyright [2012] [Aapo Kyrola, Guy Blelloch, Carlos Guestrin / Carnegie Mellon University]
  *
@@ -48,6 +46,8 @@ public class VertexData <VertexDataType> {
 
         vertexDataFile.seek(dataStart);
         vertexDataFile.write(data);
+
+        blockManager.release(currentBlockId);
     }
 
     public void load(int _vertexSt, int _vertexEn) throws IOException {
