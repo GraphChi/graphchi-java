@@ -52,6 +52,7 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
     protected boolean enableScheduler = false;
     protected BitsetScheduler scheduler = null;
     protected long nupdates = 0;
+    protected boolean enableDeterministicExecution = true;
 
     public GraphChiEngine(String baseFilename, int nShards) throws FileNotFoundException, IOException {
         this.baseFilename = baseFilename;
@@ -224,13 +225,88 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
         scheduler = new BitsetScheduler(numVertices());
     }
 
-    private void execUpdates(GraphChiProgram<VertexDataType, EdgeDataType> program, ChiVertex<VertexDataType, EdgeDataType>[] vertices) {
-        System.out.println("---- Executing updates ---");
-        for(ChiVertex<VertexDataType, EdgeDataType> vertex : vertices) {
-            if (vertex != null) {
-                nupdates++;
-                program.update(vertex, chiContext);
+    private void execUpdates(final GraphChiProgram<VertexDataType, EdgeDataType> program,
+                             final ChiVertex<VertexDataType, EdgeDataType>[] vertices) {
+
+        if (Runtime.getRuntime().availableProcessors() == 1) {
+            /* Sequential updates */
+            for(ChiVertex<VertexDataType, EdgeDataType> vertex : vertices) {
+                if (vertex != null) {
+                    nupdates++;
+                    program.update(vertex, chiContext);
+                }
             }
+        } else {
+            final Object termlock = new Object();
+            final int nWorkers = 32;
+            final AtomicInteger countDown = new AtomicInteger(1 + nWorkers);
+
+            if (!enableDeterministicExecution) {
+                 for(ChiVertex<VertexDataType, EdgeDataType> vertex : vertices) {
+                     if (vertex != null) vertex.parallelSafe = true;
+                 }
+            }
+
+            synchronized (termlock) {
+                /* Parallel updates. One thread for non-parallel safe updates, others
+             updated in parallel. This guarantees deterministic execution. */
+
+                /* Non-safe updates */
+                parallelExecutor.submit(new Runnable() {
+                    public void run() {
+                        int thrupdates = 0;
+                        for(ChiVertex<VertexDataType, EdgeDataType> vertex : vertices) {
+                            if (vertex != null && !vertex.parallelSafe) {
+                                thrupdates++;
+                                program.update(vertex, chiContext);
+                            }
+                        }
+                        int pending = countDown.decrementAndGet();
+                        synchronized (termlock) {
+                            nupdates += thrupdates;
+                            if (pending == 0) {
+                                termlock.notifyAll();;
+                            }
+                        }
+                    }
+                });
+
+                /* Parallel updates */
+                for(int thrId = 0; thrId < nWorkers; thrId++) {
+                    final int myId = thrId;
+                    parallelExecutor.submit(new Runnable() {
+
+                        public void run() {
+                            int thrupdates = 0;
+                            int i = myId;
+                            for(i = myId; i < vertices.length;  i += nWorkers) {
+                                ChiVertex<VertexDataType, EdgeDataType> vertex = vertices[i];
+                                if (vertex != null && vertex.parallelSafe) {
+                                    thrupdates++;
+                                    program.update(vertex, chiContext);
+                                }
+                            }
+                            int pending = countDown.decrementAndGet();
+                            synchronized (termlock) {
+                                nupdates += thrupdates;
+                                if (pending == 0) {
+                                    termlock.notifyAll();;
+                                }
+                            }
+                        }
+                    });
+                }
+
+                while(countDown.get() > 0) {
+                    try {
+                        termlock.wait(10000);
+                    } catch (InterruptedException e) {
+                        // What to do?
+                        e.printStackTrace();
+                    }
+                }
+            }
+
         }
     }
 
@@ -361,6 +437,14 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
 
     public void setEdataConverter(BytesToValueConverter<EdgeDataType> edataConverter) {
         this.edataConverter = edataConverter;
+    }
+
+    public boolean isEnableDeterministicExecution() {
+        return enableDeterministicExecution;
+    }
+
+    public void setEnableDeterministicExecution(boolean enableDeterministicExecution) {
+        this.enableDeterministicExecution = enableDeterministicExecution;
     }
 
     private class MockScheduler implements Scheduler {
