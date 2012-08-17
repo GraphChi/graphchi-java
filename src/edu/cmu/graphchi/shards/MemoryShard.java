@@ -60,7 +60,7 @@ public class MemoryShard <EdgeDataType> {
             ucar.unidata.io.RandomAccessFile rFile =
                     new ucar.unidata.io.RandomAccessFile(edgeDataFilename, "rwd");
             rFile.seek(rangeStartEdgePtr);
-            int last = rangeStartEdgePtr;
+            int last = streamingOffsetEdgePtr;
             if (last == 0) last = edataFilesize;
             rFile.write(data, rangeStartEdgePtr, last  - rangeStartEdgePtr);
             rFile.close();
@@ -95,6 +95,7 @@ public class MemoryShard <EdgeDataType> {
             if (!hasSetRangeOffset && vid >= rangeStart) {
                 rangeStartOffset = adjOffset;
                 rangeStartEdgePtr = edataPtr;
+                hasSetRangeOffset = true;
             }
 
             int n = 0;
