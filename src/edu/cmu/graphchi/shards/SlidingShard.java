@@ -49,6 +49,7 @@ public class SlidingShard <EdgeDataType> {
     private BytesToValueConverter<EdgeDataType> converter;
     private RandomAccessFile edataFile;
     private RandomAccessFile adjFile;
+    private boolean modifiesOutedges = true;
 
 
     public SlidingShard(String edgeDataFilename, String adjDataFilename,
@@ -231,6 +232,7 @@ public class SlidingShard <EdgeDataType> {
 
 
     void commit(Block b, boolean synchronously, boolean disableWrites) throws IOException {
+        disableWrites = disableWrites || !modifiesOutedges;
         if (synchronously) {
             if (!disableWrites) b.commitNow();
             b.release();
@@ -238,6 +240,10 @@ public class SlidingShard <EdgeDataType> {
             if (!disableWrites) b.commitAsync();
             else b.release();
         }
+    }
+
+    public void setModifiesOutedges(boolean modifiesOutedges) {
+        this.modifiesOutedges = modifiesOutedges;
     }
 
     class Block {

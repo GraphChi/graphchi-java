@@ -54,6 +54,10 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
     protected long nupdates = 0;
     protected boolean enableDeterministicExecution = true;
 
+
+
+    protected boolean modifiesInedges = true, modifiesOutedges = true;
+
     public GraphChiEngine(String baseFilename, int nShards) throws FileNotFoundException, IOException {
         this.baseFilename = baseFilename;
         this.nShards = nShards;
@@ -98,6 +102,7 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
                     intervals.get(p).getLastVertex());
             slidingShard.setConverter(edataConverter);
             slidingShard.setDataBlockManager(blockManager);
+            slidingShard.setModifiesOutedges(modifiesOutedges);
             slidingShards.add(slidingShard);
 
         }
@@ -196,9 +201,9 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
 
 
                 /* Commit */
-                memoryShard.commitAndRelease();
-                slidingShards.get(execInterval).setOffset(memoryShard.getRangeStartOffset(),
-                        memoryShard.getRangeContVid(), memoryShard.getRangeStartEdgePtr());
+                memoryShard.commitAndRelease(modifiesInedges, modifiesOutedges);
+                slidingShards.get(execInterval).setOffset(memoryShard.getStreamingOffset(),
+                        memoryShard.getStreamingOffsetVid(), memoryShard.getStreamingOffsetEdgePtr());
             }
 
             for(SlidingShard shard : slidingShards) {
@@ -462,6 +467,22 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
 
     public void setEnableDeterministicExecution(boolean enableDeterministicExecution) {
         this.enableDeterministicExecution = enableDeterministicExecution;
+    }
+
+    public boolean isModifiesInedges() {
+        return modifiesInedges;
+    }
+
+    public void setModifiesInedges(boolean modifiesInedges) {
+        this.modifiesInedges = modifiesInedges;
+    }
+
+    public boolean isModifiesOutedges() {
+        return modifiesOutedges;
+    }
+
+    public void setModifiesOutedges(boolean modifiesOutedges) {
+        this.modifiesOutedges = modifiesOutedges;
     }
 
     private class MockScheduler implements Scheduler {

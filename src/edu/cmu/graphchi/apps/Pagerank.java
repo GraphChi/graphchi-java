@@ -55,6 +55,7 @@ public class Pagerank implements GraphChiProgram<Float, Float> {
         GraphChiEngine<Float, Float> engine = new GraphChiEngine<Float, Float>(baseFilename, nShards);
         engine.setEdataConverter(new FloatConverter());
         engine.setVertexDataConverter(new FloatConverter());
+        engine.setModifiesInedges(false); // Important optimization
         engine.run(new Pagerank(), 5);
 
         System.out.println("Ready.");

@@ -32,12 +32,13 @@ public class MemoryShard <EdgeDataType> {
     private int blockId;
     private int edataFilesize;
     private boolean loaded = false;
-    private boolean hasSetRangeOffset = false;
+    private boolean hasSetRangeOffset = false, hasSetOffset = false;
 
     private int rangeStartOffset, rangeStartEdgePtr, rangeContVid;
 
     private DataBlockManager dataBlockManager;
     private BytesToValueConverter<EdgeDataType> converter;
+    private int streamingOffset, streamingOffsetEdgePtr, streamingOffsetVid;
 
     private MemoryShard() {}
 
@@ -48,12 +49,24 @@ public class MemoryShard <EdgeDataType> {
         this.rangeEnd = rangeEnd;
     }
 
-    public void commitAndRelease() throws IOException {
-        FileOutputStream fos = new FileOutputStream(new File(edgeDataFilename));
+    public void commitAndRelease(boolean modifiesInedges, boolean modifiesOutedges) throws IOException {
         byte[] data = dataBlockManager.getRawBlock(blockId);
-        fos.write(data);
-        fos.close();
+
+        if (modifiesInedges) {
+            FileOutputStream fos = new FileOutputStream(new File(edgeDataFilename));
+            fos.write(data);
+            fos.close();
+        } else if (modifiesOutedges) {
+            ucar.unidata.io.RandomAccessFile rFile =
+                    new ucar.unidata.io.RandomAccessFile(edgeDataFilename, "rwd");
+            rFile.seek(rangeStartEdgePtr);
+            int last = rangeStartEdgePtr;
+            if (last == 0) last = edataFilesize;
+            rFile.write(data, rangeStartEdgePtr, last  - rangeStartEdgePtr);
+            rFile.close();
+        }
         dataBlockManager.release(blockId);
+
     }
 
     public void loadVertices(int windowStart, int windowEnd, ChiVertex[] vertices)
@@ -73,11 +86,15 @@ public class MemoryShard <EdgeDataType> {
         int sizeOf = converter.sizeOf();
         DataInputStream adjInput = new DataInputStream(new ByteArrayInputStream(adjData));
         while(adjInput.available() > 0) {
-            if (!hasSetRangeOffset && vid>=rangeStart) {
+            if (!hasSetOffset && vid > rangeEnd) {
+                streamingOffset = adjOffset;
+                streamingOffsetEdgePtr = edataPtr;
+                streamingOffsetVid = vid;
+                hasSetOffset = true;
+            }
+            if (!hasSetRangeOffset && vid >= rangeStart) {
                 rangeStartOffset = adjOffset;
                 rangeStartEdgePtr = edataPtr;
-                rangeContVid = vid;
-                hasSetRangeOffset = true;
             }
 
             int n = 0;
@@ -171,15 +188,15 @@ public class MemoryShard <EdgeDataType> {
         this.converter = converter;
     }
 
-    public int getRangeStartOffset() {
-        return rangeStartOffset;
+    public int getStreamingOffset() {
+        return streamingOffset;
     }
 
-    public int getRangeStartEdgePtr() {
-        return rangeStartEdgePtr;
+    public int getStreamingOffsetEdgePtr() {
+        return streamingOffsetEdgePtr;
     }
 
-    public int getRangeContVid() {
-        return rangeContVid;
+    public int getStreamingOffsetVid() {
+        return streamingOffsetVid;
     }
 }
