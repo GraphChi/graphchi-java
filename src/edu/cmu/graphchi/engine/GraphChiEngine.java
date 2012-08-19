@@ -53,6 +53,7 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
     protected BitsetScheduler scheduler = null;
     protected long nupdates = 0;
     protected boolean enableDeterministicExecution = true;
+    protected long memBudget;
 
 
 
@@ -63,9 +64,15 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
         this.nShards = nShards;
         loadIntervals();
 
-        parallelExecutor = Executors.newFixedThreadPool(4);
+        parallelExecutor = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
         blockManager = new DataBlockManager();
         degreeHandler = new DegreeData(baseFilename);
+        
+        memBudget = Runtime.getRuntime().maxMemory() / 4;
+        if (Runtime.getRuntime().maxMemory() < 256 * 1024 * 1024)
+            throw new IllegalArgumentException("Java Virtual Machine has only " + memBudget + "bytes maximum memory." +
+                    " Please run the JVM with at least 256 megabytes of memory using -Xmx256m. For better performance, use higher value");
+    
     }
 
 
@@ -85,6 +92,19 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
         assert(intervals.size() == nShards);
 
         System.out.println("Loaded: " + intervals);
+    }
+    
+    
+    /**
+     * Set the memorybudget in megabytes. Default is JVM's max memory / 4
+     * @param mb
+     */
+    public void setMemoryBudgetMb(long mb) {
+    	memBudget = mb * 1024 * 1024;
+    }
+    
+    public long getMemoryBudget() {
+    	return memBudget;
     }
 
 
@@ -188,9 +208,13 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
                         if (scheduler != null) scheduler.removeTasks(subIntervalStart, subIntervalEnd);
 
                         System.out.println("Loading...");
+                        long t0 = System.currentTimeMillis();
                         loadBeforeUpdates(vertices);
-
+                        System.out.println("Load took: " + (System.currentTimeMillis() - t0) + "ms");
+                        
+                        long t1 = System.currentTimeMillis();
                         execUpdates(program, vertices);
+                        System.out.println("Update exec: " + (System.currentTimeMillis() - t1) + " ms.");
 
                         subIntervalStart = subIntervalEnd + 1;
                         vertexDataHandler.releaseAndCommit();
@@ -417,10 +441,6 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
         // TODO
         degreeHandler.load(subIntervalStart, maxVertex);
         long memReq = 0;
-        long memBudget = Runtime.getRuntime().maxMemory() / 4;
-        if (Runtime.getRuntime().maxMemory() < 256 * 1024 * 1024)
-            throw new IllegalArgumentException("Java Virtual Machine has only " + memBudget + "bytes maximum memory." +
-                    " Please run the JVM with at least 256 megabytes of memory using -Xmx256m. For better performance, use higher value");
         int maxInterval = maxVertex - subIntervalStart;
         System.out.println("mem budget: " + memBudget / 1024. / 1024. + "mb");
         int vertexDataSizeOf = vertexDataConverter.sizeOf();
