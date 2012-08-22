@@ -189,7 +189,7 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
 
                 subIntervalStart = intervalSt;
 
-                while (subIntervalStart < intervalEn) {
+                while (subIntervalStart <= intervalEn) {
                     if (anyVertexScheduled(subIntervalStart, Math.min(intervalEn, subIntervalStart + maxWindow ))) {
                         subIntervalEnd = determineNextWindow(subIntervalStart, Math.min(intervalEn, subIntervalStart + maxWindow ));
                         int nvertices = subIntervalEnd - subIntervalStart + 1;
