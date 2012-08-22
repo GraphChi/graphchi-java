@@ -64,7 +64,11 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
         this.nShards = nShards;
         loadIntervals();
 
-        parallelExecutor = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
+	int nprocs = 4;
+	if (Runtime.getRuntime().availableProcessors() > nprocs) {
+	    nprocs = Runtime.getRuntime().availableProcessors();
+	}
+        parallelExecutor = Executors.newFixedThreadPool(nprocs);
         blockManager = new DataBlockManager();
         degreeHandler = new DegreeData(baseFilename);
         
