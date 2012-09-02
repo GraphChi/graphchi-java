@@ -1,5 +1,7 @@
 package edu.cmu.graphchi;
 
+import java.io.*;
+
 import edu.cmu.graphchi.datablocks.BytesToValueConverter;
 
 /**
@@ -30,6 +32,22 @@ public class ChiFilenames {
     public static String getPartStr(int p, int nShards) {
         return "." + p + "_" + nShards;
     }
+    
+    public static String getDirnameShardEdataBlock(String edataShardName, int blocksize) {
+    	return edataShardName + "_blockdir_" + blocksize;
+    }
+    
+    public static String getFilenameShardEdataBlock(String edataShardname, int blockId, int blocksize) {
+    	return getDirnameShardEdataBlock(edataShardname, blocksize) + "/" + blockId;
+    }
+    
+    public static int getShardEdataSize(String edataShardname) throws IOException {
+    	String fname = edataShardname + ".size";
+    	BufferedReader rd = new BufferedReader(new FileReader(new File(fname)));
+    	String ln = rd.readLine();
+    	rd.close();
+    	return Integer.parseInt(ln);
+    }
 
     public static String getFilenameShardEdata(String baseFilename, BytesToValueConverter valueConv, int p, int nShards) {
         return baseFilename + ".edata_azv.e" + valueConv.sizeOf() + "B." + p + "_" + nShards;
@@ -42,5 +60,12 @@ public class ChiFilenames {
     public static String getFilenameIntervals(String baseFilename, int nShards) {
           return baseFilename + "." + nShards + ".intervals";
     }
+
+	public static int getBlocksize(int sizeOf) {
+		int blocksize = 4096 * 1024;
+		while (blocksize % sizeOf != 0) blocksize++;
+		assert(blocksize % sizeOf == 0);
+		return blocksize;
+	}
 }
 

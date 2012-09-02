@@ -1,10 +1,13 @@
 package edu.cmu.graphchi.shards;
 
+import edu.cmu.graphchi.ChiFilenames;
 import edu.cmu.graphchi.ChiVertex;
 import edu.cmu.graphchi.datablocks.BytesToValueConverter;
 import edu.cmu.graphchi.datablocks.DataBlockManager;
 
 import java.io.*;
+import java.util.ArrayList;
+import edu.cmu.graphchi.io.*;
 
 /**
  * Copyright [2012] [Aapo Kyrola, Guy Blelloch, Carlos Guestrin / Carnegie Mellon University]
@@ -23,181 +26,213 @@ import java.io.*;
  */
 public class MemoryShard <EdgeDataType> {
 
-    private String edgeDataFilename;
-    private String adjDataFilename;
-    private int rangeStart;
-    private int rangeEnd;
+	private String edgeDataFilename;
+	private String adjDataFilename;
+	private int rangeStart;
+	private int rangeEnd;
 
-    private byte[] adjData;
-    private int blockId;
-    private int edataFilesize;
-    private boolean loaded = false;
-    private boolean hasSetRangeOffset = false, hasSetOffset = false;
+	private byte[] adjData;
+	private int[] blockIds = new int[0];
+	private int[] blockSizes = new int[0];;
 
-    private int rangeStartOffset, rangeStartEdgePtr, rangeContVid;
+	private int edataFilesize;
+	private boolean loaded = false;
+	private boolean hasSetRangeOffset = false, hasSetOffset = false;
 
-    private DataBlockManager dataBlockManager;
-    private BytesToValueConverter<EdgeDataType> converter;
-    private int streamingOffset, streamingOffsetEdgePtr, streamingOffsetVid;
+	private int rangeStartOffset, rangeStartEdgePtr, rangeContVid;
 
-    private MemoryShard() {}
+	private DataBlockManager dataBlockManager;
+	private BytesToValueConverter<EdgeDataType> converter;
+	private int streamingOffset, streamingOffsetEdgePtr, streamingOffsetVid;
+	private int blocksize;
 
-    public MemoryShard(String edgeDataFilename, String adjDataFilename, int rangeStart, int rangeEnd) {
-        this.edgeDataFilename = edgeDataFilename;
-        this.adjDataFilename = adjDataFilename;
-        this.rangeStart = rangeStart;
-        this.rangeEnd = rangeEnd;
-    }
+	private MemoryShard() {}
 
-    public void commitAndRelease(boolean modifiesInedges, boolean modifiesOutedges) throws IOException {
-        byte[] data = dataBlockManager.getRawBlock(blockId);
+	public MemoryShard(String edgeDataFilename, String adjDataFilename, int rangeStart, int rangeEnd) {
+		this.edgeDataFilename = edgeDataFilename;
+		this.adjDataFilename = adjDataFilename;
+		this.rangeStart = rangeStart;
+		this.rangeEnd = rangeEnd;
 
-        if (modifiesInedges) {
-            FileOutputStream fos = new FileOutputStream(new File(edgeDataFilename));
-            fos.write(data);
-            fos.close();
-        } else if (modifiesOutedges) {
-            ucar.unidata.io.RandomAccessFile rFile =
-                    new ucar.unidata.io.RandomAccessFile(edgeDataFilename, "rwd");
-            rFile.seek(rangeStartEdgePtr);
-            int last = streamingOffsetEdgePtr;
-            if (last == 0) last = edataFilesize;
-            rFile.write(data, rangeStartEdgePtr, last  - rangeStartEdgePtr);
-            rFile.close();
-        }
-        dataBlockManager.release(blockId);
+	}
 
-    }
+	public void commitAndRelease(boolean modifiesInedges, boolean modifiesOutedges) throws IOException {
+		int nblocks = blockIds.length;
 
-    public void loadVertices(int windowStart, int windowEnd, ChiVertex[] vertices)
-            throws FileNotFoundException, IOException {
-        if (adjData == null) {
-            loadAdj();
+		if (modifiesInedges) {
+			int startStreamBlock = rangeStartEdgePtr / blocksize;
+			for(int i=0; i < nblocks; i++) {
+				String blockFilename = ChiFilenames.getFilenameShardEdataBlock(edgeDataFilename, i, blocksize);
+				if (i >= startStreamBlock) {
+					// Synchronous write
+					CompressedIO.writeCompressed(new File(blockFilename), 
+							dataBlockManager.getRawBlock(blockIds[i]),
+							blockSizes[i]);
+				} else {
+					// Asynchronous write (not implemented yet, so is same as synchronous)
+					CompressedIO.writeCompressed(new File(blockFilename), 
+							dataBlockManager.getRawBlock(blockIds[i]),
+							blockSizes[i]);
+				}
+			}
 
-            edataFilesize = (int) new File(edgeDataFilename).length();
-            blockId = dataBlockManager.allocateBlock(edataFilesize);
-        }
+		} else if (modifiesOutedges) {
+			int last = streamingOffsetEdgePtr;
+			if (last == 0) {
+				last = edataFilesize;
+			}
+			int startblock = (int) (rangeStartEdgePtr / blocksize);
+			int endblock = (int) (last / blocksize);
+			for(int i=startblock; i <= endblock; i++) {
+				String blockFilename = ChiFilenames.getFilenameShardEdataBlock(edgeDataFilename, i, blocksize);
+				CompressedIO.writeCompressed(new File(blockFilename), 
+						dataBlockManager.getRawBlock(blockIds[i]),
+						blockSizes[i]);
+			}
+		}
+		/* Release all blocks */
+		for(Integer blockId : blockIds) {
+			dataBlockManager.release(blockId);
+		}
+	}
+
+	public void loadVertices(int windowStart, int windowEnd, ChiVertex[] vertices)
+			throws FileNotFoundException, IOException {
+		if (adjData == null) {
+			blocksize = ChiFilenames.getBlocksize(converter.sizeOf());
+			loadAdj();
+			loadEdata();
+		}
+
+		System.out.println("Load memory shard");
+		int vid = 0;
+		int edataPtr = 0;
+		int adjOffset = 0;
+		int sizeOf = converter.sizeOf();
+		DataInputStream adjInput = new DataInputStream(new ByteArrayInputStream(adjData));
+		while(adjInput.available() > 0) {
+			if (!hasSetOffset && vid > rangeEnd) {
+				streamingOffset = adjOffset;
+				streamingOffsetEdgePtr = edataPtr;
+				streamingOffsetVid = vid;
+				hasSetOffset = true;
+			}
+			if (!hasSetRangeOffset && vid >= rangeStart) {
+				rangeStartOffset = adjOffset;
+				rangeStartEdgePtr = edataPtr;
+				hasSetRangeOffset = true;
+			}
+
+			int n = 0;
+			int ns = adjInput.readUnsignedByte();
+			adjOffset += 1;
+			assert(ns >= 0);
+			if (ns == 0) {
+				// next value tells the number of vertices with zeros
+				vid++;
+				int nz = adjInput.readUnsignedByte();
+				adjOffset += 1;
+				vid += nz;
+				continue;
+			}
+			if (ns == 0xff) {   // If 255 is not enough, then stores a 32-bit integer after.
+				n = Integer.reverseBytes(adjInput.readInt());
+				adjOffset += 4;
+			} else {
+				n = ns;
+			}
+
+			ChiVertex vertex = null;
+			if (vid >= windowStart && vid <= windowEnd) {
+				vertex = vertices[vid - windowStart];
+			}
+
+			while (--n >= 0) {
+				int target = Integer.reverseBytes(adjInput.readInt());
+				adjOffset += 4;
+				if (!(target >= rangeStart && target <= rangeEnd))
+					throw new IllegalStateException("Target " + target + " not in range!");
+				if (vertex != null) {
+					vertex.addOutEdge(blockIds[edataPtr / blocksize], edataPtr % blocksize, target);
+				}
+
+				if (target >= windowStart) {
+					if (target <= windowEnd) {
+						ChiVertex dstVertex = vertices[target - windowStart];
+						if (dstVertex != null) {
+							dstVertex.addInEdge(blockIds[edataPtr / blocksize], edataPtr % blocksize, vid);
+						}
+						if (vertex != null && dstVertex != null) {
+							dstVertex.parallelSafe = false;
+							vertex.parallelSafe = false;
+						}
+					}
+				}
+				edataPtr += sizeOf;
+
+				// TODO: skip
+			}
+			vid++;
+		}
 
 
-        System.out.println("Load memory shard");
-        int vid = 0;
-        int edataPtr = 0;
-        int adjOffset = 0;
-        int sizeOf = converter.sizeOf();
-        DataInputStream adjInput = new DataInputStream(new ByteArrayInputStream(adjData));
-        while(adjInput.available() > 0) {
-            if (!hasSetOffset && vid > rangeEnd) {
-                streamingOffset = adjOffset;
-                streamingOffsetEdgePtr = edataPtr;
-                streamingOffsetVid = vid;
-                hasSetOffset = true;
-            }
-            if (!hasSetRangeOffset && vid >= rangeStart) {
-                rangeStartOffset = adjOffset;
-                rangeStartEdgePtr = edataPtr;
-                hasSetRangeOffset = true;
-            }
-
-            int n = 0;
-            int ns = adjInput.readUnsignedByte();
-            adjOffset += 1;
-            assert(ns >= 0);
-            if (ns == 0) {
-                // next value tells the number of vertices with zeros
-                vid++;
-                int nz = adjInput.readUnsignedByte();
-                adjOffset += 1;
-                vid += nz;
-                continue;
-            }
-            if (ns == 0xff) {   // If 255 is not enough, then stores a 32-bit integer after.
-                n = Integer.reverseBytes(adjInput.readInt());
-                adjOffset += 4;
-            } else {
-                n = ns;
-            }
-
-            ChiVertex vertex = null;
-            if (vid >= windowStart && vid <= windowEnd) {
-                vertex = vertices[vid - windowStart];
-            }
-
-            while (--n >= 0) {
-                int target = Integer.reverseBytes(adjInput.readInt());
-                adjOffset += 4;
-                if (!(target >= rangeStart && target <= rangeEnd))
-                    throw new IllegalStateException("Target " + target + " not in range!");
-                if (vertex != null) {
-                    vertex.addOutEdge(blockId, edataPtr, target);
-                }
-
-                if (target >= windowStart) {
-                    if (target <= windowEnd) {
-                        ChiVertex dstVertex = vertices[target - windowStart];
-                        if (dstVertex != null) {
-                            dstVertex.addInEdge(blockId, edataPtr, vid);
-                        }
-                        if (vertex != null && dstVertex != null) {
-                            dstVertex.parallelSafe = false;
-                            vertex.parallelSafe = false;
-                        }
-                    }
-                }
-                edataPtr += sizeOf;
-
-                // TODO: skip
-            }
-            vid++;
-        }
-
-        /* Load the edge data from file. Should be done asynchronously. */
-        if (!loaded) {
-            int read = 0;
-            FileInputStream fdis = new FileInputStream(new File(edgeDataFilename));
-            while (read < edataFilesize) {
-                read += fdis.read(dataBlockManager.getRawBlock(blockId), read, edataFilesize - read);
-            }
-
-            loaded = true;
-        }
-    }
+	}
 
 
-    private void loadAdj() throws FileNotFoundException, IOException {
-        File adjFile = new File(adjDataFilename);
-        FileInputStream fis = new FileInputStream(adjFile);
+	private void loadAdj() throws FileNotFoundException, IOException {
+		File adjFile = new File(adjDataFilename);
+		FileInputStream fis = new FileInputStream(adjFile);
 
-        int filesize = (int) adjFile.length();
-        adjData = new byte[filesize];
+		int filesize = (int) adjFile.length();
+		adjData = new byte[filesize];
 
-        int read = 0;
-        while (read < filesize) {
-            read += fis.read(adjData, read, filesize - read);
-        }
+		int read = 0;
+		while (read < filesize) {
+			read += fis.read(adjData, read, filesize - read);
+		}
 
-    }
+	}
 
-    public DataBlockManager getDataBlockManager() {
-        return dataBlockManager;
-    }
+	private void loadEdata() throws FileNotFoundException, IOException {
+		/* Load the edge data from file. Should be done asynchronously. */
+		if (!loaded) {
+			edataFilesize = ChiFilenames.getShardEdataSize(edgeDataFilename);
+			int nblocks = edataFilesize / blocksize + (edataFilesize % blocksize == 0 ? 0 : 1);
+			blockIds = new int[nblocks];
+			blockSizes = new int[nblocks];
+			for(int fileBlockId=0; fileBlockId < nblocks; fileBlockId++) {
+				int fsize = Math.min(edataFilesize - blocksize * fileBlockId, blocksize);
+				blockIds[fileBlockId] = dataBlockManager.allocateBlock(fsize);
+				blockSizes[fileBlockId] = fsize;
+				String blockfilename = ChiFilenames.getFilenameShardEdataBlock(edgeDataFilename, fileBlockId, blocksize);
+				CompressedIO.readCompressed(new File(blockfilename), dataBlockManager.getRawBlock(blockIds[fileBlockId]), fsize);
+			}
 
-    public void setDataBlockManager(DataBlockManager dataBlockManager) {
-        this.dataBlockManager = dataBlockManager;
-    }
+			loaded = true;
+		}
+	}
 
-    public void setConverter(BytesToValueConverter<EdgeDataType> converter) {
-        this.converter = converter;
-    }
+	public DataBlockManager getDataBlockManager() {
+		return dataBlockManager;
+	}
 
-    public int getStreamingOffset() {
-        return streamingOffset;
-    }
+	public void setDataBlockManager(DataBlockManager dataBlockManager) {
+		this.dataBlockManager = dataBlockManager;
+	}
 
-    public int getStreamingOffsetEdgePtr() {
-        return streamingOffsetEdgePtr;
-    }
+	public void setConverter(BytesToValueConverter<EdgeDataType> converter) {
+		this.converter = converter;
+	}
 
-    public int getStreamingOffsetVid() {
-        return streamingOffsetVid;
-    }
+	public int getStreamingOffset() {
+		return streamingOffset;
+	}
+
+	public int getStreamingOffsetEdgePtr() {
+		return streamingOffsetEdgePtr;
+	}
+
+	public int getStreamingOffsetVid() {
+		return streamingOffsetVid;
+	}
 }

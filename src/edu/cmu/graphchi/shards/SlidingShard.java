@@ -1,9 +1,11 @@
 package edu.cmu.graphchi.shards;
 
+import edu.cmu.graphchi.ChiFilenames;
 import edu.cmu.graphchi.ChiVertex;
 import edu.cmu.graphchi.datablocks.BytesToValueConverter;
 import edu.cmu.graphchi.datablocks.ChiPointer;
 import edu.cmu.graphchi.datablocks.DataBlockManager;
+import edu.cmu.graphchi.io.CompressedIO;
 import ucar.unidata.io.RandomAccessFile;
 
 import java.io.File;
@@ -39,7 +41,7 @@ public class SlidingShard <EdgeDataType> {
     public long edataFilesize, adjFilesize;
     private Block curBlock = null;
     private int edataOffset = 0;
-    private int blockSize = 1024 * 1024;
+    private int blockSize = -1;
     private int sizeOf = -1;
     private int adjOffset = 0;
     private int curvid = 0;
@@ -47,7 +49,6 @@ public class SlidingShard <EdgeDataType> {
     private boolean asyncEdataLoading = true;
 
     private BytesToValueConverter<EdgeDataType> converter;
-    private RandomAccessFile edataFile;
     private RandomAccessFile adjFile;
     private boolean modifiesOutedges = true;
 
@@ -60,9 +61,8 @@ public class SlidingShard <EdgeDataType> {
         this.rangeEnd = rangeEnd;
 
         adjFilesize = new File(adjDataFilename).length();
-        edataFilesize = new File(edgeDataFilename).length();
+        edataFilesize = ChiFilenames.getShardEdataSize(edgeDataFilename);
         activeBlocks = new ArrayList<Block>();
-        edataFile = new RandomAccessFile(this.edgeDataFilename, "rwd");
     }
 
     public void finalize() {
@@ -77,8 +77,11 @@ public class SlidingShard <EdgeDataType> {
                 }
             }
             // Load next
-            curBlock = new Block(edataFile, edataOffset,
-                    (int) Math.min(edataOffset + blockSize, edataFilesize));
+            int start = (edataOffset / blockSize) * blockSize; // align
+            int fileBlockId = edataOffset / blockSize;
+            curBlock = new Block(edgeDataFilename, start,
+                    (int) Math.min(start + blockSize, edataFilesize), fileBlockId, blockSize);
+            curBlock.ptr = edataOffset - start; // Correction due to alignment.
             activeBlocks.add(curBlock);
 
         }
@@ -228,6 +231,7 @@ public class SlidingShard <EdgeDataType> {
     public void setConverter(BytesToValueConverter<EdgeDataType> converter) {
         this.converter = converter;
         sizeOf = converter.sizeOf();
+        blockSize = ChiFilenames.getBlocksize(sizeOf);
     }
 
 
@@ -247,41 +251,37 @@ public class SlidingShard <EdgeDataType> {
     }
 
     class Block {
-        RandomAccessFile rfile;
+        String blockFileName;
         int offset;
         int end;
         int blockId;
         int ptr;
         boolean active = false;
 
-        Block(RandomAccessFile rfile, int offset, int end) {
+        Block(String edataFileName, int offset, int end, int fileBlockId, int blockSize) {
             this.end = end;
-            this.rfile = rfile;
             this.offset = offset;
             blockId = blockManager.allocateBlock(end - offset);
             ptr = 0;
+            blockFileName = ChiFilenames.getFilenameShardEdataBlock(edataFileName, fileBlockId, blockSize);
         }
 
 
         void readAsync() throws IOException {
-            // TODO: actually asynch
+            // TODO: actually async
             readNow();
         }
 
         void readNow() throws IOException {
-            synchronized (rfile) {
-                rfile.seek(offset);
                 byte[] data = blockManager.getRawBlock(blockId);
-                rfile.readFully(data);
-            }
+                CompressedIO.readCompressed(new File(blockFileName), data, end - offset);
+            
         }
 
         void commitNow() throws IOException {
-            synchronized (rfile) {
-                rfile.seek(offset);
                 byte[] data = blockManager.getRawBlock(blockId);
-                rfile.write(data);
-            }
+                CompressedIO.writeCompressed(new File(blockFileName), data, end - offset);
+            
         }
 
         void commitAsync() throws IOException {
