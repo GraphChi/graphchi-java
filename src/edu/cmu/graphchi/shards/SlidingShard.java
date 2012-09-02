@@ -281,6 +281,7 @@ public class SlidingShard <EdgeDataType> {
                 rfile.seek(offset);
                 byte[] data = blockManager.getRawBlock(blockId);
                 rfile.write(data);
+                rfile.flush();
             }
         }
 
