@@ -29,269 +29,268 @@ import java.util.ArrayList;
  */
 public class SlidingShard <EdgeDataType> {
 
-    private String edgeDataFilename;
-    private String adjDataFilename;
-    private int rangeStart;
-    private int rangeEnd;
+	private String edgeDataFilename;
+	private String adjDataFilename;
+	private int rangeStart;
+	private int rangeEnd;
 
-    private DataBlockManager blockManager;
+	private DataBlockManager blockManager;
 
-    private ArrayList<Block> activeBlocks;
+	private ArrayList<Block> activeBlocks;
 
-    public long edataFilesize, adjFilesize;
-    private Block curBlock = null;
-    private int edataOffset = 0;
-    private int blockSize = -1;
-    private int sizeOf = -1;
-    private int adjOffset = 0;
-    private int curvid = 0;
-    private boolean onlyAdjacency = false;
-    private boolean asyncEdataLoading = true;
+	public long edataFilesize, adjFilesize;
+	private Block curBlock = null;
+	private int edataOffset = 0;
+	private int blockSize = -1;
+	private int sizeOf = -1;
+	private int adjOffset = 0;
+	private int curvid = 0;
+	private boolean onlyAdjacency = false;
+	private boolean asyncEdataLoading = true;
 
-    private BytesToValueConverter<EdgeDataType> converter;
-    private RandomAccessFile adjFile;
-    private boolean modifiesOutedges = true;
-
-
-    public SlidingShard(String edgeDataFilename, String adjDataFilename,
-                        int rangeStart, int rangeEnd) throws IOException {
-        this.edgeDataFilename = edgeDataFilename;
-        this.adjDataFilename = adjDataFilename;
-        this.rangeStart = rangeStart;
-        this.rangeEnd = rangeEnd;
-
-        adjFilesize = new File(adjDataFilename).length();
-        edataFilesize = ChiFilenames.getShardEdataSize(edgeDataFilename);
-        activeBlocks = new ArrayList<Block>();
-    }
-
-    public void finalize() {
-        for (Block b : activeBlocks) b.release();
-    }
-
-    private void checkCurblock(int toread) {
-        if (curBlock == null || curBlock.end < edataOffset + toread) {
-            if (curBlock != null) {
-                if  (!curBlock.active) {
-                    curBlock.release();
-                }
-            }
-            // Load next
-            int start = (edataOffset / blockSize) * blockSize; // align
-            int fileBlockId = edataOffset / blockSize;
-            curBlock = new Block(edgeDataFilename, start,
-                    (int) Math.min(start + blockSize, edataFilesize), fileBlockId, blockSize);
-            curBlock.ptr = edataOffset - start; // Correction due to alignment.
-            activeBlocks.add(curBlock);
-
-        }
-    }
-
-    private ChiPointer readEdgePtr() {
-        assert(sizeOf >= 0);
-        checkCurblock(sizeOf);
-        ChiPointer ptr = new ChiPointer(curBlock.blockId, curBlock.ptr);
-        curBlock.ptr += sizeOf;
-        edataOffset += sizeOf;
-        return ptr;
-    }
+	private BytesToValueConverter<EdgeDataType> converter;
+	private RandomAccessFile adjFile;
+	private boolean modifiesOutedges = true;
 
 
-    public void skip(int n) throws IOException {
-        int tot = n * 4;
-        adjOffset += tot;
-        adjFile.skipBytes(tot);
-        edataOffset += sizeOf * n;
-        if (curBlock != null) {
-            curBlock.ptr += sizeOf * n;
-        }
-    }
+	public SlidingShard(String edgeDataFilename, String adjDataFilename,
+			int rangeStart, int rangeEnd) throws IOException {
+		this.edgeDataFilename = edgeDataFilename;
+		this.adjDataFilename = adjDataFilename;
+		this.rangeStart = rangeStart;
+		this.rangeEnd = rangeEnd;
 
-    public void readNextVertices(ChiVertex[] vertices, int start, boolean disableWrites) throws IOException {
-        int nvecs = vertices.length;
-        curBlock = null;
-        releasePriorToOffset(false, disableWrites);
-        assert(activeBlocks.size() <= 1);
+		adjFilesize = new File(adjDataFilename).length();
+		edataFilesize = ChiFilenames.getShardEdataSize(edgeDataFilename);
+		activeBlocks = new ArrayList<Block>();
+	}
 
-        System.out.println("Load sliding: " + rangeStart + " -- " + rangeEnd);
-        System.out.println(adjDataFilename);
-        /* Read next */
-        if (!activeBlocks.isEmpty() && !onlyAdjacency) {
-            curBlock = activeBlocks.get(0);
-        }
+	public void finalize() {
+		for (Block b : activeBlocks) b.release();
+	}
 
-        if (adjFile == null) {
-            adjFile = new RandomAccessFile(adjDataFilename, "r");
-        }
+	private void checkCurblock(int toread) {
+		if (curBlock == null || curBlock.end < edataOffset + toread) {
+			if (curBlock != null) {
+				if  (!curBlock.active) {
+					curBlock.release();
+				}
+			}
+			// Load next
+			int start = (edataOffset / blockSize) * blockSize; // align
+			int fileBlockId = edataOffset / blockSize;
+			curBlock = new Block(edgeDataFilename, start,
+					(int) Math.min(start + blockSize, edataFilesize), fileBlockId, blockSize);
+			curBlock.ptr = edataOffset - start; // Correction due to alignment.
+			activeBlocks.add(curBlock);
 
-        adjFile.seek(adjOffset);
+		}
+	}
 
-        for(int i=(curvid - start); i < nvecs; i++) {
-            if (adjOffset >= adjFilesize) break;
-
-            int n;
-            int ns = adjFile.readUnsignedByte();
-            assert(ns >= 0);
-            adjOffset++;
-
-            if (ns == 0) {
-                curvid++;
-                int nz = adjFile.readUnsignedByte();
-                adjOffset++;
-                assert(nz >= 0);
-                curvid += nz;
-                i += nz;
-                continue;
-            }
-
-            if (ns == 0xff) {
-                n = adjFile.readInt();
-                adjOffset += 4;
-            } else {
-                n = ns;
-            }
-
-            if (i < 0) {
-                skip(n);
-            } else {
-                ChiVertex vertex = vertices[i];
-                assert(vertex == null || vertex.getId() == curvid);
-
-                if (vertex != null) {
-                    while (--n >= 0) {
-                        int target = adjFile.readInt();
-                        adjOffset += 4;
-                        ChiPointer eptr = readEdgePtr();
-
-                        if (!onlyAdjacency) {
-                            if (!curBlock.active) {
-                                if (asyncEdataLoading) {
-                                    curBlock.readAsync();
-                                } else {
-                                    curBlock.readNow();
-                                }
-                            }
-                            curBlock.active = true;
-                        }
-                        vertex.addOutEdge(eptr.blockId, eptr.offset, target);
-
-                        if (!(target >= rangeStart && target <= rangeEnd)) {
-                            throw new IllegalStateException("Target " + target + " not in range!");
-                        }
-                    }
-                } else {
-                    skip(n);
-                }
-            }
-            curvid++;
-        }
-    }
-
-    public void flush() throws IOException {
-        releasePriorToOffset(true, false);
-    }
-
-    public void setOffset(int newoff, int _curvid, int edgeptr) {
-        adjOffset = newoff;
-        curvid = _curvid;
-        edataOffset = edgeptr;
-    }
-
-    public void releasePriorToOffset(boolean all, boolean disableWrites)
-            throws IOException {
-        for(int i=activeBlocks.size() - 1; i >= 0; i--) {
-            Block b = activeBlocks.get(i);
-            if (b.end <= edataOffset || all) {
-                commit(b, all, disableWrites);
-                activeBlocks.remove(i);
-            }
-        }
-    }
-
-    public long getEdataFilesize() {
-        return edataFilesize;
-    }
-
-    public long getAdjFilesize() {
-        return adjFilesize;
-    }
-
-    public DataBlockManager getDataBlockManager() {
-        return blockManager;
-    }
-
-    public void setDataBlockManager(DataBlockManager dataBlockManager) {
-        this.blockManager = dataBlockManager;
-    }
-
-    public BytesToValueConverter<EdgeDataType> getConverter() {
-        return converter;
-    }
-
-    public void setConverter(BytesToValueConverter<EdgeDataType> converter) {
-        this.converter = converter;
-        sizeOf = converter.sizeOf();
-        blockSize = ChiFilenames.getBlocksize(sizeOf);
-    }
+	private ChiPointer readEdgePtr() {
+		assert(sizeOf >= 0);
+		checkCurblock(sizeOf);
+		ChiPointer ptr = new ChiPointer(curBlock.blockId, curBlock.ptr);
+		curBlock.ptr += sizeOf;
+		edataOffset += sizeOf;
+		return ptr;
+	}
 
 
-    void commit(Block b, boolean synchronously, boolean disableWrites) throws IOException {
-        disableWrites = disableWrites || !modifiesOutedges;
-        if (synchronously) {
-            if (!disableWrites) b.commitNow();
-            b.release();
-        } else {
-            if (!disableWrites) b.commitAsync();
-            else b.release();
-        }
-    }
+	public void skip(int n) throws IOException {
+		int tot = n * 4;
+		adjOffset += tot;
+		adjFile.skipBytes(tot);
+		edataOffset += sizeOf * n;
+		if (curBlock != null) {
+			curBlock.ptr += sizeOf * n;
+		}
+	}
 
-    public void setModifiesOutedges(boolean modifiesOutedges) {
-        this.modifiesOutedges = modifiesOutedges;
-    }
+	public void readNextVertices(ChiVertex[] vertices, int start, boolean disableWrites) throws IOException {
+		int nvecs = vertices.length;
+		curBlock = null;
+		releasePriorToOffset(false, disableWrites);
+		assert(activeBlocks.size() <= 1);
 
-    class Block {
-        String blockFileName;
-        int offset;
-        int end;
-        int blockId;
-        int ptr;
-        boolean active = false;
+		System.out.println("Load sliding: " + rangeStart + " -- " + rangeEnd);
+		System.out.println(adjDataFilename);
+		/* Read next */
+		if (!activeBlocks.isEmpty() && !onlyAdjacency) {
+			curBlock = activeBlocks.get(0);
+		}
 
-        Block(String edataFileName, int offset, int end, int fileBlockId, int blockSize) {
-            this.end = end;
-            this.offset = offset;
-            blockId = blockManager.allocateBlock(end - offset);
-            ptr = 0;
-            blockFileName = ChiFilenames.getFilenameShardEdataBlock(edataFileName, fileBlockId, blockSize);
-        }
+		if (adjFile == null) {
+			adjFile = new RandomAccessFile(adjDataFilename, "r");
+		}
+
+		adjFile.seek(adjOffset);
+
+		for(int i=(curvid - start); i < nvecs; i++) {
+			if (adjOffset >= adjFilesize) break;
+
+			int n;
+			int ns = adjFile.readUnsignedByte();
+			assert(ns >= 0);
+			adjOffset++;
+
+			if (ns == 0) {
+				curvid++;
+				int nz = adjFile.readUnsignedByte();
+				adjOffset++;
+				assert(nz >= 0);
+				curvid += nz;
+				i += nz;
+				continue;
+			}
+
+			if (ns == 0xff) {
+				n = adjFile.readInt();
+				adjOffset += 4;
+			} else {
+				n = ns;
+			}
+
+			if (i < 0) {
+				skip(n);
+			} else {
+				ChiVertex vertex = vertices[i];
+				assert(vertex == null || vertex.getId() == curvid);
+
+				if (vertex != null) {
+					while (--n >= 0) {
+						int target = adjFile.readInt();
+						adjOffset += 4;
+						ChiPointer eptr = readEdgePtr();
+
+						if (!onlyAdjacency) {
+							if (!curBlock.active) {
+								if (asyncEdataLoading) {
+									curBlock.readAsync();
+								} else {
+									curBlock.readNow();
+								}
+							}
+							curBlock.active = true;
+						}
+						vertex.addOutEdge(eptr.blockId, eptr.offset, target);
+
+						if (!(target >= rangeStart && target <= rangeEnd)) {
+							throw new IllegalStateException("Target " + target + " not in range!");
+						}
+					}
+				} else {
+					skip(n);
+				}
+			}
+			curvid++;
+		}
+	}
+
+	public void flush() throws IOException {
+		releasePriorToOffset(true, false);
+	}
+
+	public void setOffset(int newoff, int _curvid, int edgeptr) {
+		adjOffset = newoff;
+		curvid = _curvid;
+		edataOffset = edgeptr;
+	}
+
+	public void releasePriorToOffset(boolean all, boolean disableWrites)
+			throws IOException {
+		for(int i=activeBlocks.size() - 1; i >= 0; i--) {
+			Block b = activeBlocks.get(i);
+			if (b.end <= edataOffset || all) {
+				commit(b, all, disableWrites);
+				activeBlocks.remove(i);
+			}
+		}
+	}
+
+	public long getEdataFilesize() {
+		return edataFilesize;
+	}
+
+	public long getAdjFilesize() {
+		return adjFilesize;
+	}
+
+	public DataBlockManager getDataBlockManager() {
+		return blockManager;
+	}
+
+	public void setDataBlockManager(DataBlockManager dataBlockManager) {
+		this.blockManager = dataBlockManager;
+	}
+
+	public BytesToValueConverter<EdgeDataType> getConverter() {
+		return converter;
+	}
+
+	public void setConverter(BytesToValueConverter<EdgeDataType> converter) {
+		this.converter = converter;
+		sizeOf = converter.sizeOf();
+		blockSize = ChiFilenames.getBlocksize(sizeOf);
+	}
 
 
-        void readAsync() throws IOException {
-            // TODO: actually async
-            readNow();
-        }
+	void commit(Block b, boolean synchronously, boolean disableWrites) throws IOException {
+		disableWrites = disableWrites || !modifiesOutedges;
+		if (synchronously) {
+			if (!disableWrites) b.commitNow();
+			b.release();
+		} else {
+			if (!disableWrites) b.commitAsync();
+			else b.release();
+		}
+	}
 
-        void readNow() throws IOException {
-                byte[] data = blockManager.getRawBlock(blockId);
-                CompressedIO.readCompressed(new File(blockFileName), data, end - offset);
-            
-        }
+	public void setModifiesOutedges(boolean modifiesOutedges) {
+		this.modifiesOutedges = modifiesOutedges;
+	}
 
-        void commitNow() throws IOException {
-                byte[] data = blockManager.getRawBlock(blockId);
-                CompressedIO.writeCompressed(new File(blockFileName), data, end - offset);
-            
-        }
+	class Block {
+		String blockFileName;
+		int offset;
+		int end;
+		int blockId;
+		int ptr;
+		boolean active = false;
 
-        void commitAsync() throws IOException {
-            commitNow();
-            // TODO asynchronous implementation
-            release();
-        }
+		Block(String edataFileName, int offset, int end, int fileBlockId, int blockSize) {
+			this.end = end;
+			this.offset = offset;
+			blockId = blockManager.allocateBlock(end - offset);
+			ptr = 0;
+			blockFileName = ChiFilenames.getFilenameShardEdataBlock(edataFileName, fileBlockId, blockSize);
+		}
 
-        void release() {
-            blockManager.release(blockId);
-        }
-    }
+
+		void readAsync() throws IOException {
+			// TODO: actually async
+			readNow();
+		}
+
+		void readNow() throws IOException {
+			byte[] data = blockManager.getRawBlock(blockId);
+			CompressedIO.readCompressed(new File(blockFileName), data, end - offset);
+
+		}
+
+		void commitNow() throws IOException {
+			byte[] data = blockManager.getRawBlock(blockId);
+			CompressedIO.writeCompressed(new File(blockFileName), data, end - offset);
+		}
+
+		void commitAsync() throws IOException {
+			commitNow();
+			// TODO asynchronous implementation
+			release();
+		}
+
+		void release() {
+			blockManager.release(blockId);
+		}
+	}
 }

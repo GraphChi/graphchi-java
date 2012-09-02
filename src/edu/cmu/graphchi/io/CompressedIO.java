@@ -29,10 +29,9 @@ public class CompressedIO {
 	public static void readCompressed(File f, byte[] buf, int nbytes) throws FileNotFoundException, IOException {
 		BufferedInputStream bis = new BufferedInputStream(new FileInputStream(f));
 		InflaterInputStream iis = new InflaterInputStream(bis);
-		int a = 0;
 		int read = 0;
-		while (a > 0) {
-			a = iis.read(buf, read, nbytes - read);
+		while (read < nbytes) {
+			read += iis.read(buf, read, nbytes - read);
 		}
 		iis.close(); bis.close();
 		
