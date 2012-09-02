@@ -55,6 +55,7 @@ public class VertexData <VertexDataType> {
                 fos.write(tmp, 0, (int)n);
                 written += n;
             }
+            fos.close();
         }
 
 
@@ -73,6 +74,8 @@ public class VertexData <VertexDataType> {
         vertexDataFile.write(data);
 
         blockManager.release(currentBlockId);
+        
+        vertexDataFile.flush();
     }
 
     public void load(int _vertexSt, int _vertexEn) throws IOException {
