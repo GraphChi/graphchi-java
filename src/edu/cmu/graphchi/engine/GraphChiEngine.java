@@ -273,7 +273,7 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
             final Object termlock = new Object();
             final int chunkSize = vertices.length / 64;
 
-            final int nWorkers = vertices.length / chunkSize + 1;
+            final int nWorkers = (vertices.length > 256 ? vertices.length / chunkSize + 1 : 0);
             final AtomicInteger countDown = new AtomicInteger(1 + nWorkers);
 
             if (!enableDeterministicExecution) {
