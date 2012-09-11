@@ -4,7 +4,7 @@
         http://www.graphchi.org
     </description>
   <!-- set global properties for this build -->
-  <property name="src" location="src"/>
+  <property name="src" location="src/main/java"/>
   <property name="build" location="build"/>
  
   <target name="init">
