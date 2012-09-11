@@ -30,8 +30,10 @@ class GraphChiSquaredPrototype(baseFilename : String, numShards : Int, numComput
 	
 	type GatherFunctionType = (VertexInfo[VertexDataType, EdgeDataType], Int, EdgeDataType, GatherType) => GatherType
 	type ApplyFunctionType =  (VertexInfo[VertexDataType, EdgeDataType], GatherType) => VertexDataType
-	
+	type OnlyAdjGatherFunctionType = (VertexInfo[VertexDataType, EdgeDataType], Int, GatherType) => GatherType
+
 	var gatherFunc : GatherFunctionType  = null;
+  var gatherFuncOnlyAdj : OnlyAdjGatherFunctionType  = null;
 	var applyFunc : ApplyFunctionType = null;
 	var gatherInitVal : GatherType = 0.0f
  
@@ -49,6 +51,17 @@ class GraphChiSquaredPrototype(baseFilename : String, numShards : Int, numComput
 	    println ("Starting to run with " + numComputations + " parallel computations")
 	    engine.run(this, iterations)
 	}
+
+  def compute(iterations : Int, gatherInit : GatherType, gather: OnlyAdjGatherFunctionType, apply : ApplyFunctionType) {
+    gatherFuncOnlyAdj = gather;
+    applyFunc = apply;
+    gatherInitVal = gatherInit
+    println ("Starting to run with " + numComputations + " parallel computations")
+
+    engine.setEdataConverter(null)
+    engine.setOnlyAdjacency(true)
+    engine.run(this, iterations)
+  }
 	
 	def getVertexValue(computationId : Int, vertexId : Int) = vertexMatrix.getValue(vertexId, computationId)
 	
@@ -69,7 +82,12 @@ class GraphChiSquaredPrototype(baseFilename : String, numShards : Int, numComput
 		    val rowblock = vertexMatrix.getRowBlock(e) // premature optimization!
 		    val blockIdx = vertexMatrix.getBlockIdx(e)
 		    while ( c < numComputations) {
-		        gathers(c) = gatherFunc(vertexInfo, e, rowblock(blockIdx + c), gathers(c))
+            if (gatherFunc != null) {
+		         gathers(c) = gatherFunc(vertexInfo, e, rowblock(blockIdx + c), gathers(c))
+            } else if (gatherFuncOnlyAdj != null) {
+              gathers(c) = gatherFuncOnlyAdj(vertexInfo, e, gathers(c))
+
+            }
 		        c += 1
 		    }
 		    

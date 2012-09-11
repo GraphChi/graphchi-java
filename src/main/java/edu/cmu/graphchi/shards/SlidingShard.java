@@ -61,8 +61,12 @@ public class SlidingShard <EdgeDataType> {
 		this.rangeEnd = rangeEnd;
 
 		adjFilesize = new File(adjDataFilename).length();
-		edataFilesize = ChiFilenames.getShardEdataSize(edgeDataFilename);
-		activeBlocks = new ArrayList<Block>();
+        if (edgeDataFilename != null) {
+	    	edataFilesize = ChiFilenames.getShardEdataSize(edgeDataFilename);
+		    activeBlocks = new ArrayList<Block>();
+        } else {
+            onlyAdjacency = true;
+        }
 	}
 
 	public void finalize() {
@@ -89,6 +93,7 @@ public class SlidingShard <EdgeDataType> {
 
 	private ChiPointer readEdgePtr() {
 		assert(sizeOf >= 0);
+        if (onlyAdjacency) return null;
 		checkCurblock(sizeOf);
 		ChiPointer ptr = new ChiPointer(curBlock.blockId, curBlock.ptr);
 		curBlock.ptr += sizeOf;
@@ -116,7 +121,7 @@ public class SlidingShard <EdgeDataType> {
 		System.out.println("Load sliding: " + rangeStart + " -- " + rangeEnd);
 		System.out.println(adjDataFilename);
 		/* Read next */
-		if (!activeBlocks.isEmpty() && !onlyAdjacency) {
+		if (!onlyAdjacency && !activeBlocks.isEmpty()) {
 			curBlock = activeBlocks.get(0);
 		}
 
@@ -173,7 +178,7 @@ public class SlidingShard <EdgeDataType> {
 							}
 							curBlock.active = true;
 						}
-						vertex.addOutEdge(eptr.blockId, eptr.offset, target);
+						vertex.addOutEdge(eptr == null ? -1 : eptr.blockId, eptr == null ? -1 : eptr.offset, target);
 
 						if (!(target >= rangeStart && target <= rangeEnd)) {
 							throw new IllegalStateException("Target " + target + " not in range!");
@@ -199,6 +204,7 @@ public class SlidingShard <EdgeDataType> {
 
 	public void releasePriorToOffset(boolean all, boolean disableWrites)
 			throws IOException {
+        if (onlyAdjacency) return;
 		for(int i=activeBlocks.size() - 1; i >= 0; i--) {
 			Block b = activeBlocks.get(i);
 			if (b.end <= edataOffset || all) {
@@ -230,6 +236,10 @@ public class SlidingShard <EdgeDataType> {
 
 	public void setConverter(BytesToValueConverter<EdgeDataType> converter) {
 		this.converter = converter;
+        if (converter == null) {
+            sizeOf = 0;
+            return;
+        }
 		sizeOf = converter.sizeOf();
 		blockSize = ChiFilenames.getBlocksize(sizeOf);
 	}
@@ -249,6 +259,10 @@ public class SlidingShard <EdgeDataType> {
 	public void setModifiesOutedges(boolean modifiesOutedges) {
 		this.modifiesOutedges = modifiesOutedges;
 	}
+
+    public void setOnlyAdjacency(boolean onlyAdjacency) {
+        this.onlyAdjacency = onlyAdjacency;
+    }
 
 	class Block {
 		String blockFileName;

@@ -50,6 +50,7 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
 
     protected int subIntervalStart, subIntervalEnd;
     protected boolean enableScheduler = false;
+    protected boolean onlyAdjacency = false;
     protected BitsetScheduler scheduler = null;
     protected long nupdates = 0;
     protected boolean enableDeterministicExecution = true;
@@ -119,7 +120,7 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
     protected void initializeSlidingShards() throws IOException {
         slidingShards = new ArrayList<SlidingShard<EdgeDataType> >();
         for(int p=0; p < nShards; p++) {
-            String edataFilename = ChiFilenames.getFilenameShardEdata(baseFilename, edataConverter, p, nShards);
+            String edataFilename = (onlyAdjacency ? null : ChiFilenames.getFilenameShardEdata(baseFilename, edataConverter, p, nShards));
             String adjFilename = ChiFilenames.getFilenameShardsAdj(baseFilename, p, nShards);
 
             SlidingShard<EdgeDataType> slidingShard = new SlidingShard<EdgeDataType>(edataFilename, adjFilename, intervals.get(p).getFirstVertex(),
@@ -127,19 +128,21 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
             slidingShard.setConverter(edataConverter);
             slidingShard.setDataBlockManager(blockManager);
             slidingShard.setModifiesOutedges(modifiesOutedges);
+            slidingShard.setOnlyAdjacency(onlyAdjacency);
             slidingShards.add(slidingShard);
 
         }
     }
 
     protected void createMemoryShard(int intervalStart, int intervalEnd) {
-        String edataFilename = ChiFilenames.getFilenameShardEdata(baseFilename, edataConverter, execInterval, nShards);
+        String edataFilename = (onlyAdjacency ? null : ChiFilenames.getFilenameShardEdata(baseFilename, edataConverter, execInterval, nShards));
         String adjFilename = ChiFilenames.getFilenameShardsAdj(baseFilename, execInterval, nShards);
 
         memoryShard = new MemoryShard<EdgeDataType>(edataFilename, adjFilename, intervals.get(execInterval).getFirstVertex(),
                 intervals.get(execInterval).getLastVertex());
         memoryShard.setConverter(edataConverter);
         memoryShard.setDataBlockManager(blockManager);
+        memoryShard.setOnlyAdjacency(onlyAdjacency);
     }
 
 
@@ -448,7 +451,7 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
         int maxInterval = maxVertex - subIntervalStart;
         System.out.println("mem budget: " + memBudget / 1024. / 1024. + "mb");
         int vertexDataSizeOf = vertexDataConverter.sizeOf();
-        int edataSizeOf = edataConverter.sizeOf();
+        int edataSizeOf = (onlyAdjacency ? 0 : edataConverter.sizeOf());
 
         for(int i=0; i< maxInterval; i++) {
             if (enableScheduler) {
@@ -457,7 +460,6 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
             VertexDegree deg = degreeHandler.getDegree(i + subIntervalStart);
             int inc = deg.inDegree;
             int outc = deg.outDegree;
-
 
             // Following calculation contains some perhaps reasonable estimates of the
             // overhead of Java objects.
@@ -507,6 +509,14 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
 
     public void setModifiesOutedges(boolean modifiesOutedges) {
         this.modifiesOutedges = modifiesOutedges;
+    }
+
+    public boolean isOnlyAdjacency() {
+        return onlyAdjacency;
+    }
+
+    public void setOnlyAdjacency(boolean onlyAdjacency) {
+        this.onlyAdjacency = onlyAdjacency;
     }
 
     private class MockScheduler implements Scheduler {

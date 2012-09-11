@@ -38,7 +38,7 @@ object PersonalizedPagerank {
         
         graphchiSqr.compute(niters,
             gatherInit = 0.0f,
-            gather =  (v, edgeval, neighborVal, gather) => gather + neighborVal,
+            gather =  (v, neighborVal, gather) => gather + neighborVal,
             apply = (v, gather) => (0.15f + 0.85f * gather) / v.numOutEdges()
         )
         
@@ -46,7 +46,7 @@ object PersonalizedPagerank {
         (0 until nComputations).foreach(i => {
           if (n > 24000000)
             println("Vertex " + i + " / 24000000: " + graphchiSqr.getVertexValue(i, 24000000))
-          println("Vertex " + i + " / 8737: " + graphchiSqr.getVertexValue(i, 8737))
+            println("Vertex " + i + " / 8737: " + graphchiSqr.getVertexValue(i, 8737))
         }
         )
     }
