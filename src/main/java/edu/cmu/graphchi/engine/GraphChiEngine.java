@@ -187,7 +187,7 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
                 int intervalSt = intervals.get(execInterval).getFirstVertex();
                 int intervalEn = intervals.get(execInterval).getLastVertex();
 
-                System.out.println((System.currentTimeMillis() - startTime) * 0.001 + "s: iteration: " + iter + ", sub-interval: " + intervalSt + " -- " + intervalEn);
+                System.out.println((System.currentTimeMillis() - startTime) * 0.001 + "s: iteration: " + iter + ", interval: " + intervalSt + " -- " + intervalEn);
 
                 program.beginInterval(chiContext, intervals.get(execInterval));
 
