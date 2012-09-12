@@ -45,7 +45,7 @@ public class Toplist {
     public static TreeSet<IdInt> topListInt(String baseFilename, final int topN) throws IOException{
         final TreeSet<IdInt> topList = new TreeSet<IdInt>(new Comparator<IdInt>() {
             public int compare(IdInt a, IdInt b) {
-                return (a.value > b.value ? 1 : (a.value == b.value ? 0 : -1)); // Descending order
+                return (a.value > b.value ? -1 : (a.value == b.value ? 0 : 1)); // Descending order
             }
         });
         VertexAggregator.foreach(baseFilename, new IntConverter(), new ForeachCallback<Integer>()  {

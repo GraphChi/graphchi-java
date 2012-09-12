@@ -32,7 +32,7 @@ public class WalkDistributionAnalyzer {
                  int dest = dis.readInt();
                  totalVisits++;
                  counts[dest]++;
-             } catch (EOFException) {}
+             } catch (EOFException e) {}
         }
 
         /* Compute final distribution */
