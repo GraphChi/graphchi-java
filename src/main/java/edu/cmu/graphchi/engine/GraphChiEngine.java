@@ -59,25 +59,26 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
 
 
     protected boolean modifiesInedges = true, modifiesOutedges = true;
+    private boolean disableInEdges = false;
 
     public GraphChiEngine(String baseFilename, int nShards) throws FileNotFoundException, IOException {
         this.baseFilename = baseFilename;
         this.nShards = nShards;
         loadIntervals();
 
-	int nprocs = 4;
-	if (Runtime.getRuntime().availableProcessors() > nprocs) {
-	    nprocs = Runtime.getRuntime().availableProcessors();
-	}
+        int nprocs = 4;
+        if (Runtime.getRuntime().availableProcessors() > nprocs) {
+            nprocs = Runtime.getRuntime().availableProcessors();
+        }
         parallelExecutor = Executors.newFixedThreadPool(nprocs);
         blockManager = new DataBlockManager();
         degreeHandler = new DegreeData(baseFilename);
-        
+
         memBudget = Runtime.getRuntime().maxMemory() / 4;
         if (Runtime.getRuntime().maxMemory() < 256 * 1024 * 1024)
             throw new IllegalArgumentException("Java Virtual Machine has only " + memBudget + "bytes maximum memory." +
                     " Please run the JVM with at least 256 megabytes of memory using -Xmx256m. For better performance, use higher value");
-    
+
     }
 
 
@@ -98,18 +99,18 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
 
         System.out.println("Loaded: " + intervals);
     }
-    
-    
+
+
     /**
      * Set the memorybudget in megabytes. Default is JVM's max memory / 4
      * @param mb
      */
     public void setMemoryBudgetMb(long mb) {
-    	memBudget = mb * 1024 * 1024;
+        memBudget = mb * 1024 * 1024;
     }
-    
+
     public long getMemoryBudget() {
-    	return memBudget;
+        return memBudget;
     }
 
 
@@ -190,9 +191,12 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
 
                 program.beginInterval(chiContext, intervals.get(execInterval));
 
-                slidingShards.get(execInterval).flush();
 
-                createMemoryShard(intervalSt, intervalEn);
+
+                if (!disableInEdges) {
+                    slidingShards.get(execInterval).flush();
+                    createMemoryShard(intervalSt, intervalEn);
+                }
 
                 subIntervalStart = intervalSt;
 
@@ -218,7 +222,7 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
                         long t0 = System.currentTimeMillis();
                         loadBeforeUpdates(vertices);
                         System.out.println("Load took: " + (System.currentTimeMillis() - t0) + "ms");
-                        
+
                         long t1 = System.currentTimeMillis();
                         execUpdates(program, vertices);
                         System.out.println("Update exec: " + (System.currentTimeMillis() - t1) + " ms.");
@@ -232,9 +236,11 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
 
 
                 /* Commit */
-                memoryShard.commitAndRelease(modifiesInedges, modifiesOutedges);
-                slidingShards.get(execInterval).setOffset(memoryShard.getStreamingOffset(),
-                        memoryShard.getStreamingOffsetVid(), memoryShard.getStreamingOffsetEdgePtr());
+                if (!disableInEdges) {
+                    memoryShard.commitAndRelease(modifiesInedges, modifiesOutedges);
+                    slidingShards.get(execInterval).setOffset(memoryShard.getStreamingOffset(),
+                            memoryShard.getStreamingOffsetVid(), memoryShard.getStreamingOffsetEdgePtr());
+                }
             }
 
             for(SlidingShard shard : slidingShards) {
@@ -392,7 +398,7 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
             final AtomicInteger countDown = new AtomicInteger(nShards);
             /* Load in parallel */
             for(int p=0; p < nShards; p++) {
-                if (p != execInterval) {
+                if (p != execInterval || disableInEdges) {
                     final SlidingShard<EdgeDataType> shard = slidingShards.get(p);
                     parallelExecutor.submit(new Runnable() {
 
@@ -414,24 +420,26 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
                     });
                 }
             }
-            parallelExecutor.submit(new Runnable() {
+            if (!disableInEdges) {
+                parallelExecutor.submit(new Runnable() {
 
-                public void run() {
-                    try {
-                        memoryShard.loadVertices(subIntervalStart, subIntervalEnd, vertices);
-                        if (countDown.decrementAndGet() == 0) {
-                            synchronized (terminationLock) {
-                                terminationLock.notifyAll();
+                    public void run() {
+                        try {
+                            memoryShard.loadVertices(subIntervalStart, subIntervalEnd, vertices);
+                            if (countDown.decrementAndGet() == 0) {
+                                synchronized (terminationLock) {
+                                    terminationLock.notifyAll();
+                                }
                             }
+                        } catch (IOException ioe) {
+                            ioe.printStackTrace();
+                            throw new RuntimeException(ioe);
+                        }  catch (Exception err) {
+                            err.printStackTrace();
                         }
-                    } catch (IOException ioe) {
-                        ioe.printStackTrace();
-                        throw new RuntimeException(ioe);
-                    }  catch (Exception err) {
-                        err.printStackTrace();
                     }
-                }
-            });
+                });
+            }
             // barrier
             try {
                 while(countDown.get() > 0) {
@@ -517,6 +525,10 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
 
     public void setOnlyAdjacency(boolean onlyAdjacency) {
         this.onlyAdjacency = onlyAdjacency;
+    }
+
+    public void setDisableInedges(boolean b) {
+        this.disableInEdges = b;
     }
 
     private class MockScheduler implements Scheduler {

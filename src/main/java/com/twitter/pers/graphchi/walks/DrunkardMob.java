@@ -7,6 +7,8 @@ import edu.cmu.graphchi.datablocks.IntConverter;
 import edu.cmu.graphchi.engine.GraphChiEngine;
 import edu.cmu.graphchi.engine.VertexInterval;
 
+import java.io.File;
+
 /**
  * Launch millions (?) of random walks and record the
  * distribution.
@@ -16,9 +18,11 @@ public class DrunkardMob implements GraphChiProgram<Integer, Boolean> {
     private WalkManager walkManager;
     private WalkSnapshot curWalkSnapshot;
     private int maxHops;
+    private String basefileName;
 
-    public DrunkardMob(int maxHops) {
+    public DrunkardMob(int maxHops, String basefileName) {
         this.maxHops = maxHops;
+        this.basefileName = basefileName;
     }
 
     public void update(ChiVertex<Integer, Boolean> vertex, GraphChiContext context) {
@@ -54,11 +58,16 @@ public class DrunkardMob implements GraphChiProgram<Integer, Boolean> {
         curWalkSnapshot = walkManager.grabSnapshot(interval.getFirstVertex(), interval.getLastVertex());
         System.out.println("Grab snapshot took " + (System.currentTimeMillis() - t) + " ms.");
 
+        final String filename = basefileName + "_walks_" + interval.getFirstVertex() + "-" + interval.getLastVertex() + ".csv";
+        if (ctx.getIteration() == 0) {
+            new File(filename).delete();
+        }
+
         // Launch a thread to dump
         Thread dumperThread = new Thread(new Runnable() {
             public void run() {
                 try {
-                    walkManager.dumpToFile(curWalkSnapshot, "walks_" + interval.getFirstVertex() + "-" + interval.getLastVertex() + ".csv");
+                    walkManager.dumpToFile(curWalkSnapshot, filename);
                 } catch (Exception err) {
                     err.printStackTrace();
                 }
@@ -88,11 +97,12 @@ public class DrunkardMob implements GraphChiProgram<Integer, Boolean> {
         engine.setModifiesOutedges(false);
         engine.setEnableScheduler(true);
         engine.setOnlyAdjacency(true);
+        engine.setDisableInedges(true);
 
         long t1 = System.currentTimeMillis();
 
         /* Initialize application object */
-        DrunkardMob mob = new DrunkardMob(maxHops);
+        DrunkardMob mob = new DrunkardMob(maxHops, baseFilename);
 
         /* Initialize Random walks */
         int nVertices = engine.numVertices();
