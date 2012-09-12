@@ -3,6 +3,7 @@ package edu.cmu.graphchi.util;
 import edu.cmu.graphchi.aggregators.ForeachCallback;
 import edu.cmu.graphchi.aggregators.VertexAggregator;
 import edu.cmu.graphchi.datablocks.FloatConverter;
+import edu.cmu.graphchi.datablocks.IntConverter;
 
 import java.io.IOException;
 import java.util.Comparator;
@@ -41,5 +42,31 @@ public class Toplist {
         return topList;
     }
 
+    public static TreeSet<IdInt> topListInt(String baseFilename, final int topN) throws IOException{
+        final TreeSet<IdInt> topList = new TreeSet<IdInt>(new Comparator<IdInt>() {
+            public int compare(IdInt a, IdInt b) {
+                return (a.value > b.value ? 1 : (a.value == b.value ? 0 : -1)); // Descending order
+            }
+        });
+        VertexAggregator.foreach(baseFilename, new IntConverter(), new ForeachCallback<Integer>()  {
+            IdInt least;
+            public void callback(int vertexId, Integer vertexValue) {
+                if (topList.size() < topN) {
+                    topList.add(new IdInt(vertexId, vertexValue));
+                    least = topList.last();
+                } else {
+                    if (vertexValue > least.value) {
+                        topList.remove(least);
+                        topList.add(new IdInt(vertexId, vertexValue));
+                        least = topList.last();
+                    }
+                }
+            }
+        }
 
+        );
+
+
+        return topList;
+    }
 }

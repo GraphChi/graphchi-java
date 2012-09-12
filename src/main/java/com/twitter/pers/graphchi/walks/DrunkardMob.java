@@ -6,8 +6,11 @@ import edu.cmu.graphchi.GraphChiProgram;
 import edu.cmu.graphchi.datablocks.IntConverter;
 import edu.cmu.graphchi.engine.GraphChiEngine;
 import edu.cmu.graphchi.engine.VertexInterval;
+import edu.cmu.graphchi.util.IdInt;
+import edu.cmu.graphchi.util.Toplist;
 
 import java.io.File;
+import java.util.TreeSet;
 
 /**
  * Launch millions (?) of random walks and record the
@@ -27,6 +30,7 @@ public class DrunkardMob implements GraphChiProgram<Integer, Boolean> {
 
     public void update(ChiVertex<Integer, Boolean> vertex, GraphChiContext context) {
         int[] walksAtMe = curWalkSnapshot.getWalksAtVertex(vertex.getId());
+        if (context.getIteration() == 0) vertex.setValue(0);
         for(int i=0; i < walksAtMe.length; i++) {
             int walk = walksAtMe[i];
             int hop = walkManager.hop(walk);
@@ -44,7 +48,7 @@ public class DrunkardMob implements GraphChiProgram<Integer, Boolean> {
                 context.getScheduler().addTask(dst);
             }
         }
-
+        vertex.setValue(vertex.getValue() + walksAtMe.length);
     }
 
 
@@ -124,6 +128,12 @@ public class DrunkardMob implements GraphChiProgram<Integer, Boolean> {
         engine.run(mob, 1 + maxHops);
 
         System.out.println("Ready. Going to output...");
-        System.out.println("Finished. See file: " + baseFilename + ".walks");
+
+        TreeSet<IdInt> top20 = Toplist.topListInt(baseFilename, 20);
+        int i = 0;
+        for(IdInt vertexRank : top20) {
+            System.out.println(++i + ": " + vertexRank.getVertexId() + " = " + vertexRank.getValue());
+        }
+        System.out.println("Finished.");
     }
 }
