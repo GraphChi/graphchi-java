@@ -31,6 +31,8 @@ public class DrunkardMob implements GraphChiProgram<Integer, Boolean> {
     public void update(ChiVertex<Integer, Boolean> vertex, GraphChiContext context) {
         int[] walksAtMe = curWalkSnapshot.getWalksAtVertex(vertex.getId());
         if (context.getIteration() == 0) vertex.setValue(0);
+        if (walksAtMe == null) return;
+
         for(int i=0; i < walksAtMe.length; i++) {
             int walk = walksAtMe[i];
             int hop = walkManager.hop(walk);
@@ -39,11 +41,10 @@ public class DrunkardMob implements GraphChiProgram<Integer, Boolean> {
                 int dst;
                 if (vertex.numOutEdges() > 0) {
                     dst = vertex.getRandomOutNeighbor();
-               } else {
+                } else {
                     // Dead end!
                     dst = walkManager.getSourceVertex(walkManager.sourceIdx(walk));
-
-               }
+                }
                 walkManager.updateWalk(walkManager.sourceIdx(walk), dst, hop + 1);
                 context.getScheduler().addTask(dst);
             }

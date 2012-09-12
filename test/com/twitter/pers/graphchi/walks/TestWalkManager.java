@@ -9,6 +9,7 @@ import org.junit.Test;
 import java.io.IOException;
 
 import static junit.framework.Assert.assertEquals;
+import static junit.framework.Assert.assertNull;
 
 public class TestWalkManager {
 
@@ -71,7 +72,7 @@ public class TestWalkManager {
         WalkSnapshot snapshot2 = wmgr.grabSnapshot(890, 1300);
         for(int j=890; j <= 1300; j++) {
             int[] vertexwalks = snapshot2.getWalksAtVertex(j);
-            assertEquals(0, vertexwalks.length);
+            assertNull(vertexwalks);
         }
 
         WalkSnapshot snapshot3 = wmgr.grabSnapshot(877, 889);
@@ -83,7 +84,7 @@ public class TestWalkManager {
         WalkSnapshot snapshot4 = wmgr.grabSnapshot(877, 889);
         for(int j=877; j <= 889; j++) {
             int[] vertexwalks = snapshot4.getWalksAtVertex(j);
-            assertEquals(0, vertexwalks.length);
+            assertNull(vertexwalks);
         }
 
         WalkSnapshot snapshot5 = wmgr.grabSnapshot(1301, 3898);
@@ -97,7 +98,7 @@ public class TestWalkManager {
         WalkSnapshot snapshot6 = wmgr.grabSnapshot(1301, 3898);
         for(int j=1301; j < 3898; j++) {
             int[] vertexwalks = snapshot6.getWalksAtVertex(j);
-            assertEquals(0, vertexwalks.length);
+            assertNull(vertexwalks);
         }
 
         /* Then update some walks */

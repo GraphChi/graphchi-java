@@ -112,7 +112,7 @@ public class WalkManager {
         final int[][] snapshots = new int[toVertexInclusive - fromBucket + 1][];
         final int[] snapshotIdxs = new int[snapshots.length];
         for(int i=0; i < snapshots.length; i++) {
-            snapshots[i] = new int[32];
+            snapshots[i] = null;
             snapshotIdxs[i] = 0;
         }
         /* Add walks to snapshot arrays -- TODO: parallelize */
@@ -128,6 +128,9 @@ public class WalkManager {
 
                 if (vertex >= fromVertex && vertex <= toVertexInclusive) {
                     int snapshotOff = vertex - fromVertex;
+                    if (snapshots[snapshotOff] == null)
+                        snapshots[snapshotOff] = new int[8];
+
                     if (snapshotIdxs[snapshotOff] >= snapshots[snapshotOff].length) {
                         /* Duplicate array */
                         int[] tmp = new int[snapshots[snapshotOff].length * 2];
@@ -145,7 +148,7 @@ public class WalkManager {
         }
         /* Snap to correct size */
         for(int s=0; s < snapshots.length; s++) {
-            if (snapshots[s].length != snapshotIdxs[s]) {
+            if (snapshots[s] != null && snapshots[s].length != snapshotIdxs[s]) {
                 int[] tmp = new int[snapshotIdxs[s]];
                 System.arraycopy(snapshots[s], 0, tmp, 0, snapshotIdxs[s]);
                 snapshots[s] = tmp;
@@ -176,12 +179,14 @@ public class WalkManager {
         DataOutputStream dos = new DataOutputStream(new BufferedOutputStream(new FileOutputStream(new File(filename), true)));
         for(int i=snapshot.getFirstVertex(); i <= snapshot.getLastVertex(); i++) {
             int[] ws = snapshot.getWalksAtVertex(i);
-            for(int j=0; j < ws.length; j++) {
-                int w = ws[j];
-                if (hop(w) > 0) {
-                    int source = sources[sourceIdx(w)];
-                    dos.writeInt(source);
-                    dos.writeInt(i);
+            if (ws != null) {
+                for(int j=0; j < ws.length; j++) {
+                    int w = ws[j];
+                    if (hop(w) > 0) {
+                        int source = sources[sourceIdx(w)];
+                        dos.writeInt(source);
+                        dos.writeInt(i);
+                    }
                 }
             }
         }
