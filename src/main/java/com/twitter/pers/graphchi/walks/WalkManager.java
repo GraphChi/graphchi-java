@@ -9,7 +9,7 @@ import java.util.ArrayList;
  */
 public class WalkManager {
 
-    private final static int bucketSize = 1024; // Store walks into buckets for waster retrieval
+    private final static int bucketSize = 1024; // Store walks into buckets for faster retrieval
     private final static int initialSize = 32;
 
     private int sourceSeqIdx  = 0;
