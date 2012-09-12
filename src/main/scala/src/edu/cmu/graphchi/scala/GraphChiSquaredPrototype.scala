@@ -28,9 +28,10 @@ class GraphChiSquaredPrototype(baseFilename : String, numShards : Int, numComput
 	
 	val vertexMatrix = new HugeFloatMatrix(engine.numVertices(), numComputations)
 	
-	type GatherFunctionType = (VertexInfo[VertexDataType, EdgeDataType], Int, EdgeDataType, GatherType) => GatherType
-	type ApplyFunctionType =  (VertexInfo[VertexDataType, EdgeDataType], GatherType) => VertexDataType
-	type OnlyAdjGatherFunctionType = (VertexInfo[VertexDataType, EdgeDataType], Int, GatherType) => GatherType
+	type GatherFunctionType = (VertexInfo[VertexDataType, EdgeDataType], Int, EdgeDataType, EdgeDataType, GatherType) => GatherType
+  type OnlyAdjGatherFunctionType = (VertexInfo[VertexDataType, EdgeDataType], Int, EdgeDataType, GatherType) => GatherType
+
+  type ApplyFunctionType =  (VertexInfo[VertexDataType, EdgeDataType], GatherType) => VertexDataType
 
 	var gatherFunc : GatherFunctionType  = null;
   var gatherFuncOnlyAdj : OnlyAdjGatherFunctionType  = null;
@@ -77,16 +78,16 @@ class GraphChiSquaredPrototype(baseFilename : String, numShards : Int, numComput
 		
 
 		while (i < n)  {  // Unfortunately higher order calls like "(0 until n)" are quite a bit slower
-		    val e = v.inEdge(i).getVertexId()
+		    val e = v.inEdge(i)
 		    var c = 0
-		    val rowblock = vertexMatrix.getRowBlock(e) // premature optimization!
-		    val blockIdx = vertexMatrix.getBlockIdx(e)
+        val nbid = e.getVertexId()
+		    val rowblock = vertexMatrix.getRowBlock(nbid) // premature optimization!
+		    val blockIdx = vertexMatrix.getBlockIdx(nbid)
 		    while ( c < numComputations) {
             if (gatherFunc != null) {
-		         gathers(c) = gatherFunc(vertexInfo, e, rowblock(blockIdx + c), gathers(c))
+		         gathers(c) = gatherFunc(vertexInfo, nbid, rowblock(blockIdx + c), e.getValue(), gathers(c))
             } else if (gatherFuncOnlyAdj != null) {
-              gathers(c) = gatherFuncOnlyAdj(vertexInfo, e, gathers(c))
-
+              gathers(c) = gatherFuncOnlyAdj(vertexInfo, nbid, rowblock(blockIdx + c), gathers(c))
             }
 		        c += 1
 		    }

@@ -38,7 +38,7 @@ object PersonalizedPagerank {
         
         graphchiSqr.compute(niters,
             gatherInit = 0.0f,
-            gather =  (v, neighborVal, gather) => gather + neighborVal,
+            gather =  (v, vertexId, neighborVal, gather) => gather + neighborVal,
             apply = (v, gather) => (0.15f + 0.85f * gather) / v.numOutEdges()
         )
         
