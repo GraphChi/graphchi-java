@@ -62,7 +62,10 @@ public class SlidingShard <EdgeDataType> {
         adjFilesize = new File(adjDataFilename).length();
         edataFilesize = new File(edgeDataFilename).length();
         activeBlocks = new ArrayList<Block>();
-        edataFile = new RandomAccessFile(this.edgeDataFilename, "rwd");
+    }
+    
+    void openEdataFile() throws IOException {
+    	edataFile = new RandomAccessFile(this.edgeDataFilename, "rwd");
     }
 
     public void finalize() {
@@ -105,6 +108,8 @@ public class SlidingShard <EdgeDataType> {
     }
 
     public void readNextVertices(ChiVertex[] vertices, int start, boolean disableWrites) throws IOException {
+    	if (edataFile == null) openEdataFile();
+
         int nvecs = vertices.length;
         curBlock = null;
         releasePriorToOffset(false, disableWrites);
@@ -186,6 +191,10 @@ public class SlidingShard <EdgeDataType> {
 
     public void flush() throws IOException {
         releasePriorToOffset(true, false);
+        if (edataFile != null) {
+        	edataFile.close();
+        	edataFile = null; // Close the file to avoid any buffering issues
+        }
     }
 
     public void setOffset(int newoff, int _curvid, int edgeptr) {

@@ -55,6 +55,7 @@ public class MemoryShard <EdgeDataType> {
         if (modifiesInedges) {
             FileOutputStream fos = new FileOutputStream(new File(edgeDataFilename));
             fos.write(data);
+            fos.flush();
             fos.close();
         } else if (modifiesOutedges) {
             ucar.unidata.io.RandomAccessFile rFile =
@@ -62,7 +63,9 @@ public class MemoryShard <EdgeDataType> {
             rFile.seek(rangeStartEdgePtr);
             int last = streamingOffsetEdgePtr;
             if (last == 0) last = edataFilesize;
+            
             rFile.write(data, rangeStartEdgePtr, last  - rangeStartEdgePtr);
+            rFile.flush();
             rFile.close();
         }
         dataBlockManager.release(blockId);
