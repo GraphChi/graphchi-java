@@ -83,9 +83,9 @@ class GraphChiSquaredPrototype(baseFilename : String, numShards : Int, numComput
         val nbid = e.getVertexId()
 		    val rowblock = vertexMatrix.getRowBlock(nbid) // premature optimization!
 		    val blockIdx = vertexMatrix.getBlockIdx(nbid)
-		    while ( c < numComputations) {
+		    while (c < numComputations) {
             if (gatherFunc != null) {
-		         gathers(c) = gatherFunc(vertexInfo, nbid, rowblock(blockIdx + c), e.getValue(), gathers(c))
+		          gathers(c) = gatherFunc(vertexInfo, nbid, rowblock(blockIdx + c), e.getValue(), gathers(c))
             } else if (gatherFuncOnlyAdj != null) {
               gathers(c) = gatherFuncOnlyAdj(vertexInfo, nbid, rowblock(blockIdx + c), gathers(c))
             }
