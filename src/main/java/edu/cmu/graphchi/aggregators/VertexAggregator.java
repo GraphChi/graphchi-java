@@ -19,6 +19,7 @@ package edu.cmu.graphchi.aggregators;
 
 import edu.cmu.graphchi.ChiFilenames;
 import edu.cmu.graphchi.datablocks.BytesToValueConverter;
+import edu.cmu.graphchi.datablocks.IntConverter;
 
 import java.io.BufferedInputStream;
 import java.io.File;
@@ -48,6 +49,24 @@ public class VertexAggregator {
         }
         bis.close();
 
+    }
+
+    private static class SumCallbackInt implements ForeachCallback<Integer> {
+        long sum = 0;
+        @Override
+        public void callback(int vertexId, Integer vertexValue) {
+             sum += vertexValue;
+        }
+
+        public long getSum() {
+            return sum;
+        }
+    }
+
+    public static long sumInt(String baseFilename) throws IOException {
+        SumCallbackInt callback = new SumCallbackInt();
+        foreach(baseFilename, new IntConverter(), callback);
+        return callback.getSum();
     }
 
 }

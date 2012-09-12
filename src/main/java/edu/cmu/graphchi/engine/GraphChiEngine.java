@@ -165,6 +165,10 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
         }
 
 
+        if (disableInEdges) {
+            ChiVertex.disableInedges = true;
+        }
+
         /* Initialize vertex-data handler */
         vertexDataHandler = new VertexData<VertexDataType>(numVertices(), baseFilename, vertexDataConverter);
         vertexDataHandler.setBlockManager(blockManager);

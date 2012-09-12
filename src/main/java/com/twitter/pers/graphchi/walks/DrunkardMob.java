@@ -3,6 +3,7 @@ package com.twitter.pers.graphchi.walks;
 import edu.cmu.graphchi.ChiVertex;
 import edu.cmu.graphchi.GraphChiContext;
 import edu.cmu.graphchi.GraphChiProgram;
+import edu.cmu.graphchi.aggregators.VertexAggregator;
 import edu.cmu.graphchi.datablocks.IntConverter;
 import edu.cmu.graphchi.engine.GraphChiEngine;
 import edu.cmu.graphchi.engine.VertexInterval;
@@ -49,7 +50,8 @@ public class DrunkardMob implements GraphChiProgram<Integer, Boolean> {
                 context.getScheduler().addTask(dst);
             }
         }
-        vertex.setValue(vertex.getValue() + walksAtMe.length);
+        if (context.getIteration() > 0)
+            vertex.setValue(vertex.getValue() + walksAtMe.length);
     }
 
 
@@ -141,5 +143,8 @@ public class DrunkardMob implements GraphChiProgram<Integer, Boolean> {
             System.out.println(++i + ": " + vertexRank.getVertexId() + " = " + vertexRank.getValue());
         }
         System.out.println("Finished.");
+
+        long sumWalks = VertexAggregator.sumInt(baseFilename);
+        System.out.println("Total hops (in file): " + sumWalks);
     }
 }
