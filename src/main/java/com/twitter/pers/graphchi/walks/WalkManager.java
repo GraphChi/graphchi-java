@@ -173,24 +173,23 @@ public class WalkManager {
 
     /** Dump to file all walks with more than 0 hop */
     public void dumpToFile(WalkSnapshot snapshot, String filename) throws IOException {
-        BufferedOutputStream bos = new BufferedOutputStream(new FileOutputStream(new File(filename), true));
-        StringBuffer sb = new StringBuffer(100000);
+        DataOutputStream dos = new DataOutputStream(new BufferedOutputStream(new FileOutputStream(new File(filename), true)));
         for(int i=snapshot.getFirstVertex(); i <= snapshot.getLastVertex(); i++) {
             int[] ws = snapshot.getWalksAtVertex(i);
             for(int j=0; j < ws.length; j++) {
                 int w = ws[j];
                 if (hop(w) > 0) {
                     int source = sources[sourceIdx(w)];
-                    sb.append(source);
-                    sb.append(",");
-                    sb.append(i);
-                    sb.append("\n");
+                    dos.writeInt(source);
+                    dos.writeInt(i);
                 }
             }
         }
-        bos.write(sb.toString().getBytes());
-        bos.flush();
-        bos.close();
+        dos.flush();
+        dos.close();
     }
 
+    public int getSourceVertex(int srcIdx) {
+        return sources[srcIdx];
+    }
 }

@@ -32,14 +32,16 @@ public class DrunkardMob implements GraphChiProgram<Integer, Boolean> {
             int hop = walkManager.hop(walk);
             if (hop < maxHops) {
                 // Choose a random destination and move the walk forward
-               if (vertex.numOutEdges() > 0) {
-                    int dst = vertex.getRandomOutNeighbor();
-                    walkManager.updateWalk(walkManager.sourceIdx(walk), dst, hop + 1);
-                    context.getScheduler().addTask(dst);
+                int dst;
+                if (vertex.numOutEdges() > 0) {
+                    dst = vertex.getRandomOutNeighbor();
                } else {
                     // Dead end!
+                    dst = walkManager.getSourceVertex(walkManager.sourceIdx(walk));
 
                }
+                walkManager.updateWalk(walkManager.sourceIdx(walk), dst, hop + 1);
+                context.getScheduler().addTask(dst);
             }
         }
 
@@ -86,7 +88,7 @@ public class DrunkardMob implements GraphChiProgram<Integer, Boolean> {
         int maxHops = Integer.parseInt(args[4]);
 
         System.out.println("Walks will start from " + nSources + " sources.");
-        System.out.println("Going to start " + walksPerSource + "walks per source.");
+        System.out.println("Going to start " + walksPerSource + " walks per source.");
         System.out.println("Max hops: " + maxHops);
 
         /* Initialize GraphChi engine */
