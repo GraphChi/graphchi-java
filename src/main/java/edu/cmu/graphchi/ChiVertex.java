@@ -69,6 +69,13 @@ public class ChiVertex<VertexValue, EdgeValue> {
     }
 
 
+    public int getRandomOutNeighbor() {
+        if (numOutEdges() == 0) {
+            return -1;
+        }
+        return outEdge((int) (Math.random() * numOutEdges())).getVertexId();
+    }
+
     public int numOutEdges() {
         return nOutedges.get();
     }

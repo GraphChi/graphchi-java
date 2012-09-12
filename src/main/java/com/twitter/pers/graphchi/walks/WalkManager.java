@@ -171,6 +171,7 @@ public class WalkManager {
         };
     }
 
+    /** Dump to file all walks with more than 0 hop */
     public void dumpToFile(WalkSnapshot snapshot, String filename) throws IOException {
         BufferedOutputStream bos = new BufferedOutputStream(new FileOutputStream(new File(filename), true));
         StringBuffer sb = new StringBuffer(100000);
@@ -178,17 +179,18 @@ public class WalkManager {
             int[] ws = snapshot.getWalksAtVertex(i);
             for(int j=0; j < ws.length; j++) {
                 int w = ws[j];
-                int source = sources[sourceIdx(w)];
-                sb.append(source);
-                sb.append(",");
-                sb.append(i);
-                sb.append("\n");
+                if (hop(w) > 0) {
+                    int source = sources[sourceIdx(w)];
+                    sb.append(source);
+                    sb.append(",");
+                    sb.append(i);
+                    sb.append("\n");
+                }
             }
         }
         bos.write(sb.toString().getBytes());
         bos.flush();
         bos.close();
-
     }
 
 }
