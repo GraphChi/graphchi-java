@@ -118,8 +118,6 @@ public class SlidingShard <EdgeDataType> {
 		releasePriorToOffset(false, disableWrites);
 		assert(activeBlocks.size() <= 1);
 
-		System.out.println("Load sliding: " + rangeStart + " -- " + rangeEnd);
-		System.out.println(adjDataFilename);
 		/* Read next */
 		if (!onlyAdjacency && !activeBlocks.isEmpty()) {
 			curBlock = activeBlocks.get(0);
