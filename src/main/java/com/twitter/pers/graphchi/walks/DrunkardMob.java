@@ -111,6 +111,7 @@ public class DrunkardMob implements GraphChiProgram<Integer, Boolean> {
         engine.setEnableScheduler(true);
         engine.setOnlyAdjacency(true);
         engine.setDisableInedges(true);
+        engine.setEnableDeterministicExecution(false);
         engine.setMaxWindow(1000000); // Handle maximum 1M vertices a time.
 
         long t1 = System.currentTimeMillis();
@@ -128,7 +129,7 @@ public class DrunkardMob implements GraphChiProgram<Integer, Boolean> {
         }
         mob.walkManager.initializeWalks();
 
-        System.out.println("Gonfigured " + mob.walkManager.getTotalWalks() + " walks in " +
+        System.out.println("Configured " + mob.walkManager.getTotalWalks() + " walks in " +
                 (System.currentTimeMillis() - t1) + " ms");
 
 
