@@ -68,7 +68,7 @@ public class WalkManager {
                 walks[bucket] = newBucket;
             }
             walks[bucket][idx] = encode(sourceId, hop, toVertex % bucketSize);
-            walkIndices[bucket] = 0;
+            walkIndices[bucket]++;
         }
     }
 
@@ -140,18 +140,15 @@ public class WalkManager {
                 }
             }
             tmpBuckets.set(b, null); // Save memory
-
-            /* Snap to correct size */
-            for(int s=0; s < snapshots.length; b++) {
-                if (snapshots[s].length != snapshotIdxs[s]) {
-                    int[] tmp = new int[snapshotIdxs[s]];
-                    System.arraycopy(snapshots[s], 0, tmp, 0, snapshots[s].length);
-                    snapshots[s] = tmp;
-                }
+        }
+        /* Snap to correct size */
+        for(int s=0; s < snapshots.length; s++) {
+            if (snapshots[s].length != snapshotIdxs[s]) {
+                int[] tmp = new int[snapshotIdxs[s]];
+                System.arraycopy(snapshots[s], 0, tmp, 0, snapshotIdxs[s]);
+                snapshots[s] = tmp;
             }
         }
-
-
 
         /* Create the snapshot object */
         return new WalkSnapshot() {
