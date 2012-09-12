@@ -191,8 +191,6 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
 
                 program.beginInterval(chiContext, intervals.get(execInterval));
 
-
-
                 if (!disableInEdges) {
                     slidingShards.get(execInterval).flush();
                     createMemoryShard(intervalSt, intervalEn);
@@ -206,7 +204,7 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
                         int nvertices = subIntervalEnd - subIntervalStart + 1;
 
                         System.out.println("Subinterval:: " + subIntervalStart + " -- " + subIntervalEnd + " (iteration " + iter + ")");
-
+                        program.beginSubInterval(chiContext, new VertexInterval(subIntervalStart, subIntervalEnd));
 
                         ChiVertex<VertexDataType, EdgeDataType>[] vertices = new
                                 ChiVertex[nvertices];
@@ -229,6 +227,9 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
 
                         subIntervalStart = subIntervalEnd + 1;
                         vertexDataHandler.releaseAndCommit();
+
+                        program.endSubInterval(chiContext, new VertexInterval(subIntervalStart, subIntervalEnd));
+
                     }  else {
                         System.out.println("Skipped interval - no vertices scheduled.");
                     }

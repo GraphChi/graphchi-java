@@ -60,7 +60,7 @@ public class DrunkardMob implements GraphChiProgram<Integer, Boolean> {
     /**
      * At the start of interval - grab the snapshot of walks
      */
-    public void beginInterval(GraphChiContext ctx, final VertexInterval interval) {
+    public void beginSubInterval(GraphChiContext ctx, final VertexInterval interval) {
         long t = System.currentTimeMillis();
         curWalkSnapshot = walkManager.grabSnapshot(interval.getFirstVertex(), interval.getLastVertex());
         System.out.println("Grab snapshot took " + (System.currentTimeMillis() - t) + " ms.");
@@ -82,6 +82,10 @@ public class DrunkardMob implements GraphChiProgram<Integer, Boolean> {
         });
         dumperThread.start();
     }
+
+    public void endSubInterval(GraphChiContext ctx, final VertexInterval interval) {}
+
+    public void beginInterval(GraphChiContext ctx, VertexInterval interval) {}
 
     public void endInterval(GraphChiContext ctx, VertexInterval interval) {}
 

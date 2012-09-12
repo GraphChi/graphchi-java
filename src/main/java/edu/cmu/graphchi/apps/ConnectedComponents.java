@@ -59,6 +59,10 @@ public class ConnectedComponents implements GraphChiProgram<Integer, Integer> {
 
     public void endInterval(GraphChiContext ctx, VertexInterval interval) {}
 
+    public void beginSubInterval(GraphChiContext ctx, VertexInterval interval) {}
+
+    public void endSubInterval(GraphChiContext ctx, VertexInterval interval) {}
+
     public static void main(String[] args) throws  Exception {
         String baseFilename = args[0];
         int nShards = Integer.parseInt(args[1]);

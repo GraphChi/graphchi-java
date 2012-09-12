@@ -30,4 +30,8 @@ public interface GraphChiProgram <VertexDataType, EdgeDataType> {
 
     public void endInterval(GraphChiContext ctx, VertexInterval interval);
 
+    public void beginSubInterval(GraphChiContext ctx, VertexInterval interval);
+
+    public void endSubInterval(GraphChiContext ctx, VertexInterval interval);
+
 }
