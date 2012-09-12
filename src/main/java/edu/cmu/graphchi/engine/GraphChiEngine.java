@@ -49,6 +49,8 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
     private VertexData<VertexDataType> vertexDataHandler;
 
     protected int subIntervalStart, subIntervalEnd;
+
+    protected int maxWindow = 20000000;
     protected boolean enableScheduler = false;
     protected boolean onlyAdjacency = false;
     protected BitsetScheduler scheduler = null;
@@ -162,8 +164,6 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
             chiContext.setScheduler(new MockScheduler());
         }
 
-        /* Temporary: keep vertices in memory */
-        int maxWindow = 20000000;
 
         /* Initialize vertex-data handler */
         vertexDataHandler = new VertexData<VertexDataType>(numVertices(), baseFilename, vertexDataConverter);
@@ -529,6 +529,14 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
 
     public void setDisableInedges(boolean b) {
         this.disableInEdges = b;
+    }
+
+    public int getMaxWindow() {
+        return maxWindow;
+    }
+
+    public void setMaxWindow(int maxWindow) {
+        this.maxWindow = maxWindow;
     }
 
     private class MockScheduler implements Scheduler {
