@@ -1,4 +1,4 @@
-package edu.cmu.graphchi.walks;
+package com.twitter.pers.graphchi.walks;
 
 import java.util.ArrayList;
 

@@ -1,6 +1,8 @@
-package edu.cmu.graphchi.walks;
+package com.twitter.pers.graphchi.walks;
 
 
+import com.twitter.pers.graphchi.walks.WalkManager;
+import com.twitter.pers.graphchi.walks.WalkSnapshot;
 import org.junit.Test;
 
 import static junit.framework.Assert.assertEquals;
