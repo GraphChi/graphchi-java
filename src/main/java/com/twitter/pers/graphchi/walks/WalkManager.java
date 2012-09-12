@@ -1,9 +1,11 @@
 package com.twitter.pers.graphchi.walks;
 
+import java.io.*;
 import java.util.ArrayList;
 
 /**
  * Manager for random walks
+ * @author Aapo Kyrola
  */
 public class WalkManager {
 
@@ -156,7 +158,37 @@ public class WalkManager {
             public int[] getWalksAtVertex(int vertexId) {
                 return snapshots[vertexId - fromVertex];
             }
+
+            @Override
+            public int getFirstVertex() {
+                return fromVertex;
+            }
+
+            @Override
+            public int getLastVertex() {
+                return toVertexInclusive;
+            }
         };
+    }
+
+    public void dumpToFile(WalkSnapshot snapshot, String filename) throws IOException {
+        BufferedOutputStream bos = new BufferedOutputStream(new FileOutputStream(new File(filename), true));
+        StringBuffer sb = new StringBuffer(100000);
+        for(int i=snapshot.getFirstVertex(); i <= snapshot.getLastVertex(); i++) {
+            int[] ws = snapshot.getWalksAtVertex(i);
+            for(int j=0; j < ws.length; j++) {
+                int w = ws[j];
+                int source = sources[sourceIdx(w)];
+                sb.append(source);
+                sb.append(",");
+                sb.append(i);
+                sb.append("\n");
+            }
+        }
+        bos.write(sb.toString().getBytes());
+        bos.flush();
+        bos.close();
+
     }
 
 }

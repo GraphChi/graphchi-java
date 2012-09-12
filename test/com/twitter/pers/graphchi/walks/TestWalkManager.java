@@ -1,9 +1,12 @@
 package com.twitter.pers.graphchi.walks;
 
 
-import com.twitter.pers.graphchi.walks.WalkManager;
-import com.twitter.pers.graphchi.walks.WalkSnapshot;
+/**
+ * @author Aapo Kyrola
+ */
 import org.junit.Test;
+
+import java.io.IOException;
 
 import static junit.framework.Assert.assertEquals;
 
@@ -38,7 +41,7 @@ public class TestWalkManager {
     }
 
     @Test
-    public void testWalkManager() {
+    public void testWalkManager() throws IOException {
         int nvertices = 33333;
         WalkManager wmgr = new WalkManager(nvertices);
         int tot = 0;
@@ -61,6 +64,8 @@ public class TestWalkManager {
                 assertEquals(0, wmgr.hop(w));
             }
         }
+        assertEquals(890, snapshot1.getFirstVertex());
+        assertEquals(1300, snapshot1.getLastVertex());
 
         // Next snapshot should be empty
         WalkSnapshot snapshot2 = wmgr.grabSnapshot(890, 1300);
@@ -86,6 +91,8 @@ public class TestWalkManager {
             int[] vertexwalks = snapshot5.getWalksAtVertex(j);
             assertEquals((j % 100) + 10, vertexwalks.length);
         }
+        wmgr.dumpToFile(snapshot5, "/tmp/snapshot5");
+
 
         WalkSnapshot snapshot6 = wmgr.grabSnapshot(1301, 3898);
         for(int j=1301; j < 3898; j++) {
