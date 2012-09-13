@@ -124,7 +124,7 @@ public class SlidingShard <EdgeDataType> {
 		}
 
 		if (adjFile == null) {
-			adjFile = new RandomAccessFile(adjDataFilename, "r");
+			adjFile = new RandomAccessFile(adjDataFilename, "r", 1024 * 1024);
 		}
 
 		adjFile.seek(adjOffset);
