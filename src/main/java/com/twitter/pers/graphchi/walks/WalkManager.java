@@ -151,7 +151,7 @@ public class WalkManager {
                 if (vertex >= fromVertex && vertex <= toVertexInclusive) {
                     int snapshotOff = vertex - fromVertex;
                     if (snapshots[snapshotOff] == null)
-                        snapshots[snapshotOff] = new int[8];
+                        throw new IllegalStateException();
 
                     if (snapshotIdxs[snapshotOff] >= snapshots[snapshotOff].length) {
                         throw new RuntimeException("Not possible!");
@@ -201,9 +201,6 @@ public class WalkManager {
 
     public static int getWalkLength(int[] w) {
         if (w == null) return 0;
-        for(int i=0; i < w.length; i++) {
-            if (w[i] == -1) return i;
-        }
         return w.length;
     }
 
@@ -215,7 +212,6 @@ public class WalkManager {
             if (ws != null) {
                 for(int j=0; j < ws.length; j++) {
                     int w = ws[j];
-                    if (w == -1) break;
                     if (hop(w) > 0) {
                         int source = sources[sourceIdx(w)];
                         dos.writeInt(source);

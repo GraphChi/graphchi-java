@@ -69,12 +69,14 @@ public class VertexData <VertexDataType> {
         byte[] data = blockManager.getRawBlock(blockId);
         int dataStart = firstVertex * converter.sizeOf();
 
-        vertexDataFile.seek(dataStart);
-        vertexDataFile.write(data);
+        synchronized (vertexDataFile) {
+            vertexDataFile.seek(dataStart);
+            vertexDataFile.write(data);
 
-        blockManager.release(blockId);
-        
-        vertexDataFile.flush();
+            blockManager.release(blockId);
+
+            vertexDataFile.flush();
+        }
     }
 
     public int load(int _vertexSt, int _vertexEn) throws IOException {
@@ -86,10 +88,11 @@ public class VertexData <VertexDataType> {
         int dataStart = vertexSt * converter.sizeOf();
 
         int blockId =  blockManager.allocateBlock(dataSize);
-
-        vertexData = blockManager.getRawBlock(blockId);
-        vertexDataFile.seek(dataStart);
-        vertexDataFile.readFully(vertexData);
+        synchronized (vertexDataFile) {
+            vertexData = blockManager.getRawBlock(blockId);
+            vertexDataFile.seek(dataStart);
+            vertexDataFile.readFully(vertexData);
+        }
         return blockId;
     }
 
