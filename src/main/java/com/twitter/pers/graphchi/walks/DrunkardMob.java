@@ -35,9 +35,11 @@ public class DrunkardMob implements GraphChiProgram<Integer, Boolean> {
         if (walksAtMe == null) return;
 
         int walkLength = WalkManager.getWalkLength(walksAtMe);
+        int numWalks = 0;
         for(int i=0; i < walkLength; i++) {
             int walk = walksAtMe[i];
             int hop = walkManager.hop(walk);
+            if (hop > 0) numWalks++;
             if (hop < maxHops) {
                 // Choose a random destination and move the walk forward
                 int dst;
@@ -51,8 +53,7 @@ public class DrunkardMob implements GraphChiProgram<Integer, Boolean> {
                 context.getScheduler().addTask(dst);
             }
         }
-        if (context.getIteration() > 0)
-            vertex.setValue(vertex.getValue() + walkLength);
+        vertex.setValue(vertex.getValue() + numWalks);
     }
 
 
@@ -137,7 +138,7 @@ public class DrunkardMob implements GraphChiProgram<Integer, Boolean> {
 
 
         /* Run */
-        engine.run(mob, 1 + maxHops);
+        engine.run(mob, maxHops + 1);
 
         System.out.println("Ready. Going to output...");
 
