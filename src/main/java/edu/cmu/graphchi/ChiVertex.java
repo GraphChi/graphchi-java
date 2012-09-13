@@ -80,9 +80,9 @@ public class ChiVertex<VertexValue, EdgeValue> {
         int i = (int) (Math.random() * numOutEdges());
         if (edgeValueConverter != null) {
             int idx = i * 3;
-            return inEdgeDataArray[idx + 2];
+            return outEdgeDataArray[idx + 2];
         } else {
-            return inEdgeDataArray[i];
+            return outEdgeDataArray[i];
         }
     }
     public int numOutEdges() {
