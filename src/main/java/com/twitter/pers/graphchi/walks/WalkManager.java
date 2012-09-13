@@ -149,9 +149,10 @@ public class WalkManager {
         /* Snap to correct size */
         for(int s=0; s < snapshots.length; s++) {
             if (snapshots[s] != null && snapshots[s].length != snapshotIdxs[s]) {
-                int[] tmp = new int[snapshotIdxs[s]];
-                System.arraycopy(snapshots[s], 0, tmp, 0, snapshotIdxs[s]);
-                snapshots[s] = tmp;
+                //int[] tmp = new int[snapshotIdxs[s]];
+                //System.arraycopy(snapshots[s], 0, tmp, 0, snapshotIdxs[s]);
+                //snapshots[s] = tmp;
+                snapshots[s][snapshotIdxs[s]] = -1; // Stopper
             }
         }
 
@@ -174,6 +175,14 @@ public class WalkManager {
         };
     }
 
+    public static int getWalkLength(int[] w) {
+        if (w == null) return 0;
+        for(int i=0; i < w.length; i++) {
+            if (w[i] == -1) return i;
+        }
+        return w.length;
+    }
+
     /** Dump to file all walks with more than 0 hop */
     public void dumpToFile(WalkSnapshot snapshot, String filename) throws IOException {
         DataOutputStream dos = new DataOutputStream(new BufferedOutputStream(new FileOutputStream(new File(filename), true)));
@@ -182,6 +191,7 @@ public class WalkManager {
             if (ws != null) {
                 for(int j=0; j < ws.length; j++) {
                     int w = ws[j];
+                    if (w == -1) break;
                     if (hop(w) > 0) {
                         int source = sources[sourceIdx(w)];
                         dos.writeInt(source);

@@ -41,6 +41,8 @@ public class TestWalkManager {
         assertEquals(0, off);
     }
 
+
+
     @Test
     public void testWalkManager() throws IOException {
         int nvertices = 33333;
@@ -59,10 +61,11 @@ public class TestWalkManager {
         WalkSnapshot snapshot1 = wmgr.grabSnapshot(890, 1300);
         for(int j=890; j <= 1300; j++) {
             int[] vertexwalks = snapshot1.getWalksAtVertex(j);
-            assertEquals((j % 100) + 10, vertexwalks.length);
+            assertEquals((j % 100) + 10, WalkManager.getWalkLength(vertexwalks));
 
             for(int w : vertexwalks) {
-                assertEquals(0, wmgr.hop(w));
+                if (w != -1)
+                    assertEquals(0, wmgr.hop(w));
             }
         }
         assertEquals(890, snapshot1.getFirstVertex());
@@ -78,7 +81,7 @@ public class TestWalkManager {
         WalkSnapshot snapshot3 = wmgr.grabSnapshot(877, 889);
         for(int j=877; j <= 889; j++) {
             int[] vertexwalks = snapshot3.getWalksAtVertex(j);
-            assertEquals((j % 100) + 10, vertexwalks.length);
+            assertEquals((j % 100) + 10, WalkManager.getWalkLength(vertexwalks));
         }
 
         WalkSnapshot snapshot4 = wmgr.grabSnapshot(877, 889);
@@ -90,7 +93,7 @@ public class TestWalkManager {
         WalkSnapshot snapshot5 = wmgr.grabSnapshot(1301, 3898);
         for(int j=1301; j < 3898; j++) {
             int[] vertexwalks = snapshot5.getWalksAtVertex(j);
-            assertEquals((j % 100) + 10, vertexwalks.length);
+            assertEquals((j % 100) + 10, WalkManager.getWalkLength(vertexwalks));
         }
         wmgr.dumpToFile(snapshot5, "/tmp/snapshot5");
 
@@ -107,7 +110,7 @@ public class TestWalkManager {
 
         WalkSnapshot snapshot7 = wmgr.grabSnapshot(76, 22098);
         int[] w1 = snapshot7.getWalksAtVertex(76);
-        assertEquals(1, w1.length);
+        assertEquals(1, WalkManager.getWalkLength(w1));
         int w = w1[0];
         assertEquals(41, wmgr.sourceIdx(w));
         assertEquals(3, wmgr.hop(w));
