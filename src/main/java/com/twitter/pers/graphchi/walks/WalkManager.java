@@ -65,7 +65,7 @@ public class WalkManager {
         synchronized (walks[bucket]) {
             int idx = walkIndices[bucket];
             if (idx == walks[bucket].length) {
-                int[] newBucket = new int[walks[bucket].length * 2];
+                int[] newBucket = new int[walks[bucket].length * 3 / 2];
                 System.arraycopy(walks[bucket], 0, newBucket, 0, walks[bucket].length);
                 walks[bucket] = newBucket;
             }
@@ -95,96 +95,59 @@ public class WalkManager {
     }
 
     public WalkSnapshot grabSnapshot(final int fromVertex, final int toVertexInclusive) {
-        int fromBucket = fromVertex / bucketSize;
-        int toBucket = toVertexInclusive / bucketSize;
+        final int fromBucket = fromVertex / bucketSize;
+        final int toBucket = toVertexInclusive / bucketSize;
 
         /* Replace the buckets in question with empty buckets */
-        ArrayList<int[]> tmpBuckets = new ArrayList<int[]>(toBucket - fromBucket + 1);
-        int[] tmpBucketLengths = new int[toBucket - fromBucket + 1];
+        final ArrayList<int[]> tmpBuckets = new ArrayList<int[]>(toBucket - fromBucket + 1);
+        final int[] tmpBucketLengths = new int[toBucket - fromBucket + 1];
         for(int b=fromBucket; b <= toBucket; b++) {
-            tmpBuckets.add(walks[b]);
-            tmpBucketLengths[b - fromBucket] = walkIndices[b];
+            int[] bucket = walks[b];
+            int len = walkIndices[b];
+            tmpBuckets.add(bucket);
+            tmpBucketLengths[b - fromBucket] = len;
             walks[b] = new int[initialSize];
             walkIndices[b] = 0;
-        }
 
-        /* Now create data structure for fast retrieval */
-        final int[][] snapshots = new int[toVertexInclusive - fromBucket + 1][];
-        final int[] snapshotIdxs = new int[snapshots.length];
-
-        for(int i=0; i < snapshots.length; i++) {
-            snapshots[i] = null;
-            snapshotIdxs[i] = 0;
-        }
-        /* Add walks to snapshot arrays -- TODO: parallelize */
-        for(int b=0; b < tmpBuckets.size(); b++) {
-            int bucketFirstVertex = bucketSize * (fromBucket + b);
-            int[] arr = tmpBuckets.get(b);
-            int len = tmpBucketLengths[b];
-
-            final int[] snapshotSizes = new int[bucketSize];
-
-            /* Calculate vertex-walks sizes */
-            for(int i=0; i < len; i++) {
-                int w = arr[i];
-                snapshotSizes[off(w)]++;
-            }
-
-            int offt = bucketFirstVertex - fromVertex;
-
-            /* Precalculate the array sizes. offt is the
-               offset of the bucket's first vertex from the first
-               vertex of the snapshot
-             */
-
-            for(int i=0; i < snapshotSizes.length; i++) {
-                if (snapshotSizes[i] > 0 && i >= -offt && i + offt < snapshots.length)
-                    snapshots[i + offt] = new int[snapshotSizes[i]];
-            }
-
-            for(int i=0; i < len; i++) {
-                int w = arr[i];
-                int hop = hop(w);
-                int vertex = bucketFirstVertex + off(w);
-                int src = sourceIdx(w);
-
-                if (vertex >= fromVertex && vertex <= toVertexInclusive) {
-                    int snapshotOff = vertex - fromVertex;
-                    if (snapshots[snapshotOff] == null)
-                        throw new IllegalStateException();
-
-                    if (snapshotIdxs[snapshotOff] >= snapshots[snapshotOff].length) {
-                        throw new RuntimeException("Not possible!");
-                        /*   Duplicate array
-                        int[] tmp = new int[snapshots[snapshotOff].length * 2];
-                        System.arraycopy(snapshots[snapshotOff], 0, tmp, 0, snapshots[snapshotOff].length);
-                        snapshots[snapshotOff] = tmp;   */
-                    }
-                    snapshots[snapshotOff][snapshotIdxs[snapshotOff]] = w;
-                    snapshotIdxs[snapshotOff]++;
-                } else {
-                    // add back
-                    updateWalk(src, vertex, hop);
+            // Add walks back that do not match the range -- todo : force aligned!
+            if (b == fromBucket || b == toBucket) {
+                int bucketFirstVertex = b * bucketSize;
+                for(int i=0; i < len; i++) {
+                    int vid = off(bucket[i]) + bucketFirstVertex;
+                    if (vid < fromVertex || vid > toVertexInclusive)
+                        updateWalk(sourceIdx(bucket[i]), vid, hop(bucket[i]));
                 }
             }
-            tmpBuckets.set(b, null); // Save memory
         }
-        /*
-          Snap to correct size
-        for(int s=0; s < snapshots.length; s++) {
-            if (snapshots[s] != null && snapshots[s].length != snapshotIdxs[s]) {
-                //int[] tmp = new int[snapshotIdxs[s]];
-                //System.arraycopy(snapshots[s], 0, tmp, 0, snapshotIdxs[s]);
-                //snapshots[s] = tmp;
-                snapshots[s][snapshotIdxs[s]] = -1; // Stopper
-            }
-        }       */
 
-        /* Create the snapshot object */
+        /* Create the snapshot object.
+         * This is a memory-efficient that scans the bucket twice */
         return new WalkSnapshot() {
+
             @Override
             public int[] getWalksAtVertex(int vertexId) {
-                return snapshots[vertexId - fromVertex];
+                int bucketIdx = vertexId / bucketSize - fromBucket;
+                int[] bucket = tmpBuckets.get(bucketIdx);
+                // Count how many
+                int n = 0;
+                int myOff = vertexId % bucketSize;
+                int bucketLength = tmpBucketLengths[bucketIdx];
+                for(int i=0; i < bucketLength; i++) {
+                    if (off(bucket[i]) == myOff) {
+                        n++;
+                    }
+                }
+
+                if (n == 0) return null;
+
+                int[] walks = new int[n];
+                int idx = 0;
+                for(int i=0; i < bucketLength; i++) {
+                    if (off(bucket[i]) == myOff) {
+                        walks[idx++] = bucket[i];
+                    }
+                }
+                return walks;
             }
 
             @Override
