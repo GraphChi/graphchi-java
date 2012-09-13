@@ -56,6 +56,7 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
     protected BitsetScheduler scheduler = null;
     protected long nupdates = 0;
     protected boolean enableDeterministicExecution = true;
+    private boolean useStaticWindowSize = false;
     protected long memBudget;
 
 
@@ -460,6 +461,11 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
     private int determineNextWindow(int subIntervalStart, int maxVertex) throws IOException {
         // TODO
         degreeHandler.load(subIntervalStart, maxVertex);
+
+        if (useStaticWindowSize) {
+            return maxVertex;
+        }
+
         long memReq = 0;
         int maxInterval = maxVertex - subIntervalStart;
         System.out.println("mem budget: " + memBudget / 1024. / 1024. + "mb");
@@ -542,6 +548,14 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
 
     public void setMaxWindow(int maxWindow) {
         this.maxWindow = maxWindow;
+    }
+
+    public boolean isUseStaticWindowSize() {
+        return useStaticWindowSize;
+    }
+
+    public void setUseStaticWindowSize(boolean useStaticWindowSize) {
+        this.useStaticWindowSize = useStaticWindowSize;
     }
 
     private class MockScheduler implements Scheduler {

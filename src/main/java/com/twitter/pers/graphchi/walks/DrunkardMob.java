@@ -112,6 +112,7 @@ public class DrunkardMob implements GraphChiProgram<Integer, Boolean> {
         engine.setEnableScheduler(true);
         engine.setOnlyAdjacency(true);
         engine.setDisableInedges(true);
+        engine.setUseStaticWindowSize(true); // Disable dynamic window size detection
         engine.setEnableDeterministicExecution(false);
         engine.setMaxWindow(1000000); // Handle maximum 1M vertices a time.
 
