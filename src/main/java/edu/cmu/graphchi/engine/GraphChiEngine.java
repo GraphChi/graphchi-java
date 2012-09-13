@@ -181,7 +181,13 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
         vertexDataHandler.setBlockManager(blockManager);
 
         for(int iter=0; iter < niters; iter++) {
-            blockManager.reset();;
+            /* Wait for executor have finished all writes */
+            while (!blockManager.empty()) {
+                try {
+                    Thread.sleep(50);
+                } catch (InterruptedException ie) {}
+            }
+            blockManager.reset();
             chiContext.setIteration(iter);
             chiContext.setNumVertices(numVertices());
             program.beginIteration(chiContext);
@@ -264,7 +270,20 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
                         long t1 = System.currentTimeMillis();
                         execUpdates(program, vertices);
                         System.out.println("Update exec: " + (System.currentTimeMillis() - t1) + " ms.");
-                        vertexDataHandler.releaseAndCommit(subIntervalStart, vertexBlockId);
+
+                        // Write vertices (async)
+                        final int _firstVertex = subIntervalStart;
+                        final int _blockId = vertexBlockId;
+                        parallelExecutor.submit(new Runnable() {
+                            @Override
+                            public void run() {
+                                try {
+                                    vertexDataHandler.releaseAndCommit(_firstVertex, _blockId);
+                                } catch (IOException ioe) {
+                                    ioe.printStackTrace();
+                                }
+                            }
+                        });
 
                         subIntervalStart = subIntervalEnd + 1;
 

@@ -61,6 +61,15 @@ public class DataBlockManager {
         blocks.clear();
     }
 
+    public boolean empty() {
+        for(int i=0; i<blocks.size(); i++) {
+            if (blocks.get(i) != null) {
+                return false;
+            }
+        }
+        return true;
+    }
+
     public void release(int blockId) {
         blocks.set(blockId, null);
     }
