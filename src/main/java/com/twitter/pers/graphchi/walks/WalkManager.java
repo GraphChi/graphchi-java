@@ -111,6 +111,7 @@ public class WalkManager {
         /* Now create data structure for fast retrieval */
         final int[][] snapshots = new int[toVertexInclusive - fromBucket + 1][];
         final int[] snapshotIdxs = new int[snapshots.length];
+
         for(int i=0; i < snapshots.length; i++) {
             snapshots[i] = null;
             snapshotIdxs[i] = 0;
@@ -120,6 +121,27 @@ public class WalkManager {
             int bucketFirstVertex = bucketSize * (fromBucket + b);
             int[] arr = tmpBuckets.get(b);
             int len = tmpBucketLengths[b];
+
+            final int[] snapshotSizes = new int[bucketSize];
+
+            /* Calculate vertex-walks sizes */
+            for(int i=0; i < len; i++) {
+                int w = arr[i];
+                snapshotSizes[off(w)]++;
+            }
+
+            int offt = bucketFirstVertex - fromVertex;
+
+            /* Precalculate the array sizes. offt is the
+               offset of the bucket's first vertex from the first
+               vertex of the snapshot
+             */
+
+            for(int i=0; i < snapshotSizes.length; i++) {
+                if (snapshotSizes[i] > 0 && i >= -offt && i + offt < snapshots.length)
+                    snapshots[i + offt] = new int[snapshotSizes[i]];
+            }
+
             for(int i=0; i < len; i++) {
                 int w = arr[i];
                 int hop = hop(w);
@@ -132,10 +154,11 @@ public class WalkManager {
                         snapshots[snapshotOff] = new int[8];
 
                     if (snapshotIdxs[snapshotOff] >= snapshots[snapshotOff].length) {
-                        /* Duplicate array */
+                        throw new RuntimeException("Not possible!");
+                        /*   Duplicate array
                         int[] tmp = new int[snapshots[snapshotOff].length * 2];
                         System.arraycopy(snapshots[snapshotOff], 0, tmp, 0, snapshots[snapshotOff].length);
-                        snapshots[snapshotOff] = tmp;
+                        snapshots[snapshotOff] = tmp;   */
                     }
                     snapshots[snapshotOff][snapshotIdxs[snapshotOff]] = w;
                     snapshotIdxs[snapshotOff]++;
@@ -146,7 +169,8 @@ public class WalkManager {
             }
             tmpBuckets.set(b, null); // Save memory
         }
-        /* Snap to correct size */
+        /*
+          Snap to correct size
         for(int s=0; s < snapshots.length; s++) {
             if (snapshots[s] != null && snapshots[s].length != snapshotIdxs[s]) {
                 //int[] tmp = new int[snapshotIdxs[s]];
@@ -154,7 +178,7 @@ public class WalkManager {
                 //snapshots[s] = tmp;
                 snapshots[s][snapshotIdxs[s]] = -1; // Stopper
             }
-        }
+        }       */
 
         /* Create the snapshot object */
         return new WalkSnapshot() {
