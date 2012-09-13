@@ -38,19 +38,22 @@ public class VertexData <VertexDataType> {
         this.baseFilename = baseFilename;
         this.converter = converter;
 
+        long expectedSize = (long) converter.sizeOf() * (long) nvertices;
+
         // Check size and create if does not exists
         File vertexfile = new File(ChiFilenames.getFilenameOfVertexData(baseFilename, converter));
-        if (!vertexfile.exists() || vertexfile.length() < nvertices * converter.sizeOf()) {
+        System.out.println("Vertex file length: " + vertexfile.length() + ", nvertices=" + nvertices
+                + ", expected size: " + expectedSize);
+        if (!vertexfile.exists() || vertexfile.length() < expectedSize) {
             if (!vertexfile.exists()) {
                 vertexfile.createNewFile();
             }
-            System.out.println("Vertex data file did not exists, creating it.");
+            System.out.println("Vertex data file did not exists, creating it. Vertices: " + nvertices);
             FileOutputStream fos = new FileOutputStream(vertexfile);
-            long newSize = converter.sizeOf() * nvertices;
             byte[] tmp = new byte[32678];
             long written = 0;
-            while(written < newSize) {
-                long n = Math.min(newSize - written, tmp.length);
+            while(written < expectedSize) {
+                long n = Math.min(expectedSize - written, tmp.length);
                 fos.write(tmp, 0, (int)n);
                 written += n;
             }
@@ -67,7 +70,7 @@ public class VertexData <VertexDataType> {
     public void releaseAndCommit(int firstVertex, int blockId) throws IOException {
         assert(blockId >= 0);
         byte[] data = blockManager.getRawBlock(blockId);
-        int dataStart = firstVertex * converter.sizeOf();
+        long dataStart = (long) firstVertex * (long) converter.sizeOf();
 
         synchronized (vertexDataFile) {
             vertexDataFile.seek(dataStart);
@@ -84,10 +87,10 @@ public class VertexData <VertexDataType> {
         vertexSt = _vertexSt;
         vertexEn = _vertexEn;
 
-        int dataSize = (vertexEn - vertexSt + 1) * converter.sizeOf();
-        int dataStart = vertexSt * converter.sizeOf();
+        long dataSize = (long) (vertexEn - vertexSt + 1) *  (long)  converter.sizeOf();
+        long dataStart =  (long) vertexSt *  (long) converter.sizeOf();
 
-        int blockId =  blockManager.allocateBlock(dataSize);
+        int blockId =  blockManager.allocateBlock((int) dataSize);
         synchronized (vertexDataFile) {
             vertexData = blockManager.getRawBlock(blockId);
             vertexDataFile.seek(dataStart);

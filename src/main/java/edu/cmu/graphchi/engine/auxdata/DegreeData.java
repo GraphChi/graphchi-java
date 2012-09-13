@@ -1,10 +1,9 @@
 package edu.cmu.graphchi.engine.auxdata;
 
 import edu.cmu.graphchi.ChiFilenames;
-
-import java.io.File;
-import java.io.IOException;
 import ucar.unidata.io.RandomAccessFile;
+
+import java.io.IOException;
 /**
  * Copyright [2012] [Aapo Kyrola, Guy Blelloch, Carlos Guestrin / Carnegie Mellon University]
  *
@@ -38,10 +37,10 @@ public class DegreeData {
         vertexSt = _vertexSt;
         vertexEn = _vertexEn;
 
-        int dataSize = (vertexEn - vertexSt + 1) * 4 * 2;
-        int dataStart = vertexSt * 4 * 2;
+        long dataSize =  (long)  (vertexEn - vertexSt + 1) * 4 * 2;
+        long dataStart =  (long)  vertexSt * 4l * 2l;
 
-        degreeData = new byte[dataSize];
+        degreeData = new byte[(int) dataSize];
 
         degreeFile.seek(dataStart);
         degreeFile.readFully(degreeData);
