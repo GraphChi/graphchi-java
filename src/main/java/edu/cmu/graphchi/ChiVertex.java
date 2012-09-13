@@ -77,9 +77,14 @@ public class ChiVertex<VertexValue, EdgeValue> {
         if (numOutEdges() == 0) {
             return -1;
         }
-        return outEdge((int) (Math.random() * numOutEdges())).getVertexId();
+        int i = (int) (Math.random() * numOutEdges());
+        if (edgeValueConverter != null) {
+            int idx = i * 3;
+            return inEdgeDataArray[idx + 2];
+        } else {
+            return inEdgeDataArray[i];
+        }
     }
-
     public int numOutEdges() {
         return nOutedges.get();
     }
