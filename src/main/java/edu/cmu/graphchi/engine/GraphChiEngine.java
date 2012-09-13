@@ -11,8 +11,10 @@ import edu.cmu.graphchi.shards.SlidingShard;
 
 import java.io.*;
 import java.util.ArrayList;
+import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.FutureTask;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
@@ -58,6 +60,10 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
     protected boolean enableDeterministicExecution = true;
     private boolean useStaticWindowSize = false;
     protected long memBudget;
+
+    /* Automatic loading of next window */
+    private boolean autoLoadNext = false; // Only for only-adjacency cases!
+    private FutureTask<IntervalData> nextWindow;
 
 
 
@@ -205,33 +211,62 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
 
                 while (subIntervalStart <= intervalEn) {
                     if (anyVertexScheduled(subIntervalStart, Math.min(intervalEn, subIntervalStart + maxWindow ))) {
-                        subIntervalEnd = determineNextWindow(subIntervalStart, Math.min(intervalEn, subIntervalStart + maxWindow ));
-                        int nvertices = subIntervalEnd - subIntervalStart + 1;
+                        ChiVertex<VertexDataType, EdgeDataType>[] vertices = null;
+                        int vertexBlockId = -1;
 
-                        System.out.println("Subinterval:: " + subIntervalStart + " -- " + subIntervalEnd + " (iteration " + iter + ")");
-                        program.beginSubInterval(chiContext, new VertexInterval(subIntervalStart, subIntervalEnd));
+                        if (!autoLoadNext || nextWindow == null) {
+                            subIntervalEnd = determineNextWindow(subIntervalStart, Math.min(intervalEn, subIntervalStart + maxWindow ));
+                            int nvertices = subIntervalEnd - subIntervalStart + 1;
 
-                        ChiVertex<VertexDataType, EdgeDataType>[] vertices = new
-                                ChiVertex[nvertices];
+                            System.out.println("Subinterval:: " + subIntervalStart + " -- " + subIntervalEnd + " (iteration " + iter + ")");
 
-                        vertexDataHandler.load(subIntervalStart, subIntervalEnd);
-                        System.out.println("Init vertices...");
-                        initVertices(nvertices, vertices);
+                            vertices = new ChiVertex[nvertices];
 
+
+                            System.out.println("Init vertices...");
+                            vertexBlockId = initVertices(nvertices, subIntervalStart, vertices);
+
+                            System.out.println("Loading...");
+                            long t0 = System.currentTimeMillis();
+                            loadBeforeUpdates(vertices);
+                            System.out.println("Load took: " + (System.currentTimeMillis() - t0) + "ms");
+                        } else {
+                            /* This is a mess! */
+                            try {
+                                long tf = System.currentTimeMillis();
+                                IntervalData next = nextWindow.get();
+                                System.out.println("Waiting for future task loading took " + (System.currentTimeMillis() - tf) + " ms");
+                                if (subIntervalStart != next.getSubInterval().getFirstVertex())
+                                    throw new IllegalStateException("Future loaders interval does not match the expected one! " +
+                                            subIntervalStart + " != " + next.getSubInterval().getFirstVertex());
+                                subIntervalEnd = next.getSubInterval().getLastVertex();
+                                vertexBlockId = next.getVertexBlockId();
+                                vertices = next.getVertices();
+                                nextWindow = null;
+                            } catch (Exception err) {
+                                throw new RuntimeException(err);
+                            }
+                        }
+
+                        if (autoLoadNext) {
+                            /* Start a future for loading the next window */
+                            if (subIntervalEnd + 1 <= intervalEn) {
+                                nextWindow = new FutureTask<IntervalData>(new AutoLoaderTask(new VertexInterval(subIntervalEnd + 1,
+                                        Math.min(intervalEn, subIntervalEnd + 1 + maxWindow))));
+                                parallelExecutor.submit(nextWindow);
+                            }
+                        }
                         /* Clear scheduler bits */
                         if (scheduler != null) scheduler.removeTasks(subIntervalStart, subIntervalEnd);
 
-                        System.out.println("Loading...");
-                        long t0 = System.currentTimeMillis();
-                        loadBeforeUpdates(vertices);
-                        System.out.println("Load took: " + (System.currentTimeMillis() - t0) + "ms");
+                        program.beginSubInterval(chiContext, new VertexInterval(subIntervalStart, subIntervalEnd));
 
                         long t1 = System.currentTimeMillis();
                         execUpdates(program, vertices);
                         System.out.println("Update exec: " + (System.currentTimeMillis() - t1) + " ms.");
+                        vertexDataHandler.releaseAndCommit(subIntervalStart, vertexBlockId);
 
                         subIntervalStart = subIntervalEnd + 1;
-                        vertexDataHandler.releaseAndCommit();
 
                         program.endSubInterval(chiContext, new VertexInterval(subIntervalStart, subIntervalEnd));
 
@@ -375,24 +410,27 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
         }
     }
 
-    protected void initVertices(int nvertices, ChiVertex<VertexDataType, EdgeDataType>[] vertices)
+    protected int initVertices(int nvertices, int firstVertexId, ChiVertex<VertexDataType, EdgeDataType>[] vertices) throws IOException
     {
         ChiVertex.edgeValueConverter = edataConverter;
         ChiVertex.vertexValueConverter = vertexDataConverter;
         ChiVertex.blockManager = blockManager;
-        for(int j=0; j < nvertices; j++) {
-            VertexDegree degree = degreeHandler.getDegree(j + subIntervalStart);
 
-            if (enableScheduler && !scheduler.isScheduled(j + subIntervalStart)) {
+        int blockId = vertexDataHandler.load(firstVertexId, firstVertexId + nvertices - 1);
+        for(int j=0; j < nvertices; j++) {
+            VertexDegree degree = degreeHandler.getDegree(j + firstVertexId);
+
+            if (enableScheduler && !scheduler.isScheduled(j + firstVertexId)) {
                 continue;
             }
-            ChiVertex<VertexDataType, EdgeDataType> v = new ChiVertex<VertexDataType, EdgeDataType>(j + subIntervalStart, degree);
-            v.setDataPtr(vertexDataHandler.getVertexValuePtr(j + subIntervalStart));
+            ChiVertex<VertexDataType, EdgeDataType> v = new ChiVertex<VertexDataType, EdgeDataType>(j + firstVertexId, degree);
+            v.setDataPtr(vertexDataHandler.getVertexValuePtr(j + firstVertexId, blockId));
             vertices[j] = v;
 
             if (j % 200000 == 0)
                 System.out.println("Init progress: " + j + " / " + nvertices);
         }
+        return blockId;
     }
 
     private void loadBeforeUpdates(final ChiVertex<VertexDataType, EdgeDataType>[] vertices) throws IOException {
@@ -458,8 +496,66 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
         }
     }
 
+    class IntervalData {
+        private VertexInterval subInterval;
+        private ChiVertex<VertexDataType, EdgeDataType>[] vertices;
+        private int vertexBlockId;
+
+        IntervalData(VertexInterval subInterval, ChiVertex<VertexDataType, EdgeDataType>[] vertices, int vertexBlockId) {
+            this.subInterval = subInterval;
+            this.vertices = vertices;
+            this.vertexBlockId = vertexBlockId;
+        }
+
+        public VertexInterval getSubInterval() {
+            return subInterval;
+        }
+
+        public ChiVertex<VertexDataType, EdgeDataType>[] getVertices() {
+            return vertices;
+        }
+
+        public int getVertexBlockId() {
+            return vertexBlockId;
+        }
+    }
+
+    class AutoLoaderTask implements Callable<IntervalData> {
+
+        private ChiVertex<VertexDataType, EdgeDataType>[] vertices;
+        private VertexInterval interval;
+
+        AutoLoaderTask(VertexInterval interval) {
+            this.interval = interval;
+            if (!onlyAdjacency)  throw new RuntimeException("Can use auto-loading only with only-adjacency mode!");
+        }
+
+        @Override
+        public IntervalData call() {
+            try {
+                int lastVertex  = determineNextWindow(interval.getFirstVertex(), interval.getLastVertex());
+                int nVertices = lastVertex - interval.getFirstVertex() + 1;
+                this.vertices = (ChiVertex<VertexDataType, EdgeDataType>[]) new ChiVertex[nVertices];
+
+                int vertexBlockid = initVertices(nVertices, interval.getFirstVertex(), vertices);
+
+                /* Load in one thread only */
+                for(int p=0; p < nShards; p++) {
+                    if (p != execInterval || disableInEdges) {
+                        final SlidingShard<EdgeDataType> shard = slidingShards.get(p);
+                        shard.readNextVertices(vertices, interval.getFirstVertex(), false);
+                    }
+                }
+                if (!disableInEdges) memoryShard.loadVertices(interval.getFirstVertex(), lastVertex, vertices);
+                return new IntervalData(new VertexInterval(interval.getFirstVertex(), lastVertex), vertices, vertexBlockid);
+            } catch (Exception err) {
+                err.printStackTrace();
+                return null;
+            }
+        }
+    }
+
     private int determineNextWindow(int subIntervalStart, int maxVertex) throws IOException {
-        // TODO
         degreeHandler.load(subIntervalStart, maxVertex);
 
         if (useStaticWindowSize) {
@@ -556,6 +652,14 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
 
     public void setUseStaticWindowSize(boolean useStaticWindowSize) {
         this.useStaticWindowSize = useStaticWindowSize;
+    }
+
+    public boolean isAutoLoadNext() {
+        return autoLoadNext;
+    }
+
+    public void setAutoLoadNext(boolean autoLoadNext) {
+        this.autoLoadNext = autoLoadNext;
     }
 
     private class MockScheduler implements Scheduler {

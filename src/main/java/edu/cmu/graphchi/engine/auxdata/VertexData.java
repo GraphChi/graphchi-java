@@ -32,7 +32,6 @@ public class VertexData <VertexDataType> {
     private String baseFilename;
     private RandomAccessFile vertexDataFile;
     private BytesToValueConverter <VertexDataType> converter;
-    private int currentBlockId = (-1);
     private DataBlockManager blockManager;
 
     public VertexData(int nvertices, String baseFilename, BytesToValueConverter<VertexDataType> converter) throws IOException {
@@ -65,20 +64,20 @@ public class VertexData <VertexDataType> {
 
     }
 
-    public void releaseAndCommit() throws IOException {
-        assert(currentBlockId >= 0);
-        byte[] data = blockManager.getRawBlock(currentBlockId);
-        int dataStart = vertexSt * converter.sizeOf();
+    public void releaseAndCommit(int firstVertex, int blockId) throws IOException {
+        assert(blockId >= 0);
+        byte[] data = blockManager.getRawBlock(blockId);
+        int dataStart = firstVertex * converter.sizeOf();
 
         vertexDataFile.seek(dataStart);
         vertexDataFile.write(data);
 
-        blockManager.release(currentBlockId);
+        blockManager.release(blockId);
         
         vertexDataFile.flush();
     }
 
-    public void load(int _vertexSt, int _vertexEn) throws IOException {
+    public int load(int _vertexSt, int _vertexEn) throws IOException {
 
         vertexSt = _vertexSt;
         vertexEn = _vertexEn;
@@ -86,16 +85,17 @@ public class VertexData <VertexDataType> {
         int dataSize = (vertexEn - vertexSt + 1) * converter.sizeOf();
         int dataStart = vertexSt * converter.sizeOf();
 
-        currentBlockId =  blockManager.allocateBlock(dataSize);
+        int blockId =  blockManager.allocateBlock(dataSize);
 
-        vertexData = blockManager.getRawBlock(currentBlockId);
+        vertexData = blockManager.getRawBlock(blockId);
         vertexDataFile.seek(dataStart);
         vertexDataFile.readFully(vertexData);
+        return blockId;
     }
 
-    public ChiPointer getVertexValuePtr(int vertexId) {
+    public ChiPointer getVertexValuePtr(int vertexId, int blockId) {
         assert(vertexId >= vertexSt && vertexId <= vertexEn);
-        return new ChiPointer(currentBlockId, (vertexId - vertexSt) * converter.sizeOf());
+        return new ChiPointer(blockId, (vertexId - vertexSt) * converter.sizeOf());
     }
 
     public void setBlockManager(DataBlockManager blockManager) {
