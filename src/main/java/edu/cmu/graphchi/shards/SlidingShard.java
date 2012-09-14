@@ -6,11 +6,10 @@ import edu.cmu.graphchi.datablocks.BytesToValueConverter;
 import edu.cmu.graphchi.datablocks.ChiPointer;
 import edu.cmu.graphchi.datablocks.DataBlockManager;
 import edu.cmu.graphchi.io.CompressedIO;
-import ucar.unidata.io.RandomAccessFile;
 
-import java.io.File;
-import java.io.IOException;
+import java.io.*;
 import java.util.ArrayList;
+import java.util.zip.GZIPInputStream;
 
 /**
  * Copyright [2012] [Aapo Kyrola, Guy Blelloch, Carlos Guestrin / Carnegie Mellon University]
@@ -29,280 +28,291 @@ import java.util.ArrayList;
  */
 public class SlidingShard <EdgeDataType> {
 
-	private String edgeDataFilename;
-	private String adjDataFilename;
-	private int rangeStart;
-	private int rangeEnd;
+    private String edgeDataFilename;
+    private String adjDataFilename;
+    private int rangeStart;
+    private int rangeEnd;
 
-	private DataBlockManager blockManager;
+    private DataBlockManager blockManager;
 
-	private ArrayList<Block> activeBlocks;
+    private ArrayList<Block> activeBlocks;
 
-	public long edataFilesize, adjFilesize;
-	private Block curBlock = null;
-	private int edataOffset = 0;
-	private int blockSize = -1;
-	private int sizeOf = -1;
-	private int adjOffset = 0;
-	private int curvid = 0;
-	private boolean onlyAdjacency = false;
-	private boolean asyncEdataLoading = true;
+    public long edataFilesize, adjFilesize;
+    private Block curBlock = null;
+    private int edataOffset = 0;
+    private int blockSize = -1;
+    private int sizeOf = -1;
+    private int adjOffset = 0;
+    private int curvid = 0;
+    private boolean onlyAdjacency = false;
+    private boolean asyncEdataLoading = true;
 
-	private BytesToValueConverter<EdgeDataType> converter;
-	private RandomAccessFile adjFile;
-	private boolean modifiesOutedges = true;
+    private BytesToValueConverter<EdgeDataType> converter;
+    private DataInputStream adjFile;
+    private boolean modifiesOutedges = true;
 
 
-	public SlidingShard(String edgeDataFilename, String adjDataFilename,
-			int rangeStart, int rangeEnd) throws IOException {
-		this.edgeDataFilename = edgeDataFilename;
-		this.adjDataFilename = adjDataFilename;
-		this.rangeStart = rangeStart;
-		this.rangeEnd = rangeEnd;
+    public SlidingShard(String edgeDataFilename, String adjDataFilename,
+                        int rangeStart, int rangeEnd) throws IOException {
+        this.edgeDataFilename = edgeDataFilename;
+        this.adjDataFilename = adjDataFilename;
+        this.rangeStart = rangeStart;
+        this.rangeEnd = rangeEnd;
 
-		adjFilesize = new File(adjDataFilename).length();
+        adjFilesize = new File(adjDataFilename).length();
         if (edgeDataFilename != null) {
-	    	edataFilesize = ChiFilenames.getShardEdataSize(edgeDataFilename);
-		    activeBlocks = new ArrayList<Block>();
+            edataFilesize = ChiFilenames.getShardEdataSize(edgeDataFilename);
+            activeBlocks = new ArrayList<Block>();
         } else {
             onlyAdjacency = true;
         }
-	}
+    }
 
-	public void finalize() {
-		for (Block b : activeBlocks) b.release();
-	}
+    public void finalize() {
+        for (Block b : activeBlocks) b.release();
+    }
 
-	private void checkCurblock(int toread) {
-		if (curBlock == null || curBlock.end < edataOffset + toread) {
-			if (curBlock != null) {
-				if  (!curBlock.active) {
-					curBlock.release();
-				}
-			}
-			// Load next
-			int start = (edataOffset / blockSize) * blockSize; // align
-			int fileBlockId = edataOffset / blockSize;
-			curBlock = new Block(edgeDataFilename, start,
-					(int) Math.min(start + blockSize, edataFilesize), fileBlockId, blockSize);
-			curBlock.ptr = edataOffset - start; // Correction due to alignment.
-			activeBlocks.add(curBlock);
+    private void checkCurblock(int toread) {
+        if (curBlock == null || curBlock.end < edataOffset + toread) {
+            if (curBlock != null) {
+                if  (!curBlock.active) {
+                    curBlock.release();
+                }
+            }
+            // Load next
+            int start = (edataOffset / blockSize) * blockSize; // align
+            int fileBlockId = edataOffset / blockSize;
+            curBlock = new Block(edgeDataFilename, start,
+                    (int) Math.min(start + blockSize, edataFilesize), fileBlockId, blockSize);
+            curBlock.ptr = edataOffset - start; // Correction due to alignment.
+            activeBlocks.add(curBlock);
 
-		}
-	}
+        }
+    }
 
-	private ChiPointer readEdgePtr() {
-		assert(sizeOf >= 0);
+    private ChiPointer readEdgePtr() {
+        assert(sizeOf >= 0);
         if (onlyAdjacency) return null;
-		checkCurblock(sizeOf);
-		ChiPointer ptr = new ChiPointer(curBlock.blockId, curBlock.ptr);
-		curBlock.ptr += sizeOf;
-		edataOffset += sizeOf;
-		return ptr;
-	}
+        checkCurblock(sizeOf);
+        ChiPointer ptr = new ChiPointer(curBlock.blockId, curBlock.ptr);
+        curBlock.ptr += sizeOf;
+        edataOffset += sizeOf;
+        return ptr;
+    }
 
 
-	public void skip(int n) throws IOException {
-		int tot = n * 4;
-		adjOffset += tot;
-		adjFile.skipBytes(tot);
-		edataOffset += sizeOf * n;
-		if (curBlock != null) {
-			curBlock.ptr += sizeOf * n;
-		}
-	}
+    public void skip(int n) throws IOException {
+        int tot = n * 4;
+        adjOffset += tot;
+        adjFile.skipBytes(tot);
+        edataOffset += sizeOf * n;
+        if (curBlock != null) {
+            curBlock.ptr += sizeOf * n;
+        }
+    }
 
-	public void readNextVertices(ChiVertex[] vertices, int start, boolean disableWrites) throws IOException {
-		int nvecs = vertices.length;
-		curBlock = null;
-		releasePriorToOffset(false, disableWrites);
-		assert(activeBlocks.size() <= 1);
+    public void readNextVertices(ChiVertex[] vertices, int start, boolean disableWrites) throws IOException {
+        int nvecs = vertices.length;
+        curBlock = null;
+        releasePriorToOffset(false, disableWrites);
+        assert(activeBlocks.size() <= 1);
 
-		/* Read next */
-		if (!onlyAdjacency && !activeBlocks.isEmpty()) {
-			curBlock = activeBlocks.get(0);
-		}
+        /* Read next */
+        if (!onlyAdjacency && !activeBlocks.isEmpty()) {
+            curBlock = activeBlocks.get(0);
+        }
 
-		if (adjFile == null) {
-			adjFile = new RandomAccessFile(adjDataFilename, "r", 1024 * 1024);
-		}
+        if (adjFile == null) {
 
-		adjFile.seek(adjOffset);
+            File compressedFile = new File(adjDataFilename + ".gz");
+            if (compressedFile.exists()) {
+                System.out.println("Note: using compressed");
+                adjFile = new DataInputStream(new BufferedInputStream(new GZIPInputStream(new FileInputStream(compressedFile)), 1024 * 1024));
 
-		for(int i=(curvid - start); i < nvecs; i++) {
-			if (adjOffset >= adjFilesize) break;
+            } else {
+                adjFile = new DataInputStream(new BufferedInputStream(new FileInputStream(adjDataFilename), 1024 * 1024));
+            }
+            adjFile.skipBytes(adjOffset);
+        }
 
-			int n;
-			int ns = adjFile.readUnsignedByte();
-			assert(ns >= 0);
-			adjOffset++;
+        try {
+            for(int i=(curvid - start); i < nvecs; i++) {
+                int n;
+                int ns = adjFile.readUnsignedByte();
+                assert(ns >= 0);
+                adjOffset++;
 
-			if (ns == 0) {
-				curvid++;
-				int nz = adjFile.readUnsignedByte();
-				adjOffset++;
-				assert(nz >= 0);
-				curvid += nz;
-				i += nz;
-				continue;
-			}
+                if (ns == 0) {
+                    curvid++;
+                    int nz = adjFile.readUnsignedByte();
+                    adjOffset++;
+                    assert(nz >= 0);
+                    curvid += nz;
+                    i += nz;
+                    continue;
+                }
 
-			if (ns == 0xff) {
-				n = adjFile.readInt();
-				adjOffset += 4;
-			} else {
-				n = ns;
-			}
+                if (ns == 0xff) {
+                    n = Integer.reverseBytes(adjFile.readInt());
+                    adjOffset += 4;
+                } else {
+                    n = ns;
+                }
 
-			if (i < 0) {
-				skip(n);
-			} else {
-				ChiVertex vertex = vertices[i];
-				assert(vertex == null || vertex.getId() == curvid);
+                if (i < 0) {
+                    skip(n);
+                } else {
+                    ChiVertex vertex = vertices[i];
+                    assert(vertex == null || vertex.getId() == curvid);
 
-				if (vertex != null) {
-					while (--n >= 0) {
-						int target = adjFile.readInt();
-						adjOffset += 4;
-						ChiPointer eptr = readEdgePtr();
+                    if (vertex != null) {
+                        while (--n >= 0) {
+                            int target = Integer.reverseBytes(adjFile.readInt());
+                            adjOffset += 4;
+                            ChiPointer eptr = readEdgePtr();
 
-						if (!onlyAdjacency) {
-							if (!curBlock.active) {
-								if (asyncEdataLoading) {
-									curBlock.readAsync();
-								} else {
-									curBlock.readNow();
-								}
-							}
-							curBlock.active = true;
-						}
-						vertex.addOutEdge(eptr == null ? -1 : eptr.blockId, eptr == null ? -1 : eptr.offset, target);
+                            if (!onlyAdjacency) {
+                                if (!curBlock.active) {
+                                    if (asyncEdataLoading) {
+                                        curBlock.readAsync();
+                                    } else {
+                                        curBlock.readNow();
+                                    }
+                                }
+                                curBlock.active = true;
+                            }
+                            vertex.addOutEdge(eptr == null ? -1 : eptr.blockId, eptr == null ? -1 : eptr.offset, target);
 
-						if (!(target >= rangeStart && target <= rangeEnd)) {
-							throw new IllegalStateException("Target " + target + " not in range!");
-						}
-					}
-				} else {
-					skip(n);
-				}
-			}
-			curvid++;
-		}
-	}
+                            if (!(target >= rangeStart && target <= rangeEnd)) {
+                                throw new IllegalStateException("Target " + target + " not in range!");
+                            }
+                        }
+                    } else {
+                        skip(n);
+                    }
+                }
+                curvid++;
+            }
+        } catch (EOFException err) {}
+    }
 
-	public void flush() throws IOException {
-		releasePriorToOffset(true, false);
-	}
+    public void flush() throws IOException {
+        releasePriorToOffset(true, false);
+    }
 
-	public void setOffset(int newoff, int _curvid, int edgeptr) {
-		adjOffset = newoff;
-		curvid = _curvid;
-		edataOffset = edgeptr;
-	}
+    public void setOffset(int newoff, int _curvid, int edgeptr) {
+        try {
+            adjFile.close();
+        } catch (IOException ioe) {}
+        adjFile = null;
+        adjOffset = newoff;
+        curvid = _curvid;
+        edataOffset = edgeptr;
+    }
 
-	public void releasePriorToOffset(boolean all, boolean disableWrites)
-			throws IOException {
+    public void releasePriorToOffset(boolean all, boolean disableWrites)
+            throws IOException {
         if (onlyAdjacency) return;
-		for(int i=activeBlocks.size() - 1; i >= 0; i--) {
-			Block b = activeBlocks.get(i);
-			if (b.end <= edataOffset || all) {
-				commit(b, all, disableWrites);
-				activeBlocks.remove(i);
-			}
-		}
-	}
+        for(int i=activeBlocks.size() - 1; i >= 0; i--) {
+            Block b = activeBlocks.get(i);
+            if (b.end <= edataOffset || all) {
+                commit(b, all, disableWrites);
+                activeBlocks.remove(i);
+            }
+        }
+    }
 
-	public long getEdataFilesize() {
-		return edataFilesize;
-	}
+    public long getEdataFilesize() {
+        return edataFilesize;
+    }
 
-	public long getAdjFilesize() {
-		return adjFilesize;
-	}
+    public long getAdjFilesize() {
+        return adjFilesize;
+    }
 
-	public DataBlockManager getDataBlockManager() {
-		return blockManager;
-	}
+    public DataBlockManager getDataBlockManager() {
+        return blockManager;
+    }
 
-	public void setDataBlockManager(DataBlockManager dataBlockManager) {
-		this.blockManager = dataBlockManager;
-	}
+    public void setDataBlockManager(DataBlockManager dataBlockManager) {
+        this.blockManager = dataBlockManager;
+    }
 
-	public BytesToValueConverter<EdgeDataType> getConverter() {
-		return converter;
-	}
+    public BytesToValueConverter<EdgeDataType> getConverter() {
+        return converter;
+    }
 
-	public void setConverter(BytesToValueConverter<EdgeDataType> converter) {
-		this.converter = converter;
+    public void setConverter(BytesToValueConverter<EdgeDataType> converter) {
+        this.converter = converter;
         if (converter == null) {
             sizeOf = 0;
             return;
         }
-		sizeOf = converter.sizeOf();
-		blockSize = ChiFilenames.getBlocksize(sizeOf);
-	}
+        sizeOf = converter.sizeOf();
+        blockSize = ChiFilenames.getBlocksize(sizeOf);
+    }
 
 
-	void commit(Block b, boolean synchronously, boolean disableWrites) throws IOException {
-		disableWrites = disableWrites || !modifiesOutedges;
-		if (synchronously) {
-			if (!disableWrites) b.commitNow();
-			b.release();
-		} else {
-			if (!disableWrites) b.commitAsync();
-			else b.release();
-		}
-	}
+    void commit(Block b, boolean synchronously, boolean disableWrites) throws IOException {
+        disableWrites = disableWrites || !modifiesOutedges;
+        if (synchronously) {
+            if (!disableWrites) b.commitNow();
+            b.release();
+        } else {
+            if (!disableWrites) b.commitAsync();
+            else b.release();
+        }
+    }
 
-	public void setModifiesOutedges(boolean modifiesOutedges) {
-		this.modifiesOutedges = modifiesOutedges;
-	}
+    public void setModifiesOutedges(boolean modifiesOutedges) {
+        this.modifiesOutedges = modifiesOutedges;
+    }
 
     public void setOnlyAdjacency(boolean onlyAdjacency) {
         this.onlyAdjacency = onlyAdjacency;
     }
 
-	class Block {
-		String blockFileName;
-		int offset;
-		int end;
-		int blockId;
-		int ptr;
-		boolean active = false;
+    class Block {
+        String blockFileName;
+        int offset;
+        int end;
+        int blockId;
+        int ptr;
+        boolean active = false;
 
-		Block(String edataFileName, int offset, int end, int fileBlockId, int blockSize) {
-			this.end = end;
-			this.offset = offset;
-			blockId = blockManager.allocateBlock(end - offset);
-			ptr = 0;
-			blockFileName = ChiFilenames.getFilenameShardEdataBlock(edataFileName, fileBlockId, blockSize);
-		}
+        Block(String edataFileName, int offset, int end, int fileBlockId, int blockSize) {
+            this.end = end;
+            this.offset = offset;
+            blockId = blockManager.allocateBlock(end - offset);
+            ptr = 0;
+            blockFileName = ChiFilenames.getFilenameShardEdataBlock(edataFileName, fileBlockId, blockSize);
+        }
 
 
-		void readAsync() throws IOException {
-			// TODO: actually async
-			readNow();
-		}
+        void readAsync() throws IOException {
+            // TODO: actually async
+            readNow();
+        }
 
-		void readNow() throws IOException {
-			byte[] data = blockManager.getRawBlock(blockId);
-			CompressedIO.readCompressed(new File(blockFileName), data, end - offset);
+        void readNow() throws IOException {
+            byte[] data = blockManager.getRawBlock(blockId);
+            CompressedIO.readCompressed(new File(blockFileName), data, end - offset);
 
-		}
+        }
 
-		void commitNow() throws IOException {
-			byte[] data = blockManager.getRawBlock(blockId);
-			CompressedIO.writeCompressed(new File(blockFileName), data, end - offset);
-		}
+        void commitNow() throws IOException {
+            byte[] data = blockManager.getRawBlock(blockId);
+            CompressedIO.writeCompressed(new File(blockFileName), data, end - offset);
+        }
 
-		void commitAsync() throws IOException {
-			commitNow();
-			// TODO asynchronous implementation
-			release();
-		}
+        void commitAsync() throws IOException {
+            commitNow();
+            // TODO asynchronous implementation
+            release();
+        }
 
-		void release() {
-			blockManager.release(blockId);
-		}
-	}
+        void release() {
+            blockManager.release(blockId);
+        }
+    }
 }

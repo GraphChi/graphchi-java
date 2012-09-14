@@ -97,52 +97,54 @@ public class DrunkardMob implements GraphChiProgram<Integer, Boolean> {
 
     public static void main(String[] args) throws  Exception {
         String baseFilename = args[0];
-        int nShards = Integer.parseInt(args[1]);
-        int nSources = Integer.parseInt(args[2]);
-        int walksPerSource = Integer.parseInt(args[3]);
-        int maxHops = Integer.parseInt(args[4]);
 
-        System.out.println("Walks will start from " + nSources + " sources.");
-        System.out.println("Going to start " + walksPerSource + " walks per source.");
-        System.out.println("Max hops: " + maxHops);
+        if (args.length > 1) {
+            int nShards = Integer.parseInt(args[1]);
+            int nSources = Integer.parseInt(args[2]);
+            int walksPerSource = Integer.parseInt(args[3]);
+            int maxHops = Integer.parseInt(args[4]);
 
-        /* Initialize GraphChi engine */
-        GraphChiEngine<Integer, Boolean> engine = new GraphChiEngine<Integer, Boolean>(baseFilename, nShards);
-        engine.setEdataConverter(null);
-        engine.setVertexDataConverter(new IntConverter());
-        engine.setModifiesInedges(false);
-        engine.setModifiesOutedges(false);
-        engine.setEnableScheduler(true);
-        engine.setOnlyAdjacency(true);
-        engine.setDisableInedges(true);
-        engine.setMemoryBudgetMb(1500);
-        engine.setUseStaticWindowSize(false); // Disable dynamic window size detection
-        engine.setEnableDeterministicExecution(false);
-        engine.setAutoLoadNext(true);
-        engine.setMaxWindow(1000000); // Handle maximum 1M vertices a time.
+            System.out.println("Walks will start from " + nSources + " sources.");
+            System.out.println("Going to start " + walksPerSource + " walks per source.");
+            System.out.println("Max hops: " + maxHops);
 
-        long t1 = System.currentTimeMillis();
+            /* Initialize GraphChi engine */
+            GraphChiEngine<Integer, Boolean> engine = new GraphChiEngine<Integer, Boolean>(baseFilename, nShards);
+            engine.setEdataConverter(null);
+            engine.setVertexDataConverter(new IntConverter());
+            engine.setModifiesInedges(false);
+            engine.setModifiesOutedges(false);
+            engine.setEnableScheduler(true);
+            engine.setOnlyAdjacency(true);
+            engine.setDisableInedges(true);
+            engine.setMemoryBudgetMb(1200);
+            engine.setUseStaticWindowSize(false); // Disable dynamic window size detection
+            engine.setEnableDeterministicExecution(false);
+            engine.setAutoLoadNext(true);
+            engine.setMaxWindow(2000000); // Handle maximum 2M vertices a time.
 
-        /* Initialize application object */
-        DrunkardMob mob = new DrunkardMob(maxHops, baseFilename);
+            long t1 = System.currentTimeMillis();
 
-        /* Initialize Random walks */
-        int nVertices = engine.numVertices();
-        mob.walkManager = new WalkManager(nVertices);
+            /* Initialize application object */
+            DrunkardMob mob = new DrunkardMob(maxHops, baseFilename);
 
-        for(int i=0; i < nSources; i++) {
-            int source = (int) (Math.random() * nVertices);
-            mob.walkManager.addWalkBatch(source, walksPerSource);
+            /* Initialize Random walks */
+            int nVertices = engine.numVertices();
+            mob.walkManager = new WalkManager(nVertices);
+
+            for(int i=0; i < nSources; i++) {
+                int source = (int) (Math.random() * nVertices);
+                mob.walkManager.addWalkBatch(source, walksPerSource);
+            }
+            mob.walkManager.initializeWalks();
+
+            System.out.println("Configured " + mob.walkManager.getTotalWalks() + " walks in " +
+                    (System.currentTimeMillis() - t1) + " ms");
+
+
+            /* Run */
+            engine.run(mob, maxHops + 1);
         }
-        mob.walkManager.initializeWalks();
-
-        System.out.println("Configured " + mob.walkManager.getTotalWalks() + " walks in " +
-                (System.currentTimeMillis() - t1) + " ms");
-
-
-        /* Run */
-        engine.run(mob, maxHops + 1);
-
         System.out.println("Ready. Going to output...");
 
         TreeSet<IdInt> top20 = Toplist.topListInt(baseFilename, 20);

@@ -21,10 +21,7 @@ import edu.cmu.graphchi.ChiFilenames;
 import edu.cmu.graphchi.datablocks.BytesToValueConverter;
 import edu.cmu.graphchi.datablocks.IntConverter;
 
-import java.io.BufferedInputStream;
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.IOException;
+import java.io.*;
 
 
 /**
@@ -34,19 +31,25 @@ public class VertexAggregator {
 
 
     public static <VertexDataType> void  foreach(String baseFilename, BytesToValueConverter<VertexDataType> conv,
-                                            ForeachCallback<VertexDataType> callback) throws IOException {
+                                                 ForeachCallback<VertexDataType> callback) throws IOException {
 
         File vertexDataFile = new File(ChiFilenames.getFilenameOfVertexData(baseFilename, conv));
         BufferedInputStream bis = new BufferedInputStream(new FileInputStream(vertexDataFile), 1024 * 1024);
 
         int i = 0;
         byte[] tmp = new byte[conv.sizeOf()];
-        while (bis.available() > 0) {
-            bis.read(tmp);
-            VertexDataType value = conv.getValue(tmp);
-            callback.callback(i, value);
-            i++;
-        }
+        System.out.println("read: " + vertexDataFile);
+        try {
+            while (true) {
+
+                int rd = bis.read(tmp);
+
+                if(rd != tmp.length) break;
+                VertexDataType value = conv.getValue(tmp);
+                callback.callback(i, value);
+                i++;
+            }
+        } catch (EOFException e) {}
         bis.close();
 
     }
@@ -55,7 +58,7 @@ public class VertexAggregator {
         long sum = 0;
         @Override
         public void callback(int vertexId, Integer vertexValue) {
-             sum += vertexValue;
+            sum += vertexValue;
         }
 
         public long getSum() {
