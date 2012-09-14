@@ -109,7 +109,7 @@ public class WalkManager {
         }
 
         /* Now create data structure for fast retrieval */
-        final int[][] snapshots = new int[toBucket - fromBucket + 1][];
+        final int[][] snapshots = new int[toVertexInclusive - fromVertex + 1][];
         final int[] snapshotIdxs = new int[snapshots.length];
 
         for(int i=0; i < snapshots.length; i++) {
