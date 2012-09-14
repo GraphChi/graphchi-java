@@ -290,6 +290,7 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
                         program.endSubInterval(chiContext, new VertexInterval(subIntervalStart, subIntervalEnd));
 
                     }  else {
+                        subIntervalStart = subIntervalEnd + 1;
                         System.out.println("Skipped interval - no vertices scheduled.");
                     }
                 }
