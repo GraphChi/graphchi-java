@@ -1,7 +1,6 @@
 
-
 GraphChi-java
-Version 0.0.1  (Very Early Version)
+Version 0.0.4  
 
 BUILDING 
 
@@ -40,14 +39,11 @@ shards it created.
 
 NOTE
 
-This is very early release of GraphChi-Java. I plan to continue
-developing it in August, after my holidays.
-
 I hope the code is readable enough, as documentation is not there
 yet.
 
 
--- Aapo Kyrola, July 13 2012
+-- Aapo Kyrola, 
 akyrola@cs.cmu.edu
 
 
