@@ -6,6 +6,7 @@ import edu.cmu.graphchi.datablocks.BytesToValueConverter;
 import edu.cmu.graphchi.datablocks.ChiPointer;
 import edu.cmu.graphchi.datablocks.DataBlockManager;
 import edu.cmu.graphchi.io.CompressedIO;
+import nom.tam.util.BufferedDataInputStream;
 
 import java.io.*;
 import java.util.ArrayList;
@@ -48,7 +49,7 @@ public class SlidingShard <EdgeDataType> {
     private boolean asyncEdataLoading = true;
 
     private BytesToValueConverter<EdgeDataType> converter;
-    private DataInputStream adjFile;
+    private BufferedDataInputStream adjFile;
     private boolean modifiesOutedges = true;
 
 
@@ -127,73 +128,77 @@ public class SlidingShard <EdgeDataType> {
             File compressedFile = new File(adjDataFilename + ".gz");
             if (compressedFile.exists()) {
                 System.out.println("Note: using compressed");
-                adjFile = new DataInputStream(new BufferedInputStream(new GZIPInputStream(new FileInputStream(compressedFile)), 1024 * 1024));
+                adjFile = new BufferedDataInputStream(new GZIPInputStream(new FileInputStream(compressedFile)), 1024 * 1024);
 
             } else {
-                adjFile = new DataInputStream(new BufferedInputStream(new FileInputStream(adjDataFilename), 1024 * 1024));
+                adjFile = new BufferedDataInputStream(new FileInputStream(adjDataFilename), 1024 * 1024);
             }
             adjFile.skipBytes(adjOffset);
         }
 
-        try {
-            for(int i=(curvid - start); i < nvecs; i++) {
-                int n;
-                int ns = adjFile.readUnsignedByte();
-                assert(ns >= 0);
-                adjOffset++;
 
-                if (ns == 0) {
-                    curvid++;
-                    int nz = adjFile.readUnsignedByte();
-                    adjOffset++;
-                    assert(nz >= 0);
-                    curvid += nz;
-                    i += nz;
-                    continue;
-                }
+        for(int i=(curvid - start); i < nvecs; i++) {
+            if (adjOffset >= adjFilesize) break;
 
-                if (ns == 0xff) {
-                    n = Integer.reverseBytes(adjFile.readInt());
-                    adjOffset += 4;
-                } else {
-                    n = ns;
-                }
+            int n;
+            int ns = adjFile.readUnsignedByte();
 
-                if (i < 0) {
-                    skip(n);
-                } else {
-                    ChiVertex vertex = vertices[i];
-                    assert(vertex == null || vertex.getId() == curvid);
 
-                    if (vertex != null) {
-                        while (--n >= 0) {
-                            int target = Integer.reverseBytes(adjFile.readInt());
-                            adjOffset += 4;
-                            ChiPointer eptr = readEdgePtr();
+            assert(ns >= 0);
+            adjOffset++;
 
-                            if (!onlyAdjacency) {
-                                if (!curBlock.active) {
-                                    if (asyncEdataLoading) {
-                                        curBlock.readAsync();
-                                    } else {
-                                        curBlock.readNow();
-                                    }
-                                }
-                                curBlock.active = true;
-                            }
-                            vertex.addOutEdge(eptr == null ? -1 : eptr.blockId, eptr == null ? -1 : eptr.offset, target);
-
-                            if (!(target >= rangeStart && target <= rangeEnd)) {
-                                throw new IllegalStateException("Target " + target + " not in range!");
-                            }
-                        }
-                    } else {
-                        skip(n);
-                    }
-                }
+            if (ns == 0) {
                 curvid++;
+                int nz = adjFile.readUnsignedByte();
+
+                adjOffset++;
+                assert(nz >= 0);
+                curvid += nz;
+                i += nz;
+                continue;
             }
-        } catch (EOFException err) {}
+
+            if (ns == 0xff) {
+                n = adjFile.readIntReversed();
+                adjOffset += 4;
+            } else {
+                n = ns;
+            }
+
+            if (i < 0) {
+                skip(n);
+            } else {
+                ChiVertex vertex = vertices[i];
+                assert(vertex == null || vertex.getId() == curvid);
+
+                if (vertex != null) {
+                    while (--n >= 0) {
+                        int target = adjFile.readIntReversed();
+                        adjOffset += 4;
+                        ChiPointer eptr = readEdgePtr();
+
+                        if (!onlyAdjacency) {
+                            if (!curBlock.active) {
+                                if (asyncEdataLoading) {
+                                    curBlock.readAsync();
+                                } else {
+                                    curBlock.readNow();
+                                }
+                            }
+                            curBlock.active = true;
+                        }
+                        vertex.addOutEdge(eptr == null ? -1 : eptr.blockId, eptr == null ? -1 : eptr.offset, target);
+
+                        if (!(target >= rangeStart && target <= rangeEnd)) {
+                            throw new IllegalStateException("Target " + target + " not in range!");
+                        }
+                    }
+                } else {
+                    skip(n);
+                }
+            }
+            curvid++;
+        }
     }
 
     public void flush() throws IOException {
