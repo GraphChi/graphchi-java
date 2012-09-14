@@ -137,68 +137,68 @@ public class SlidingShard <EdgeDataType> {
         }
 
 
-        for(int i=(curvid - start); i < nvecs; i++) {
-            if (adjOffset >= adjFilesize) break;
+        try {
+            for(int i=(curvid - start); i < nvecs; i++) {
+                int n;
+                int ns = adjFile.readUnsignedByte();
 
-            int n;
-            int ns = adjFile.readUnsignedByte();
 
-
-            assert(ns >= 0);
-            adjOffset++;
-
-            if (ns == 0) {
-                curvid++;
-                int nz = adjFile.readUnsignedByte();
-
+                assert(ns >= 0);
                 adjOffset++;
-                assert(nz >= 0);
-                curvid += nz;
-                i += nz;
-                continue;
-            }
 
-            if (ns == 0xff) {
-                n = adjFile.readIntReversed();
-                adjOffset += 4;
-            } else {
-                n = ns;
-            }
+                if (ns == 0) {
+                    curvid++;
+                    int nz = adjFile.readUnsignedByte();
 
-            if (i < 0) {
-                skip(n);
-            } else {
-                ChiVertex vertex = vertices[i];
-                assert(vertex == null || vertex.getId() == curvid);
-
-                if (vertex != null) {
-                    while (--n >= 0) {
-                        int target = adjFile.readIntReversed();
-                        adjOffset += 4;
-                        ChiPointer eptr = readEdgePtr();
-
-                        if (!onlyAdjacency) {
-                            if (!curBlock.active) {
-                                if (asyncEdataLoading) {
-                                    curBlock.readAsync();
-                                } else {
-                                    curBlock.readNow();
-                                }
-                            }
-                            curBlock.active = true;
-                        }
-                        vertex.addOutEdge(eptr == null ? -1 : eptr.blockId, eptr == null ? -1 : eptr.offset, target);
-
-                        if (!(target >= rangeStart && target <= rangeEnd)) {
-                            throw new IllegalStateException("Target " + target + " not in range!");
-                        }
-                    }
-                } else {
-                    skip(n);
+                    adjOffset++;
+                    assert(nz >= 0);
+                    curvid += nz;
+                    i += nz;
+                    continue;
                 }
+
+                if (ns == 0xff) {
+                    n = adjFile.readIntReversed();
+                    adjOffset += 4;
+                } else {
+                    n = ns;
+                }
+
+                if (i < 0) {
+                    skip(n);
+                } else {
+                    ChiVertex vertex = vertices[i];
+                    assert(vertex == null || vertex.getId() == curvid);
+
+                    if (vertex != null) {
+                        while (--n >= 0) {
+                            int target = adjFile.readIntReversed();
+                            adjOffset += 4;
+                            ChiPointer eptr = readEdgePtr();
+
+                            if (!onlyAdjacency) {
+                                if (!curBlock.active) {
+                                    if (asyncEdataLoading) {
+                                        curBlock.readAsync();
+                                    } else {
+                                        curBlock.readNow();
+                                    }
+                                }
+                                curBlock.active = true;
+                            }
+                            vertex.addOutEdge(eptr == null ? -1 : eptr.blockId, eptr == null ? -1 : eptr.offset, target);
+
+                            if (!(target >= rangeStart && target <= rangeEnd)) {
+                                throw new IllegalStateException("Target " + target + " not in range!");
+                            }
+                        }
+                    } else {
+                        skip(n);
+                    }
+                }
+                curvid++;
             }
-            curvid++;
-        }
+        } catch (EOFException e) {}    // kosher
     }
 
     public void flush() throws IOException {
