@@ -65,7 +65,7 @@ public class VertexData <VertexDataType> {
     public void releaseAndCommit() throws IOException {
         assert(currentBlockId >= 0);
         byte[] data = blockManager.getRawBlock(currentBlockId);
-        int dataStart = vertexSt * converter.sizeOf();
+        long dataStart = (long) vertexSt * (long) converter.sizeOf();
 
         vertexDataFile.seek(dataStart);
         vertexDataFile.write(data);
@@ -81,7 +81,7 @@ public class VertexData <VertexDataType> {
         vertexEn = _vertexEn;
 
         int dataSize = (vertexEn - vertexSt + 1) * converter.sizeOf();
-        int dataStart = vertexSt * converter.sizeOf();
+        long dataStart = (long) vertexSt * (long) converter.sizeOf();
 
         currentBlockId =  blockManager.allocateBlock(dataSize);
 

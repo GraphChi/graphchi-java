@@ -223,6 +223,7 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
                         subIntervalStart = subIntervalEnd + 1;
                         vertexDataHandler.releaseAndCommit();
                     }  else {
+                    	subIntervalStart = subIntervalEnd + 1;
                         System.out.println("Skipped interval - no vertices scheduled.");
                     }
                 }

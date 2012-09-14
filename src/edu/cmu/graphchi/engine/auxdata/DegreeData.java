@@ -39,7 +39,7 @@ public class DegreeData {
         vertexEn = _vertexEn;
 
         int dataSize = (vertexEn - vertexSt + 1) * 4 * 2;
-        int dataStart = vertexSt * 4 * 2;
+        long dataStart = (long) vertexSt * 4l * 2l;
 
         degreeData = new byte[dataSize];
 
