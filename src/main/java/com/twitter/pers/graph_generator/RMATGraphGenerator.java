@@ -17,8 +17,23 @@ public class RMATGraphGenerator {
     private long numEdges;
     private int numVertices;
 
+    /**
+     *  From http://pywebgraph.sourceforge.net
+     ## Probability of choosing quadrant A
+     self.probA = 0.45
 
-    public RMATGraphGenerator(GraphOutput outputter, double pA, double pB, double pC, double pD, long nEdges, int nVertices) {
+     ## Probability of choosing quadrant B
+     self.probB = 0.15
+
+     ## Probability of choosing quadrant C
+     self.probC = 0.15
+
+     ## Probability of choosing quadrant D
+     self.probD = 0.25
+     */
+
+
+    public RMATGraphGenerator(GraphOutput outputter, double pA, double pB, double pC, double pD, int nVertices,long nEdges) {
         this.outputter = outputter;
         this.pA = pA;
         this.pB = pB;
@@ -58,7 +73,7 @@ public class RMATGraphGenerator {
         }
 
         public void run() {
-            int nEdgesATime = 10000;
+            int nEdgesATime = 1000000;
             long createdEdges = 0;
 
             Random r = new Random(System.currentTimeMillis() + this.hashCode());
@@ -85,26 +100,28 @@ public class RMATGraphGenerator {
                             row_en = row_st + (row_en - row_st) / 2;
                         } else if (x < cumB) {
                             // Top-right
-                            col_en = col_st + (col_en - col_st) / 2;
-                            row_st = row_en - (row_en - row_st) / 2;
-                        } else if (x < cumC) {
-                            // Bottom-left
                             col_st = col_en - (col_en - col_st) / 2;
                             row_en = row_st + (row_en - row_st) / 2;
+
+                        } else if (x < cumC) {
+                            // Bottom-left
+                            col_en = col_st + (col_en - col_st) / 2;
+                            row_st = row_en - (row_en - row_st) / 2;
                         } else {
                             // Bottom-right
                             col_st = col_en - (col_en - col_st) / 2;
                             row_st = row_en - (row_en - row_st) / 2;
                         }
                     }
-                    fromIds[j++] = col_st;
-                    toIds[j++] = col_en;
+                    fromIds[j] = col_st;
+                    toIds[j] = row_st;
                 }
 
                 outputter.addEdges(fromIds,  toIds);
                 createdEdges += ne;
                 System.out.println(Thread.currentThread().getId() + " created " + createdEdges + " edges.");
             }
+            outputter.finishUp();
         }
     }
 
@@ -119,11 +136,13 @@ public class RMATGraphGenerator {
         double pC = Double.parseDouble(args[k++]);
         double pD = Double.parseDouble(args[k++]);
 
-        System.out.println("Going to create graph with approx. " + numVertices + " and " + numEdges);
+        System.out.println("Going to create graph with approx. " + numVertices + " vertices and " + numEdges + " edges");
 
+        long t = System.currentTimeMillis();
         RMATGraphGenerator generator = new RMATGraphGenerator(new EdgeListOutput(outputFile),
-                pA, pB, pC, pD, numEdges, numVertices);
+                pA, pB, pC, pD, numVertices, numEdges);
         generator.execute();
+        System.out.println("Generating took " + (System.currentTimeMillis() - t) * 0.001 + " secs");
 
     }
 

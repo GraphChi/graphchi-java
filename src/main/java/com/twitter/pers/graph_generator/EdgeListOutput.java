@@ -50,7 +50,7 @@ public class EdgeListOutput implements GraphOutput {
                     thisPartId = partSeq++;
                 }
 
-                String fileName = fileNamePrefix = "-part" + thisPartId;
+                String fileName = fileNamePrefix + "-part" + thisPartId;
                 return new DataOutputStream(new BufferedOutputStream(new FileOutputStream(fileName)));
             } catch (Exception err) {
                 err.printStackTrace();
