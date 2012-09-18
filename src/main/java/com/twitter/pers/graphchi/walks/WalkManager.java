@@ -80,6 +80,7 @@ public class WalkManager {
             walkIndices[i] = 0;
         }
 
+        // TODO: allocate to match the required size (should be easy)
         for(int i=0; i < sourceSeqIdx; i++) {
             int source = sources[i];
             int count = sourceWalkCounts[i];

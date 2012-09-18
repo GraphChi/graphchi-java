@@ -313,6 +313,7 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
         }    // Iterations
 
         parallelExecutor.shutdown();
+        loadingExecutor.shutdown();
         System.out.println("Engine finished in: " + (System.currentTimeMillis() - startTime) * 0.001 + " secs.");
         System.out.println("Updates: " + nupdates);
     }
