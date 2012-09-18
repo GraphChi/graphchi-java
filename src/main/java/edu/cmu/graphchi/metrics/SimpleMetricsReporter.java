@@ -211,19 +211,21 @@ public class SimpleMetricsReporter extends AbstractPollingReporter implements
 
     @Override
     public void processTimer(MetricName name, Timer timer, PrintStream stream) {
-        processMeter(name, timer, stream);
+       // processMeter(name, timer, stream);
         final String durationUnit = abbrev(timer.getDurationUnit());
         final Snapshot snapshot = timer.getSnapshot();
-        stream.printf(locale, "               min = %2.2f%s\n", timer.getMin(), durationUnit);
-        stream.printf(locale, "               max = %2.2f%s\n", timer.getMax(), durationUnit);
-        stream.printf(locale, "              mean = %2.2f%s\n", timer.getMean(), durationUnit);
-        stream.printf(locale, "            stddev = %2.2f%s\n", timer.getStdDev(), durationUnit);
-        stream.printf(locale, "            median = %2.2f%s\n", snapshot.getMedian(), durationUnit);
+        stream.printf(locale, "         count = %d; ", timer.getCount());
+
+        stream.printf(locale, " min = %2.2f%s; ", timer.getMin(), durationUnit);
+        stream.printf(locale, " max = %2.2f%s; ", timer.getMax(), durationUnit);
+        stream.printf(locale, " mean = %2.2f%s; ", timer.getMean(), durationUnit);
+        stream.printf(locale, " sum = %2.2f%s\n", timer.getSum(), durationUnit);
+      /*  stream.printf(locale, "            median = %2.2f%s\n", snapshot.getMedian(), durationUnit);
         stream.printf(locale, "              75%% <= %2.2f%s\n", snapshot.get75thPercentile(), durationUnit);
         stream.printf(locale, "              95%% <= %2.2f%s\n", snapshot.get95thPercentile(), durationUnit);
         stream.printf(locale, "              98%% <= %2.2f%s\n", snapshot.get98thPercentile(), durationUnit);
         stream.printf(locale, "              99%% <= %2.2f%s\n", snapshot.get99thPercentile(), durationUnit);
-        stream.printf(locale, "            99.9%% <= %2.2f%s\n", snapshot.get999thPercentile(), durationUnit);
+        stream.printf(locale, "            99.9%% <= %2.2f%s\n", snapshot.get999thPercentile(), durationUnit);    */
     }
 
     private String abbrev(TimeUnit unit) {
