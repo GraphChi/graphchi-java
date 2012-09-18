@@ -1,5 +1,8 @@
 package edu.cmu.graphchi.engine;
 
+import com.yammer.metrics.Metrics;
+import com.yammer.metrics.core.Timer;
+import com.yammer.metrics.core.TimerContext;
 import edu.cmu.graphchi.*;
 import edu.cmu.graphchi.datablocks.BytesToValueConverter;
 import edu.cmu.graphchi.datablocks.DataBlockManager;
@@ -11,10 +14,7 @@ import edu.cmu.graphchi.shards.SlidingShard;
 
 import java.io.*;
 import java.util.ArrayList;
-import java.util.concurrent.Callable;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.FutureTask;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
@@ -66,6 +66,12 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
     private boolean autoLoadNext = false; // Only for only-adjacency cases!
     private FutureTask<IntervalData> nextWindow;
 
+    /* Metrics */
+    private final Timer loadTimer = Metrics.newTimer(GraphChiEngine.class, "shard-loading", TimeUnit.SECONDS, TimeUnit.MINUTES);
+    private final Timer executionTimer = Metrics.newTimer(GraphChiEngine.class, "execute-updates", TimeUnit.SECONDS, TimeUnit.MINUTES);
+    private final Timer waitForFutureTimer = Metrics.newTimer(GraphChiEngine.class, "wait-for-future", TimeUnit.SECONDS, TimeUnit.MINUTES);
+    private final Timer initVerticesTimer = Metrics.newTimer(GraphChiEngine.class, "init-vertices", TimeUnit.SECONDS, TimeUnit.MINUTES);
+    private final Timer determineNextWindowTimer = Metrics.newTimer(GraphChiEngine.class, "det-next-window", TimeUnit.SECONDS, TimeUnit.MINUTES);
 
 
     protected boolean modifiesInedges = true, modifiesOutedges = true;
@@ -242,7 +248,9 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
                             /* This is a mess! */
                             try {
                                 long tf = System.currentTimeMillis();
+                                final TimerContext _timer = waitForFutureTimer.time();
                                 IntervalData next = nextWindow.get();
+                                _timer.stop();
                                 System.out.println("Waiting for future task loading took " + (System.currentTimeMillis() - tf) + " ms");
                                 if (subIntervalStart != next.getSubInterval().getFirstVertex())
                                     throw new IllegalStateException("Future loaders interval does not match the expected one! " +
@@ -333,7 +341,7 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
 
     private void execUpdates(final GraphChiProgram<VertexDataType, EdgeDataType> program,
                              final ChiVertex<VertexDataType, EdgeDataType>[] vertices) {
-
+        TimerContext _timer = executionTimer.time();
         if (Runtime.getRuntime().availableProcessors() == 1) {
             /* Sequential updates */
             for(ChiVertex<VertexDataType, EdgeDataType> vertex : vertices) {
@@ -431,10 +439,12 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
             }
 
         }
+        _timer.stop();
     }
 
     protected int initVertices(int nvertices, int firstVertexId, ChiVertex<VertexDataType, EdgeDataType>[] vertices) throws IOException
     {
+        final TimerContext _timer = initVerticesTimer.time();
         ChiVertex.edgeValueConverter = edataConverter;
         ChiVertex.vertexValueConverter = vertexDataConverter;
         ChiVertex.blockManager = blockManager;
@@ -453,13 +463,14 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
             if (j % 200000 == 0)
                 System.out.println("Init progress: " + j + " / " + nvertices);
         }
+        _timer.stop();
         return blockId;
     }
 
     private void loadBeforeUpdates(final ChiVertex<VertexDataType, EdgeDataType>[] vertices,
                                    final int startVertex, final int endVertex) throws IOException {
         final Object terminationLock = new Object();
-
+        final TimerContext _timer = loadTimer.time();
         // TODO: make easier to read
         synchronized (terminationLock) {
 
@@ -518,6 +529,7 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
                 e.printStackTrace();
             }
         }
+        _timer.stop();
     }
 
     class IntervalData {
@@ -573,34 +585,39 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
     }
 
     private int determineNextWindow(int subIntervalStart, int maxVertex) throws IOException {
-        degreeHandler.load(subIntervalStart, maxVertex);
+        final TimerContext _timer = determineNextWindowTimer.time();
+        try {
+            degreeHandler.load(subIntervalStart, maxVertex);
 
-        if (useStaticWindowSize) {
+            if (useStaticWindowSize) {
+                return maxVertex;
+            }
+
+            long memReq = 0;
+            int maxInterval = maxVertex - subIntervalStart;
+            System.out.println("mem budget: " + memBudget / 1024. / 1024. + "mb");
+            int vertexDataSizeOf = vertexDataConverter.sizeOf();
+            int edataSizeOf = (onlyAdjacency ? 0 : edataConverter.sizeOf());
+
+            for(int i=0; i< maxInterval; i++) {
+                if (enableScheduler) {
+                    if (!scheduler.isScheduled(i + subIntervalStart)) continue;
+                }
+                VertexDegree deg = degreeHandler.getDegree(i + subIntervalStart);
+                int inc = deg.inDegree;
+                int outc = deg.outDegree;
+
+                // Following calculation contains some perhaps reasonable estimates of the
+                // overhead of Java objects.
+                memReq += vertexDataSizeOf + 256 + (edataSizeOf + 4 + 4 + 4) * (inc + outc);
+                if (memReq > memBudget) {
+                    return subIntervalStart + i - 1; // Previous vertex was enough
+                }
+            }
             return maxVertex;
+        } finally {
+            _timer.stop();
         }
-
-        long memReq = 0;
-        int maxInterval = maxVertex - subIntervalStart;
-        System.out.println("mem budget: " + memBudget / 1024. / 1024. + "mb");
-        int vertexDataSizeOf = vertexDataConverter.sizeOf();
-        int edataSizeOf = (onlyAdjacency ? 0 : edataConverter.sizeOf());
-
-        for(int i=0; i< maxInterval; i++) {
-            if (enableScheduler) {
-                if (!scheduler.isScheduled(i + subIntervalStart)) continue;
-            }
-            VertexDegree deg = degreeHandler.getDegree(i + subIntervalStart);
-            int inc = deg.inDegree;
-            int outc = deg.outDegree;
-
-            // Following calculation contains some perhaps reasonable estimates of the
-            // overhead of Java objects.
-            memReq += vertexDataSizeOf + 256 + (edataSizeOf + 4 + 4 + 4) * (inc + outc);
-            if (memReq > memBudget) {
-                return subIntervalStart + i - 1; // Previous vertex was enough
-            }
-        }
-        return maxVertex;
     }
 
     public boolean isEnableScheduler() {

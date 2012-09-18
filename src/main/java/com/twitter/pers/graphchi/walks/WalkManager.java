@@ -1,7 +1,12 @@
 package com.twitter.pers.graphchi.walks;
 
+import com.yammer.metrics.Metrics;
+import com.yammer.metrics.core.Timer;
+import com.yammer.metrics.core.TimerContext;
+
 import java.io.*;
 import java.util.ArrayList;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Manager for random walks
@@ -21,6 +26,10 @@ public class WalkManager {
     private int[] walkIndices;
 
     private int numVertices;
+    private final Timer grabTimer = Metrics.newTimer(WalkManager.class, "grab-walks", TimeUnit.SECONDS, TimeUnit.MINUTES);
+    private final Timer dumpTimer = Metrics.newTimer(WalkManager.class, "dump-walks", TimeUnit.SECONDS, TimeUnit.MINUTES);
+    private final Timer initTimer = Metrics.newTimer(WalkManager.class, "init-walks", TimeUnit.SECONDS, TimeUnit.MINUTES);
+
 
     public WalkManager(int numVertices) {
         this.numVertices = numVertices;
@@ -73,6 +82,7 @@ public class WalkManager {
     }
 
     public void initializeWalks() {
+        final TimerContext _timer = initTimer.time();
         walks = new int[1 + numVertices / bucketSize][];
         walkIndices = new int[walks.length];
         for(int i = 0; i < walks.length; i++) {
@@ -86,6 +96,7 @@ public class WalkManager {
             int count = sourceWalkCounts[i];
             for(int c=0; c<count; c++) updateWalk(i, source, 0);
         }
+        _timer.stop();
     }
 
 
@@ -94,6 +105,7 @@ public class WalkManager {
     }
 
     public WalkSnapshot grabSnapshot(final int fromVertex, final int toVertexInclusive) {
+        final TimerContext _timer = grabTimer.time();
         int fromBucket = fromVertex / bucketSize;
         int toBucket = toVertexInclusive / bucketSize;
 
@@ -168,16 +180,8 @@ public class WalkManager {
             }
             tmpBuckets.set(b, null); // Save memory
         }
-        /*
-          Snap to correct size
-        for(int s=0; s < snapshots.length; s++) {
-            if (snapshots[s] != null && snapshots[s].length != snapshotIdxs[s]) {
-                //int[] tmp = new int[snapshotIdxs[s]];
-                //System.arraycopy(snapshots[s], 0, tmp, 0, snapshotIdxs[s]);
-                //snapshots[s] = tmp;
-                snapshots[s][snapshotIdxs[s]] = -1; // Stopper
-            }
-        }       */
+
+        _timer.stop();
 
         /* Create the snapshot object */
         return new WalkSnapshot() {
@@ -196,6 +200,7 @@ public class WalkManager {
                 return toVertexInclusive;
             }
         };
+
     }
 
     public static int getWalkLength(int[] w) {
@@ -205,6 +210,7 @@ public class WalkManager {
 
     /** Dump to file all walks with more than 0 hop */
     public void dumpToFile(WalkSnapshot snapshot, String filename) throws IOException {
+        final TimerContext _timer = dumpTimer.time();
         DataOutputStream dos = new DataOutputStream(new BufferedOutputStream(new FileOutputStream(new File(filename), true)));
         for(int i=snapshot.getFirstVertex(); i <= snapshot.getLastVertex(); i++) {
             int[] ws = snapshot.getWalksAtVertex(i);
@@ -221,6 +227,7 @@ public class WalkManager {
         }
         dos.flush();
         dos.close();
+        _timer.stop();
     }
 
     public int getSourceVertex(int srcIdx) {

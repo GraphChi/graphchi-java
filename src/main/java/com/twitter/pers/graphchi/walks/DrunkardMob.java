@@ -1,5 +1,7 @@
 package com.twitter.pers.graphchi.walks;
 
+import com.yammer.metrics.Metrics;
+import com.yammer.metrics.reporting.CsvReporter;
 import edu.cmu.graphchi.ChiVertex;
 import edu.cmu.graphchi.GraphChiContext;
 import edu.cmu.graphchi.GraphChiProgram;
@@ -7,11 +9,13 @@ import edu.cmu.graphchi.aggregators.VertexAggregator;
 import edu.cmu.graphchi.datablocks.IntConverter;
 import edu.cmu.graphchi.engine.GraphChiEngine;
 import edu.cmu.graphchi.engine.VertexInterval;
+import edu.cmu.graphchi.metrics.SimpleMetricsReporter;
 import edu.cmu.graphchi.util.IdInt;
 import edu.cmu.graphchi.util.Toplist;
 
 import java.io.File;
 import java.util.TreeSet;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Launch millions (?) of random walks and record the
@@ -97,6 +101,10 @@ public class DrunkardMob implements GraphChiProgram<Integer, Boolean> {
     public void endInterval(GraphChiContext ctx, VertexInterval interval) {}
 
     public static void main(String[] args) throws  Exception {
+        CsvReporter.enable(new File("metrics/"), 2, TimeUnit.MINUTES);
+
+        SimpleMetricsReporter rep = SimpleMetricsReporter.enable(2, TimeUnit.MINUTES);
+
         String baseFilename = args[0];
 
         if (args.length > 1) {
@@ -159,5 +167,8 @@ public class DrunkardMob implements GraphChiProgram<Integer, Boolean> {
 
         long sumWalks = VertexAggregator.sumInt(baseFilename);
         System.out.println("Total hops (in file): " + sumWalks);
+
+        Metrics.shutdown();
+        rep.run();
     }
 }
