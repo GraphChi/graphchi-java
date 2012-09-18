@@ -69,7 +69,8 @@ public class DrunkardMob implements GraphChiProgram<Integer, Boolean> {
         curWalkSnapshot = walkManager.grabSnapshot(interval.getFirstVertex(), interval.getLastVertex());
         System.out.println("Grab snapshot took " + (System.currentTimeMillis() - t) + " ms.");
 
-        final String filename = basefileName + "_walks_" + interval.getFirstVertex() + "-" + interval.getLastVertex() + ".csv";
+        String walkDir = System.getProperty("walk.dir", ".");
+        final String filename = walkDir + "/walks_" + interval.getFirstVertex() + "-" + interval.getLastVertex() + ".dat";
         if (ctx.getIteration() == 0) {
             new File(filename).delete();
         }
@@ -135,6 +136,8 @@ public class DrunkardMob implements GraphChiProgram<Integer, Boolean> {
             for(int i=0; i < nSources; i++) {
                 int source = (int) (Math.random() * nVertices);
                 mob.walkManager.addWalkBatch(source, walksPerSource);
+
+                if (i % 500 == 0) System.out.println("Source idx: " + i);
             }
             mob.walkManager.initializeWalks();
 

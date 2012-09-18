@@ -47,6 +47,7 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
     protected GraphChiContext chiContext = new GraphChiContext();
     private DataBlockManager blockManager;
     private ExecutorService parallelExecutor;
+    private ExecutorService loadingExecutor;
     private DegreeData degreeHandler;
     private VertexData<VertexDataType> vertexDataHandler;
 
@@ -80,6 +81,7 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
             nprocs = Runtime.getRuntime().availableProcessors();
         }
         parallelExecutor = Executors.newFixedThreadPool(nprocs);
+        loadingExecutor = Executors.newFixedThreadPool(4);
         blockManager = new DataBlockManager();
         degreeHandler = new DegreeData(baseFilename);
 
@@ -234,7 +236,7 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
 
                             System.out.println("Loading...");
                             long t0 = System.currentTimeMillis();
-                            loadBeforeUpdates(vertices);
+                            loadBeforeUpdates(vertices, subIntervalStart, subIntervalEnd);
                             System.out.println("Load took: " + (System.currentTimeMillis() - t0) + "ms");
                         } else {
                             /* This is a mess! */
@@ -453,7 +455,8 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
         return blockId;
     }
 
-    private void loadBeforeUpdates(final ChiVertex<VertexDataType, EdgeDataType>[] vertices) throws IOException {
+    private void loadBeforeUpdates(final ChiVertex<VertexDataType, EdgeDataType>[] vertices,
+                                   final int startVertex, final int endVertex) throws IOException {
         final Object terminationLock = new Object();
 
         // TODO: make easier to read
@@ -464,11 +467,11 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
             for(int p=0; p < nShards; p++) {
                 if (p != execInterval || disableInEdges) {
                     final SlidingShard<EdgeDataType> shard = slidingShards.get(p);
-                    parallelExecutor.submit(new Runnable() {
+                    loadingExecutor.submit(new Runnable() {
 
                         public void run() {
                             try {
-                                shard.readNextVertices(vertices, subIntervalStart, false);
+                                shard.readNextVertices(vertices, startVertex, false);
                                 if (countDown.decrementAndGet() == 0) {
                                     synchronized (terminationLock) {
                                         terminationLock.notifyAll();
@@ -485,11 +488,11 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
                 }
             }
             if (!disableInEdges) {
-                parallelExecutor.submit(new Runnable() {
+                loadingExecutor.submit(new Runnable() {
 
                     public void run() {
                         try {
-                            memoryShard.loadVertices(subIntervalStart, subIntervalEnd, vertices);
+                            memoryShard.loadVertices(startVertex, endVertex, vertices);
                             if (countDown.decrementAndGet() == 0) {
                                 synchronized (terminationLock) {
                                     terminationLock.notifyAll();
@@ -559,14 +562,7 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
 
                 int vertexBlockid = initVertices(nVertices, interval.getFirstVertex(), vertices);
 
-                /* Load in one thread only */
-                for(int p=0; p < nShards; p++) {
-                    if (p != execInterval || disableInEdges) {
-                        final SlidingShard<EdgeDataType> shard = slidingShards.get(p);
-                        shard.readNextVertices(vertices, interval.getFirstVertex(), false);
-                    }
-                }
-                if (!disableInEdges) memoryShard.loadVertices(interval.getFirstVertex(), lastVertex, vertices);
+                loadBeforeUpdates(vertices, interval.getFirstVertex(), lastVertex);
                 return new IntervalData(new VertexInterval(interval.getFirstVertex(), lastVertex), vertices, vertexBlockid);
             } catch (Exception err) {
                 err.printStackTrace();

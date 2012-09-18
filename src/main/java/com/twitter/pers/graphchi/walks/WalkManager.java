@@ -33,9 +33,7 @@ public class WalkManager {
         sources[sourceSeqIdx] = vertex;
         sourceWalkCounts[sourceSeqIdx] = numWalks;
         totalWalks += numWalks;
-        if ((long)totalWalks + numWalks > 2e9) { // Arbitrary
-            throw new IllegalStateException("Too many walks!");
-        }
+
         sourceSeqIdx++;
         return sourceSeqIdx - 1;
     }
