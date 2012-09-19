@@ -61,7 +61,12 @@ public class DrunkardMob implements GraphChiProgram<Integer, Boolean> {
     }
 
 
-    public void beginIteration(GraphChiContext ctx) {}
+    public void beginIteration(GraphChiContext ctx) {
+        if (ctx.getIteration() == 0) {
+            ctx.getScheduler().removeAllTasks();
+            walkManager.populateSchedulerWithSources(ctx.getScheduler());
+        }
+    }
 
     public void endIteration(GraphChiContext ctx) {}
 
@@ -144,8 +149,6 @@ public class DrunkardMob implements GraphChiProgram<Integer, Boolean> {
             for(int i=0; i < nSources; i++) {
                 int source = (int) (Math.random() * nVertices);
                 mob.walkManager.addWalkBatch(source, walksPerSource);
-
-                if (i % 500 == 0) System.out.println("Source idx: " + i);
             }
             mob.walkManager.initializeWalks();
 

@@ -15,4 +15,6 @@ public interface Scheduler {
     public boolean hasTasks();
 
     public boolean isScheduled(int i);
+
+    public void removeAllTasks();
 }

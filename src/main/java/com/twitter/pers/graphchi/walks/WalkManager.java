@@ -3,6 +3,7 @@ package com.twitter.pers.graphchi.walks;
 import com.yammer.metrics.Metrics;
 import com.yammer.metrics.core.Timer;
 import com.yammer.metrics.core.TimerContext;
+import edu.cmu.graphchi.Scheduler;
 
 import java.io.*;
 import java.util.ArrayList;
@@ -81,6 +82,16 @@ public class WalkManager {
         }
     }
 
+    public void expandCapacity(int bucket, int additional) {
+        int desiredLength = walks[bucket].length + additional;
+
+        if (walks[bucket].length < desiredLength) {
+            int[] newBucket = new int[desiredLength];
+            System.arraycopy(walks[bucket], 0, newBucket, 0, walks[bucket].length);
+            walks[bucket] = newBucket;
+        }
+    }
+
     public void initializeWalks() {
         final TimerContext _timer = initTimer.time();
         walks = new int[1 + numVertices / bucketSize][];
@@ -88,6 +99,17 @@ public class WalkManager {
         for(int i = 0; i < walks.length; i++) {
             walks[i] = new int[initialSize];
             walkIndices[i] = 0;
+        }
+
+        /* Precalculate bucket sizes for performance */
+        int[] tmpsizes = new int[walks.length];
+        for(int j=0; j < sourceSeqIdx; j++) {
+            int source = sources[j];
+            tmpsizes[source / bucketSize] += sourceWalkCounts[j];
+        }
+
+        for(int b=0; b < walks.length; b++) {
+            expandCapacity(b, tmpsizes[b]);
         }
 
         // TODO: allocate to match the required size (should be easy)
@@ -232,5 +254,11 @@ public class WalkManager {
 
     public int getSourceVertex(int srcIdx) {
         return sources[srcIdx];
+    }
+
+    public void populateSchedulerWithSources(Scheduler scheduler) {
+        for(int i=0; i <sources.length; i++) {
+            scheduler.addTask(sources[i]);
+        }
     }
 }

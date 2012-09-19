@@ -716,5 +716,10 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
         public boolean isScheduled(int i) {
             return true;
         }
+
+        @Override
+        public void removeAllTasks() {
+
+        }
     }
 }

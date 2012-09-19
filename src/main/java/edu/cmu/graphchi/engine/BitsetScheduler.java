@@ -47,4 +47,9 @@ public class BitsetScheduler implements Scheduler {
     public boolean isScheduled(int i) {
         return bitset.get(i);
     }
+
+    public void removeAllTasks() {
+        bitset.clear();
+        hasNewTasks = false;
+    }
 }
