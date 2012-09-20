@@ -1,7 +1,7 @@
 package com.twitter.pers.graphchi.walks;
 
 import com.yammer.metrics.Metrics;
-import com.yammer.metrics.reporting.CsvReporter;
+import edu.cmu.graphchi.ChiFilenames;
 import edu.cmu.graphchi.ChiVertex;
 import edu.cmu.graphchi.GraphChiContext;
 import edu.cmu.graphchi.GraphChiProgram;
@@ -106,7 +106,6 @@ public class DrunkardMob implements GraphChiProgram<Integer, Boolean> {
     public void endInterval(GraphChiContext ctx, VertexInterval interval) {}
 
     public static void main(String[] args) throws  Exception {
-        CsvReporter.enable(new File("metrics/"), 2, TimeUnit.MINUTES);
 
         SimpleMetricsReporter rep = SimpleMetricsReporter.enable(2, TimeUnit.MINUTES);
 
@@ -121,6 +120,12 @@ public class DrunkardMob implements GraphChiProgram<Integer, Boolean> {
             System.out.println("Walks will start from " + nSources + " sources.");
             System.out.println("Going to start " + walksPerSource + " walks per source.");
             System.out.println("Max hops: " + maxHops);
+
+            /* Delete vertex data */
+            File vertexDataFile = new File(ChiFilenames.getFilenameOfVertexData(baseFilename, new IntConverter()));
+            if (vertexDataFile.exists()) {
+                vertexDataFile.delete();
+            }
 
             /* Initialize GraphChi engine */
             GraphChiEngine<Integer, Boolean> engine = new GraphChiEngine<Integer, Boolean>(baseFilename, nShards);

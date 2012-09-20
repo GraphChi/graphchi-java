@@ -16,7 +16,7 @@ import java.util.concurrent.TimeUnit;
 public class WalkManager {
 
     private final static int bucketSize = 1024; // Store walks into buckets for faster retrieval
-    private final static int initialSize = 32;
+    private final static int initialSize = Integer.parseInt(System.getProperty("walkmanager.initial_size", "256"));
 
     private int sourceSeqIdx  = 0;
     private int[] sources = new int[32678];
@@ -34,6 +34,7 @@ public class WalkManager {
 
     public WalkManager(int numVertices) {
         this.numVertices = numVertices;
+        System.out.println("Initial size for walk bucket: " + initialSize);
     }
 
     public synchronized int addWalkBatch(int vertex, int numWalks) {
@@ -239,7 +240,7 @@ public class WalkManager {
             if (ws != null) {
                 for(int j=0; j < ws.length; j++) {
                     int w = ws[j];
-                    if (hop(w) > 0) {
+                    if (hop(w) > 2) { // NOTE! To save disk space
                         int source = sources[sourceIdx(w)];
                         dos.writeInt(source);
                         dos.writeInt(i);
