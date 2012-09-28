@@ -188,7 +188,7 @@ public class MemoryShard <EdgeDataType> {
             vid++;
         }
 
-       _timer.stop();
+        _timer.stop();
     }
 
 
@@ -210,8 +210,11 @@ public class MemoryShard <EdgeDataType> {
         try {
             byte[] buf = new byte[(int) fileSizeEstimate / 16];   // Read in 16 chunks
             while (true) {
-                int read = adjStream.read(buf);
-                adjDataStream.write(buf, 0, read);
+                int read =  adjStream.read(buf);
+                if (read >= 0) {
+                    adjDataStream.write(buf, 0, read);
+                } else break;
+
             }
         } catch (EOFException err) {
             // Done
