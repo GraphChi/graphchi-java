@@ -5,6 +5,8 @@ import edu.cmu.graphchi._
 import edu.cmu.graphchi.engine._
 import edu.cmu.graphchi.datablocks._
 import edu.cmu.graphchi.util._
+import edu.cmu.graphchi.metrics.SimpleMetricsReporter
+import java.util.concurrent.TimeUnit
 
 class VertexInfo[VT, ET](v : ChiVertex[VT, ET]) {
   def numInEdges() = v.numInEdges()
@@ -31,10 +33,12 @@ class GraphChiSquared(baseFilename : String, numShards : Int, numComputations : 
   val engine = new GraphChiEngine[VertexDataType, EdgeDataType](baseFilename, numShards);
   engine.setEdataConverter(new FloatConverter())
   engine.setVertexDataConverter(new IntConverter())
-  engine.setMemoryBudgetMb(1500)
+  //engine.setMemoryBudgetMb(1500)
   engine.setModifiesInedges(false)
   engine.setModifiesOutedges(false)
   engine.setEnableDeterministicExecution(false);
+
+  val rep = SimpleMetricsReporter.enable(2, TimeUnit.MINUTES);
 
   val vertexMatrix = new HugeFloatMatrix(engine.numVertices(), numComputations)
 
@@ -65,6 +69,7 @@ class GraphChiSquared(baseFilename : String, numShards : Int, numComputations : 
     gatherInitVal = gatherInit
     println ("Starting to run with " + numComputations + " parallel computations")
     engine.run(this, iterations)
+    rep.run()
   }
 
   def compute(iterations: Int, gatherInit: GatherType, gather: OnlyAdjGatherFunctionType, apply: ApplyFunctionType,
@@ -78,7 +83,9 @@ class GraphChiSquared(baseFilename : String, numShards : Int, numComputations : 
 
     engine.setEdataConverter(null)
     engine.setOnlyAdjacency(true)
+    engine.setAutoLoadNext(true)
     engine.run(this, iterations)
+    rep.run()
   }
 
   def getVertexValue(computationId: Int, vertexId: Int) = vertexMatrix.getValue(vertexId, computationId)

@@ -1,13 +1,16 @@
 package edu.cmu.graphchi.shards;
 
+import com.yammer.metrics.Metrics;
+import com.yammer.metrics.core.Timer;
+import com.yammer.metrics.core.TimerContext;
 import edu.cmu.graphchi.ChiFilenames;
 import edu.cmu.graphchi.ChiVertex;
 import edu.cmu.graphchi.datablocks.BytesToValueConverter;
 import edu.cmu.graphchi.datablocks.DataBlockManager;
 import edu.cmu.graphchi.io.CompressedIO;
-import nom.tam.util.BufferedDataInputStream;
 
 import java.io.*;
+import java.util.concurrent.TimeUnit;
 import java.util.zip.GZIPInputStream;
 
 /**
@@ -47,6 +50,10 @@ public class MemoryShard <EdgeDataType> {
     private BytesToValueConverter<EdgeDataType> converter;
     private int streamingOffset, streamingOffsetEdgePtr, streamingOffsetVid;
     private int blocksize;
+
+    private final Timer loadAdjTimer = Metrics.newTimer(MemoryShard.class, "load-adj", TimeUnit.SECONDS, TimeUnit.MINUTES);
+    private final Timer loadVerticesTimers = Metrics.newTimer(MemoryShard.class, "load-vertices", TimeUnit.SECONDS, TimeUnit.MINUTES);
+
 
     private MemoryShard() {}
 
@@ -106,6 +113,7 @@ public class MemoryShard <EdgeDataType> {
             loadAdj();
             if (!onlyAdjacency) loadEdata();
         }
+        TimerContext _timer = loadVerticesTimers.time();
 
         System.out.println("Load memory shard");
         int vid = 0;
@@ -180,26 +188,27 @@ public class MemoryShard <EdgeDataType> {
             vid++;
         }
 
-
+       _timer.stop();
     }
 
 
     private void loadAdj() throws FileNotFoundException, IOException {
+        TimerContext _timer = loadAdjTimer.time();
         File compressedFile = new File(adjDataFilename + ".gz");
-        BufferedDataInputStream adjStream;
+        InputStream adjStream;
         long fileSizeEstimate = 0;
         if (compressedFile.exists()) {
             System.out.println("Note: using compressed");
-            adjStream = new BufferedDataInputStream(new GZIPInputStream(new FileInputStream(compressedFile)), 1024 * 1024);
+            adjStream = new GZIPInputStream(new FileInputStream(compressedFile));
             fileSizeEstimate = compressedFile.length() * 3 / 2;
         } else {
-            adjStream = new BufferedDataInputStream(new FileInputStream(adjDataFilename), 1024 * 1024);
+            adjStream = new FileInputStream(adjDataFilename);
             fileSizeEstimate = new File(adjDataFilename).length();
         }
 
         ByteArrayOutputStream adjDataStream = new ByteArrayOutputStream((int) fileSizeEstimate);
         try {
-            byte[] buf = new byte[1024 * 1024];
+            byte[] buf = new byte[(int) fileSizeEstimate / 16];   // Read in 16 chunks
             while (true) {
                 int read = adjStream.read(buf);
                 adjDataStream.write(buf, 0, read);
@@ -208,7 +217,9 @@ public class MemoryShard <EdgeDataType> {
             // Done
         }
         adjData = adjDataStream.toByteArray();
+        adjStream.close();
 
+        _timer.stop();
     }
 
     private void loadEdata() throws FileNotFoundException, IOException {
