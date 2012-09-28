@@ -89,7 +89,8 @@ object PersonalizedPagerank {
             gatherInit = 0.0f,
             gather =  (v, vertexId, neighborVal, gather) => gather + neighborVal,
             apply = (v, gather, compid) => (RESETPROB * resetProbability(v, compid, numVertices) +
-                            (1-RESETPROB) * gather) / v.numOutEdges()
+                            (1-RESETPROB) * gather) / v.numOutEdges(),
+           vertexFilter = (v => v.numOutEdges() > 0)
         )
 
        println("Ready, writing toplists...")
