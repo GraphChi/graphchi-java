@@ -5,8 +5,10 @@ import edu.cmu.graphchi.ChiVertex;
 import edu.cmu.graphchi.datablocks.BytesToValueConverter;
 import edu.cmu.graphchi.datablocks.DataBlockManager;
 import edu.cmu.graphchi.io.CompressedIO;
+import nom.tam.util.BufferedDataInputStream;
 
 import java.io.*;
+import java.util.zip.GZIPInputStream;
 
 /**
  * Copyright [2012] [Aapo Kyrola, Guy Blelloch, Carlos Guestrin / Carnegie Mellon University]
@@ -183,16 +185,29 @@ public class MemoryShard <EdgeDataType> {
 
 
     private void loadAdj() throws FileNotFoundException, IOException {
-        File adjFile = new File(adjDataFilename);
-        FileInputStream fis = new FileInputStream(adjFile);
-
-        int filesize = (int) adjFile.length();
-        adjData = new byte[filesize];
-
-        int read = 0;
-        while (read < filesize) {
-            read += fis.read(adjData, read, filesize - read);
+        File compressedFile = new File(adjDataFilename + ".gz");
+        BufferedDataInputStream adjStream;
+        long fileSizeEstimate = 0;
+        if (compressedFile.exists()) {
+            System.out.println("Note: using compressed");
+            adjStream = new BufferedDataInputStream(new GZIPInputStream(new FileInputStream(compressedFile)), 1024 * 1024);
+            fileSizeEstimate = compressedFile.length() * 3 / 2;
+        } else {
+            adjStream = new BufferedDataInputStream(new FileInputStream(adjDataFilename), 1024 * 1024);
+            fileSizeEstimate = new File(adjDataFilename).length();
         }
+
+        ByteArrayOutputStream adjDataStream = new ByteArrayOutputStream((int) fileSizeEstimate);
+        try {
+            byte[] buf = new byte[1024 * 1024];
+            while (true) {
+                int read = adjStream.read(buf);
+                adjDataStream.write(buf, 0, read);
+            }
+        } catch (EOFException err) {
+            // Done
+        }
+        adjData = adjDataStream.toByteArray();
 
     }
 
