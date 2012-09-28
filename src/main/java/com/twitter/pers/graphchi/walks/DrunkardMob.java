@@ -80,7 +80,7 @@ public class DrunkardMob implements GraphChiProgram<Integer, Boolean> {
 
         String walkDir = System.getProperty("walk.dir", ".");
         final String filename = walkDir + "/walks_" + interval.getFirstVertex() + "-" + interval.getLastVertex() + ".dat";
-        if (ctx.getIteration() == 0) {
+        if (ctx.getIteration() == 0 || true) { // NOTE, temporary hack to save disk space but have the same I/O cost for testing
             new File(filename).delete();
         }
 

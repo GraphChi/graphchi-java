@@ -86,6 +86,12 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
         if (Runtime.getRuntime().availableProcessors() > nprocs) {
             nprocs = Runtime.getRuntime().availableProcessors();
         }
+
+        if (System.getProperty("num_threads") != null)
+            nprocs = Integer.parseInt(System.getProperty("num_threads"));
+
+        System.out.println(":::::::: Using " + nprocs + " execution threads :::::::::");
+
         parallelExecutor = Executors.newFixedThreadPool(nprocs);
         loadingExecutor = Executors.newFixedThreadPool(4);
         blockManager = new DataBlockManager();
@@ -341,6 +347,7 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
 
     private void execUpdates(final GraphChiProgram<VertexDataType, EdgeDataType> program,
                              final ChiVertex<VertexDataType, EdgeDataType>[] vertices) {
+        if (vertices.length == 0) return;
         TimerContext _timer = executionTimer.time();
         if (Runtime.getRuntime().availableProcessors() == 1) {
             /* Sequential updates */
@@ -352,7 +359,7 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
             }
         } else {
             final Object termlock = new Object();
-            final int chunkSize = vertices.length / 64;
+            final int chunkSize = 1 + vertices.length / 64;
 
             final int nWorkers = vertices.length / chunkSize + 1;
             final AtomicInteger countDown = new AtomicInteger(1 + nWorkers);

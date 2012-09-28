@@ -190,6 +190,9 @@ extends GraphChiProgram[VertexDataType, EdgeDataType] {
 			override def endIteration(ctx : GraphChiContext) : Unit = {}
 			override def beginInterval(ctx : GraphChiContext, interval : VertexInterval) : Unit = {}
 			override def endInterval(ctx : GraphChiContext, interval : VertexInterval) : Unit = {}
+
+      override def beginSubInterval(ctx: GraphChiContext, interval: VertexInterval) {}
+      override def endSubInterval(ctx: GraphChiContext, interval: VertexInterval) {}
 }
 
 /*

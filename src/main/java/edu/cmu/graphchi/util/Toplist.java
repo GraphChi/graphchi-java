@@ -65,7 +65,30 @@ public class Toplist {
         }
 
         );
+        return topList;
+    }
 
+    public static TreeSet<IdFloat> topList(final HugeFloatMatrix floatMatrix, final int column, final int topN) {
+        final TreeSet<IdFloat> topList = new TreeSet<IdFloat>(new Comparator<IdFloat>() {
+            public int compare(IdFloat idFloat, IdFloat idFloat1) {
+                return -Float.compare(idFloat.value, idFloat1.value); // Descending order
+            }
+        });
+        IdFloat least = null;
+        int n = (int) floatMatrix.getNumRows();
+        for(int vertexId=0; vertexId < n; vertexId++) {
+            float vertexValue = floatMatrix.getValue(vertexId, column);
+            if (topList.size() < topN) {
+                topList.add(new IdFloat(vertexId, vertexValue));
+                least = topList.last();
+            } else {
+                if (vertexValue > least.value) {
+                    topList.remove(least);
+                    topList.add(new IdFloat(vertexId, vertexValue));
+                    least = topList.last();
+                }
+            }
+        }
 
         return topList;
     }

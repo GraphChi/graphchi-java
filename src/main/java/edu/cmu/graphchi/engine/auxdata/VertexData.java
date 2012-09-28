@@ -107,4 +107,10 @@ public class VertexData <VertexDataType> {
     public void setBlockManager(DataBlockManager blockManager) {
         this.blockManager = blockManager;
     }
+
+    // This is a bit funny... Is there a better way to create a memory efficient
+    // int array in scala?
+    public static int[] createIntArray(int n) {
+        return new int[n];
+    }
 }

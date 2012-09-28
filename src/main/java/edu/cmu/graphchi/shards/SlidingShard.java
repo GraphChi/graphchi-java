@@ -207,7 +207,7 @@ public class SlidingShard <EdgeDataType> {
 
     public void setOffset(int newoff, int _curvid, int edgeptr) {
         try {
-            adjFile.close();
+           if (adjFile != null) adjFile.close();
         } catch (IOException ioe) {}
         adjFile = null;
         adjOffset = newoff;

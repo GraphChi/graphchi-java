@@ -11,16 +11,26 @@ class VertexInfo[VT, ET](v : ChiVertex[VT, ET]) {
 	def numOutEdges() = v.numOutEdges()
 	def numEdges() = v.numEdges()
 	def id() = v.getId()
+  def value() = v.getValue()
 }
 
-class GraphChiSquaredPrototype(baseFilename : String, numShards : Int, numComputations : Int) 
- extends GraphChiProgram[java.lang.Float, java.lang.Float]{
-	type VertexDataType = java.lang.Float;
+/**
+ * GraphChiSquared computes many (personalized) computations in parallel. Vertex
+ * values are stored in-memory.
+ * @author Aapo Kyrola, akyrola@twitter.com, akyrola@cs.cmu.edu
+ * @param baseFilename
+ * @param numShards
+ * @param numComputations
+ */
+class GraphChiSquared(baseFilename : String, numShards : Int, numComputations : Int)
+ extends GraphChiProgram[java.lang.Integer, java.lang.Float]{
+	type VertexDataType = java.lang.Integer;
 	type EdgeDataType = java.lang.Float;
 	type GatherType = java.lang.Float;
+  type ComputationValueType = java.lang.Float;
 	val engine = new GraphChiEngine[VertexDataType, EdgeDataType](baseFilename, numShards);
 	engine.setEdataConverter(new FloatConverter())
-	engine.setVertexDataConverter(new FloatConverter())
+	engine.setVertexDataConverter(new IntConverter())
 	engine.setMemoryBudgetMb(1500)
 	engine.setModifiesInedges(false)
 	engine.setModifiesOutedges(false)
@@ -31,7 +41,8 @@ class GraphChiSquaredPrototype(baseFilename : String, numShards : Int, numComput
 	type GatherFunctionType = (VertexInfo[VertexDataType, EdgeDataType], Int, EdgeDataType, EdgeDataType, GatherType) => GatherType
   type OnlyAdjGatherFunctionType = (VertexInfo[VertexDataType, EdgeDataType], Int, EdgeDataType, GatherType) => GatherType
 
-  type ApplyFunctionType =  (VertexInfo[VertexDataType, EdgeDataType], GatherType) => VertexDataType
+  // Apply: (vertex-info, gather-value, computation-id)
+  type ApplyFunctionType =  (VertexInfo[VertexDataType, EdgeDataType], GatherType, Int) => ComputationValueType
 
 	var gatherFunc : GatherFunctionType  = null;
   var gatherFuncOnlyAdj : OnlyAdjGatherFunctionType  = null;
@@ -39,13 +50,16 @@ class GraphChiSquaredPrototype(baseFilename : String, numShards : Int, numComput
 	var gatherInitVal : GatherType = 0.0f
  
 	
-	def initValues(computationId : Int, initValues : Iterable[(Int, java.lang.Float)]) = {
+	def initValues(computationId: Int, initValues: Iterable[(Int, java.lang.Float)]) = {
 	    initValues.foreach{ case (vertex, value) => vertexMatrix.setValue(vertex, computationId, value)}
 	}
+
+  def initValue(computationId: Int, vertexId: Int, value: java.lang.Float) =
+    vertexMatrix.setValue(vertexId, computationId, value)
 	
 	def numVertices() = engine.numVertices()
 	
-	def compute(iterations : Int, gatherInit : GatherType, gather: GatherFunctionType, apply : ApplyFunctionType) {
+	def compute(iterations: Int, gatherInit: GatherType, gather: GatherFunctionType, apply: ApplyFunctionType) {
 	    gatherFunc = gather;
 	    applyFunc = apply;
 	    gatherInitVal = gatherInit
@@ -53,7 +67,7 @@ class GraphChiSquaredPrototype(baseFilename : String, numShards : Int, numComput
 	    engine.run(this, iterations)
 	}
 
-  def compute(iterations : Int, gatherInit : GatherType, gather: OnlyAdjGatherFunctionType, apply : ApplyFunctionType) {
+  def compute(iterations: Int, gatherInit: GatherType, gather: OnlyAdjGatherFunctionType, apply: ApplyFunctionType) {
     gatherFuncOnlyAdj = gather;
     applyFunc = apply;
     gatherInitVal = gatherInit
@@ -64,9 +78,9 @@ class GraphChiSquaredPrototype(baseFilename : String, numShards : Int, numComput
     engine.run(this, iterations)
   }
 	
-	def getVertexValue(computationId : Int, vertexId : Int) = vertexMatrix.getValue(vertexId, computationId)
+	def getVertexValue(computationId: Int, vertexId: Int) = vertexMatrix.getValue(vertexId, computationId)
 	
-	override def update(v : ChiVertex[VertexDataType, EdgeDataType], ctx : GraphChiContext) : Unit = {
+	override def update(v: ChiVertex[VertexDataType, EdgeDataType], ctx: GraphChiContext) : Unit = {
 		var gathers = new Array[GatherType](numComputations)
 		var c = 0
 		while ( c < numComputations) { gathers(c) = gatherInitVal; c += 1}
@@ -98,14 +112,19 @@ class GraphChiSquaredPrototype(baseFilename : String, numShards : Int, numComput
 		/* Apply and write into the matrix */
 		c = 0
 		while ( c < numComputations) {
-		   val newVertexVal = applyFunc(vertexInfo, gathers(c))
+		   val newVertexVal = applyFunc(vertexInfo, gathers(c), c)
 		   vertexMatrix.setValue(v.getId(), c, newVertexVal)
 		   c += 1
 		}
 	}
 
+  def getVertexMatrix() = vertexMatrix
+
 	override def beginIteration(ctx : GraphChiContext) : Unit = {}
 	override def endIteration(ctx : GraphChiContext) : Unit = {}
 	override def beginInterval(ctx : GraphChiContext, interval : VertexInterval) : Unit = {}
 	override def endInterval(ctx : GraphChiContext, interval : VertexInterval) : Unit = {}
+
+  override def beginSubInterval(ctx: GraphChiContext, interval: VertexInterval) {}
+  override def endSubInterval(ctx: GraphChiContext, interval: VertexInterval) {}
 }

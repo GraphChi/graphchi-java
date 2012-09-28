@@ -31,6 +31,10 @@ public class HugeFloatMatrix {
     public long size() {
     	return nrows * ncols;
     }
+
+    public long getNumRows() {
+        return nrows;
+    }
     
     public float getValue(int row, int col) {
     	long idx = (long)row * ncols + (long)col;
