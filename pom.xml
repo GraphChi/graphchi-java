@@ -16,6 +16,11 @@
         <snapshots><enabled>true</enabled></snapshots>
 
     </repository>
+  <repository>  
+      <id>scala-tools.org</id>  
+      <name>Scala-tools Maven2 Repository</name>  
+      <url>http://scala-tools.org/repo-releases</url>  
+    </repository>
   </repositories>
 
     <dependencies>
@@ -24,8 +29,52 @@
             <artifactId>metrics-core</artifactId>
             <version>3.0.0-SNAPSHOT</version>
         </dependency>
+	    <!-- Scala version is very important. Luckily the plugin warns you if you don't specify:   
+	        [WARNING] you don't define org.scala-lang:scala-library as a dependency of the project -->  
+	    <dependency>  
+	      <groupId>org.scala-lang</groupId>  
+	      <artifactId>scala-library</artifactId>  
+	      <version>2.9.0-1</version>  
+	    </dependency>
     </dependencies>
+ 
+  	<build>
+	        <plugins>
+	                <plugin>
+	                        <groupId>org.scala-tools</groupId>
+	                        <artifactId>maven-scala-plugin</artifactId>
+	                        <executions>
 
-
+	                                <execution>
+	                                        <id>compile</id>
+	                                        <goals>
+	                                                <goal>compile</goal>
+	                                        </goals>
+	                                        <phase>compile</phase>
+	                                </execution>
+	                                <execution>
+	                                        <id>test-compile</id>
+	                                        <goals>
+	                                                <goal>testCompile</goal>
+	                                        </goals>
+	                                        <phase>test-compile</phase>
+	                                </execution>
+	                <execution>
+	                   <phase>process-resources</phase>
+	                   <goals>
+	                     <goal>compile</goal>
+	                   </goals>
+	                </execution>
+	                        </executions>
+	                </plugin>
+	                <plugin>
+	                        <artifactId>maven-compiler-plugin</artifactId>
+	                        <configuration>
+	                                <source>1.5</source>
+	                                <target>1.5</target>
+	                        </configuration>
+	                </plugin>
+	        </plugins>      
+	</build>
 
 </project>
