@@ -83,6 +83,7 @@ class GraphChiSquared(baseFilename : String, numShards : Int, numComputations : 
 
     engine.setEdataConverter(null)
     engine.setOnlyAdjacency(true)
+    engine.setDisableOutEdges(true)   // No scatter
     engine.setAutoLoadNext(true)
     engine.run(this, iterations)
     rep.run()

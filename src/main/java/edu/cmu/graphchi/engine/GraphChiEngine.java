@@ -38,12 +38,10 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
     protected int nShards;
     protected ArrayList<VertexInterval> intervals;
     protected ArrayList<SlidingShard<EdgeDataType>> slidingShards;
-    protected MemoryShard<EdgeDataType> memoryShard;
 
     protected BytesToValueConverter<EdgeDataType> edataConverter;
     protected BytesToValueConverter<VertexDataType> vertexDataConverter;
 
-    protected int execInterval;
     protected GraphChiContext chiContext = new GraphChiContext();
     private DataBlockManager blockManager;
     private ExecutorService parallelExecutor;
@@ -75,7 +73,7 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
 
 
     protected boolean modifiesInedges = true, modifiesOutedges = true;
-    private boolean disableInEdges = false;
+    private boolean disableInEdges = false, disableOutEdges = false;
 
     public GraphChiEngine(String baseFilename, int nShards) throws FileNotFoundException, IOException {
         this.baseFilename = baseFilename;
@@ -158,15 +156,16 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
         }
     }
 
-    protected void createMemoryShard(int intervalStart, int intervalEnd) {
+    protected MemoryShard<EdgeDataType> createMemoryShard(int intervalStart, int intervalEnd, int execInterval) {
         String edataFilename = (onlyAdjacency ? null : ChiFilenames.getFilenameShardEdata(baseFilename, edataConverter, execInterval, nShards));
         String adjFilename = ChiFilenames.getFilenameShardsAdj(baseFilename, execInterval, nShards);
 
-        memoryShard = new MemoryShard<EdgeDataType>(edataFilename, adjFilename, intervals.get(execInterval).getFirstVertex(),
+        MemoryShard<EdgeDataType> newMemoryShard = new MemoryShard<EdgeDataType>(edataFilename, adjFilename, intervals.get(execInterval).getFirstVertex(),
                 intervals.get(execInterval).getLastVertex());
-        memoryShard.setConverter(edataConverter);
-        memoryShard.setDataBlockManager(blockManager);
-        memoryShard.setOnlyAdjacency(onlyAdjacency);
+        newMemoryShard.setConverter(edataConverter);
+        newMemoryShard.setDataBlockManager(blockManager);
+        newMemoryShard.setOnlyAdjacency(onlyAdjacency);
+        return newMemoryShard;
     }
 
 
@@ -188,6 +187,9 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
 
         if (disableInEdges) {
             ChiVertex.disableInedges = true;
+        }
+        if (disableOutEdges) {
+            ChiVertex.disableOutedges = true;
         }
 
         /* Initialize vertex-data handler */
@@ -214,7 +216,7 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
                 scheduler.reset();
             }
 
-            for(execInterval=0; execInterval < nShards; ++execInterval) {
+            for(int execInterval=0; execInterval < nShards; ++execInterval) {
                 int intervalSt = intervals.get(execInterval).getFirstVertex();
                 int intervalEn = intervals.get(execInterval).getLastVertex();
 
@@ -222,9 +224,14 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
 
                 program.beginInterval(chiContext, intervals.get(execInterval));
 
+                MemoryShard<EdgeDataType> memoryShard = null;
                 if (!disableInEdges) {
-                    slidingShards.get(execInterval).flush();
-                    createMemoryShard(intervalSt, intervalEn);
+                    if (!onlyAdjacency || !autoLoadNext || nextWindow == null) {
+                        if (!disableOutEdges) slidingShards.get(execInterval).flush();     // MESSY!
+                        memoryShard = createMemoryShard(intervalSt, intervalEn, execInterval);
+                    } else {
+                       memoryShard = null;
+                    }
                 }
 
                 subIntervalStart = intervalSt;
@@ -242,13 +249,12 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
 
                             vertices = new ChiVertex[nvertices];
 
-
                             System.out.println("Init vertices...");
                             vertexBlockId = initVertices(nvertices, subIntervalStart, vertices);
 
                             System.out.println("Loading...");
                             long t0 = System.currentTimeMillis();
-                            loadBeforeUpdates(vertices, subIntervalStart, subIntervalEnd);
+                            loadBeforeUpdates(execInterval, vertices, memoryShard, subIntervalStart, subIntervalEnd);
                             System.out.println("Load took: " + (System.currentTimeMillis() - t0) + "ms");
                         } else {
                             /* This is a mess! */
@@ -256,6 +262,7 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
                                 long tf = System.currentTimeMillis();
                                 final TimerContext _timer = waitForFutureTimer.time();
                                 IntervalData next = nextWindow.get();
+                                memoryShard = next.getMemShard();
                                 _timer.stop();
                                 System.out.println("Waiting for future task loading took " + (System.currentTimeMillis() - tf) + " ms");
                                 if (subIntervalStart != next.getSubInterval().getFirstVertex())
@@ -274,9 +281,18 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
                             /* Start a future for loading the next window */
                             if (subIntervalEnd + 1 <= intervalEn) {
                                 nextWindow = new FutureTask<IntervalData>(new AutoLoaderTask(new VertexInterval(subIntervalEnd + 1,
-                                        Math.min(intervalEn, subIntervalEnd + 1 + maxWindow))));
-                                parallelExecutor.submit(nextWindow);
+                                        Math.min(intervalEn, subIntervalEnd + 1 + maxWindow)), execInterval, memoryShard));
+                            } else if (execInterval < nShards - 1) {
+                                int nextIntervalSt = intervals.get(execInterval + 1).getFirstVertex();
+                                int nextIntervalEn = intervals.get(execInterval + 1).getLastVertex();
+                                nextWindow = new FutureTask<IntervalData>(new AutoLoaderTask(new VertexInterval(nextIntervalSt,
+                                        Math.min(nextIntervalEn, nextIntervalSt + 1 + maxWindow)), execInterval + 1,
+                                            createMemoryShard(nextIntervalSt, nextIntervalEn, execInterval + 1)));
+
                             }
+                            if (nextWindow != null)
+                                parallelExecutor.submit(nextWindow);
+
                         }
                         /* Clear scheduler bits */
                         if (scheduler != null) scheduler.removeTasks(subIntervalStart, subIntervalEnd);
@@ -315,8 +331,10 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
                 /* Commit */
                 if (!disableInEdges) {
                     memoryShard.commitAndRelease(modifiesInedges, modifiesOutedges);
-                    slidingShards.get(execInterval).setOffset(memoryShard.getStreamingOffset(),
-                            memoryShard.getStreamingOffsetVid(), memoryShard.getStreamingOffsetEdgePtr());
+                    if (!disableOutEdges) {
+                        slidingShards.get(execInterval).setOffset(memoryShard.getStreamingOffset(),
+                                memoryShard.getStreamingOffsetVid(), memoryShard.getStreamingOffsetEdgePtr());
+                    }
                 }
             }
 
@@ -474,21 +492,21 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
         return blockId;
     }
 
-    private void loadBeforeUpdates(final ChiVertex<VertexDataType, EdgeDataType>[] vertices,
+    private void loadBeforeUpdates(int interval, final ChiVertex<VertexDataType, EdgeDataType>[] vertices,  final MemoryShard<EdgeDataType> memShard,
                                    final int startVertex, final int endVertex) throws IOException {
         final Object terminationLock = new Object();
         final TimerContext _timer = loadTimer.time();
         // TODO: make easier to read
         synchronized (terminationLock) {
 
-            final AtomicInteger countDown = new AtomicInteger(nShards);
+            final AtomicInteger countDown = new AtomicInteger(disableOutEdges ? 1 : nShards);
 
             if (!disableInEdges) {
                 loadingExecutor.submit(new Runnable() {
 
                     public void run() {
                         try {
-                            memoryShard.loadVertices(startVertex, endVertex, vertices);
+                            memShard.loadVertices(startVertex, endVertex, vertices, disableOutEdges);
                             if (countDown.decrementAndGet() == 0) {
                                 synchronized (terminationLock) {
                                     terminationLock.notifyAll();
@@ -505,27 +523,29 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
             }
 
             /* Load in parallel */
-            for(int p=0; p < nShards; p++) {
-                if (p != execInterval || disableInEdges) {
-                    final SlidingShard<EdgeDataType> shard = slidingShards.get(p);
-                    loadingExecutor.submit(new Runnable() {
+            if (!disableOutEdges) {
+                for(int p=0; p < nShards; p++) {
+                    if (p != interval || disableInEdges) {
+                        final SlidingShard<EdgeDataType> shard = slidingShards.get(p);
+                        loadingExecutor.submit(new Runnable() {
 
-                        public void run() {
-                            try {
-                                shard.readNextVertices(vertices, startVertex, false);
-                                if (countDown.decrementAndGet() == 0) {
-                                    synchronized (terminationLock) {
-                                        terminationLock.notifyAll();
+                            public void run() {
+                                try {
+                                    shard.readNextVertices(vertices, startVertex, false);
+                                    if (countDown.decrementAndGet() == 0) {
+                                        synchronized (terminationLock) {
+                                            terminationLock.notifyAll();
+                                        }
                                     }
+                                } catch (IOException ioe) {
+                                    ioe.printStackTrace();
+                                    throw new RuntimeException(ioe);
+                                }  catch (Exception err) {
+                                    err.printStackTrace();
                                 }
-                            } catch (IOException ioe) {
-                                ioe.printStackTrace();
-                                throw new RuntimeException(ioe);
-                            }  catch (Exception err) {
-                                err.printStackTrace();
                             }
-                        }
-                    });
+                        });
+                    }
                 }
             }
 
@@ -546,11 +566,16 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
         private VertexInterval subInterval;
         private ChiVertex<VertexDataType, EdgeDataType>[] vertices;
         private int vertexBlockId;
+        private MemoryShard<EdgeDataType> memShard;
+        private int intervalNum;
 
-        IntervalData(VertexInterval subInterval, ChiVertex<VertexDataType, EdgeDataType>[] vertices, int vertexBlockId) {
+        IntervalData(VertexInterval subInterval, ChiVertex<VertexDataType, EdgeDataType>[] vertices, int vertexBlockId,
+                        MemoryShard<EdgeDataType> memShard, int intervalNum) {
             this.subInterval = subInterval;
             this.vertices = vertices;
             this.vertexBlockId = vertexBlockId;
+            this.intervalNum = intervalNum;
+            this.memShard = memShard;
         }
 
         public VertexInterval getSubInterval() {
@@ -564,15 +589,27 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
         public int getVertexBlockId() {
             return vertexBlockId;
         }
+
+        public MemoryShard<EdgeDataType> getMemShard() {
+            return memShard;
+        }
+
+        public int getIntervalNum() {
+            return intervalNum;
+        }
     }
 
     class AutoLoaderTask implements Callable<IntervalData> {
 
         private ChiVertex<VertexDataType, EdgeDataType>[] vertices;
         private VertexInterval interval;
+        private MemoryShard<EdgeDataType> memShard;
+        private int intervalNum;
 
-        AutoLoaderTask(VertexInterval interval) {
+        AutoLoaderTask(VertexInterval interval, int intervalNum, MemoryShard<EdgeDataType> memShard) {
             this.interval = interval;
+            this.memShard = memShard;
+            this.intervalNum = intervalNum;
             if (!onlyAdjacency)  throw new RuntimeException("Can use auto-loading only with only-adjacency mode!");
         }
 
@@ -585,13 +622,15 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
 
                 int vertexBlockid = initVertices(nVertices, interval.getFirstVertex(), vertices);
 
-                loadBeforeUpdates(vertices, interval.getFirstVertex(), lastVertex);
-                return new IntervalData(new VertexInterval(interval.getFirstVertex(), lastVertex), vertices, vertexBlockid);
+                loadBeforeUpdates(intervalNum, vertices, memShard, interval.getFirstVertex(), lastVertex);
+                return new IntervalData(new VertexInterval(interval.getFirstVertex(), lastVertex), vertices, vertexBlockid, memShard, intervalNum);
             } catch (Exception err) {
                 err.printStackTrace();
                 return null;
             }
         }
+
+
     }
 
     private int determineNextWindow(int subIntervalStart, int maxVertex) throws IOException {
@@ -652,6 +691,14 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
 
     public void setEnableDeterministicExecution(boolean enableDeterministicExecution) {
         this.enableDeterministicExecution = enableDeterministicExecution;
+    }
+
+    public boolean isDisableOutEdges() {
+        return disableOutEdges;
+    }
+
+    public void setDisableOutEdges(boolean disableOutEdges) {
+        this.disableOutEdges = disableOutEdges;
     }
 
     public boolean isModifiesInedges() {

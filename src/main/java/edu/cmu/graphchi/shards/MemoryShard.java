@@ -108,7 +108,7 @@ public class MemoryShard <EdgeDataType> {
         }
     }
 
-    public void loadVertices(int windowStart, int windowEnd, ChiVertex[] vertices)
+    public void loadVertices(int windowStart, int windowEnd, ChiVertex[] vertices, boolean disableOutEdges)
             throws FileNotFoundException, IOException {
         DataInput adjInput = null;
         if (adjData == null) {
@@ -171,7 +171,7 @@ public class MemoryShard <EdgeDataType> {
                     adjOffset += 4;
                     if (!(target >= rangeStart && target <= rangeEnd))
                         throw new IllegalStateException("Target " + target + " not in range!");
-                    if (vertex != null) {
+                    if (vertex != null && !disableOutEdges) {
                         vertex.addOutEdge((onlyAdjacency ? -1 : blockIds[edataPtr / blocksize]), (onlyAdjacency ? -1 : edataPtr % blocksize), target);
                     }
 
@@ -217,13 +217,16 @@ public class MemoryShard <EdgeDataType> {
             adjStreamRaw = new FileInputStream(adjDataFilename);
             fileSizeEstimate = new File(adjDataFilename).length();
         }
+
+        if (onlyOneRead) {
+            return new BufferedDataInputStream(adjStreamRaw,  (int) fileSizeEstimate / 64 + 1024);
+        }
+
         BufferedInputStream adjStream =	new BufferedInputStream(adjStreamRaw, (int) fileSizeEstimate /
                 4);
 
         // Hack for cases when the load is not divided into subwindows
-        if (onlyOneRead) {
-            return new BufferedDataInputStream(adjStream);
-        }
+
 
         TimerContext _timer = loadAdjTimer.time();
         ByteArrayOutputStream adjDataStream = new ByteArrayOutputStream((int) fileSizeEstimate);

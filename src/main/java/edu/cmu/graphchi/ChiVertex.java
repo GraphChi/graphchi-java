@@ -32,6 +32,7 @@ public class ChiVertex<VertexValue, EdgeValue> {
     public static BytesToValueConverter vertexValueConverter;
     public static BytesToValueConverter edgeValueConverter;
     public static boolean disableInedges = false;
+    public static boolean disableOutedges = false;
 
     private int nInedges = 0;
     private int[] inEdgeDataArray = null;
@@ -39,18 +40,25 @@ public class ChiVertex<VertexValue, EdgeValue> {
     private AtomicInteger nOutedges = new AtomicInteger(0);
     private int[] outEdgeDataArray = null;
 
+    private int inDegree, outDegree;
+
     /* Internal management */
     public boolean parallelSafe = true;
 
     private ChiPointer vertexPtr;
 
-
     public ChiVertex(int id, VertexDegree degree) {
         this.id = id;
         if (!disableInedges) {
             inEdgeDataArray = new int[degree.inDegree * (edgeValueConverter != null ? 3 : 1)];
+        } else {
+            nInedges = degree.inDegree;
         }
-        outEdgeDataArray = new int[degree.outDegree * (edgeValueConverter != null ? 3 : 1)];
+        if (!disableOutedges) {
+            outEdgeDataArray = new int[degree.outDegree * (edgeValueConverter != null ? 3 : 1)];
+        } else {
+            nOutedges.set(degree.outDegree);
+        }
     }
 
 
@@ -88,6 +96,7 @@ public class ChiVertex<VertexValue, EdgeValue> {
     public int numOutEdges() {
         return nOutedges.get();
     }
+
 
     public int numInEdges() {
         return nInedges;
