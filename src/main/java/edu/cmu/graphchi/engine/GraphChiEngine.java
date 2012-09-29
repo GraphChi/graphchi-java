@@ -291,7 +291,7 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
 
                             }
                             if (nextWindow != null)
-                                parallelExecutor.submit(nextWindow);
+                                loadingExecutor.submit(nextWindow);
 
                         }
                         /* Clear scheduler bits */
