@@ -206,11 +206,11 @@ public class MemoryShard <EdgeDataType> {
             fileSizeEstimate = new File(adjDataFilename).length();
         }
         BufferedInputStream adjStream =	new BufferedInputStream(adjStreamRaw, (int) fileSizeEstimate /
-                16);
+                4);
         ByteArrayOutputStream adjDataStream = new ByteArrayOutputStream((int) fileSizeEstimate);
         long tot = 0;
         try {
-            byte[] buf = new byte[(int) fileSizeEstimate / 16];   // Read in 16 chunks
+            byte[] buf = new byte[(int) fileSizeEstimate / 4];   // Read in 16 chunks
             while (true) {
                 int read =  adjStream.read(buf);
                 tot += read;

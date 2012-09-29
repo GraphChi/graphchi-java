@@ -482,6 +482,28 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
         synchronized (terminationLock) {
 
             final AtomicInteger countDown = new AtomicInteger(nShards);
+
+            if (!disableInEdges) {
+                loadingExecutor.submit(new Runnable() {
+
+                    public void run() {
+                        try {
+                            memoryShard.loadVertices(startVertex, endVertex, vertices);
+                            if (countDown.decrementAndGet() == 0) {
+                                synchronized (terminationLock) {
+                                    terminationLock.notifyAll();
+                                }
+                            }
+                        } catch (IOException ioe) {
+                            ioe.printStackTrace();
+                            throw new RuntimeException(ioe);
+                        }  catch (Exception err) {
+                            err.printStackTrace();
+                        }
+                    }
+                });
+            }
+
             /* Load in parallel */
             for(int p=0; p < nShards; p++) {
                 if (p != execInterval || disableInEdges) {
@@ -506,26 +528,7 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
                     });
                 }
             }
-            if (!disableInEdges) {
-                loadingExecutor.submit(new Runnable() {
 
-                    public void run() {
-                        try {
-                            memoryShard.loadVertices(startVertex, endVertex, vertices);
-                            if (countDown.decrementAndGet() == 0) {
-                                synchronized (terminationLock) {
-                                    terminationLock.notifyAll();
-                                }
-                            }
-                        } catch (IOException ioe) {
-                            ioe.printStackTrace();
-                            throw new RuntimeException(ioe);
-                        }  catch (Exception err) {
-                            err.printStackTrace();
-                        }
-                    }
-                });
-            }
             // barrier
             try {
                 while(countDown.get() > 0) {
