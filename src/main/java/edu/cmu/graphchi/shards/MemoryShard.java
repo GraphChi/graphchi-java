@@ -195,22 +195,27 @@ public class MemoryShard <EdgeDataType> {
     private void loadAdj() throws FileNotFoundException, IOException {
         TimerContext _timer = loadAdjTimer.time();
         File compressedFile = new File(adjDataFilename + ".gz");
-        InputStream adjStream;
+        InputStream adjStreamRaw;
         long fileSizeEstimate = 0;
         if (compressedFile.exists()) {
-            System.out.println("Note: using compressed");
-            adjStream = new GZIPInputStream(new FileInputStream(compressedFile));
+            System.out.println("Note: using compressed: " + compressedFile.getAbsolutePath());
+            adjStreamRaw = new GZIPInputStream(new FileInputStream(compressedFile));
             fileSizeEstimate = compressedFile.length() * 3 / 2;
         } else {
-            adjStream = new FileInputStream(adjDataFilename);
+            adjStreamRaw = new FileInputStream(adjDataFilename);
             fileSizeEstimate = new File(adjDataFilename).length();
         }
-
+        BufferedInputStream adjStream =	new BufferedInputStream(adjStreamRaw, (int) fileSizeEstimate /
+                16);
         ByteArrayOutputStream adjDataStream = new ByteArrayOutputStream((int) fileSizeEstimate);
+        long tot = 0;
         try {
             byte[] buf = new byte[(int) fileSizeEstimate / 16];   // Read in 16 chunks
             while (true) {
                 int read =  adjStream.read(buf);
+                tot += read;
+                System.out.println(tot + " " + read + " " + fileSizeEstimate + " " + buf.length);
+
                 if (read > 0) {
                     adjDataStream.write(buf, 0, read);
                 } else break;
@@ -221,7 +226,7 @@ public class MemoryShard <EdgeDataType> {
         }
         adjData = adjDataStream.toByteArray();
         adjStream.close();
-
+        adjDataStream.close();
         _timer.stop();
     }
 
