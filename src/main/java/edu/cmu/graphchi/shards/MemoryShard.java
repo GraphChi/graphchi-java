@@ -8,6 +8,7 @@ import edu.cmu.graphchi.ChiVertex;
 import edu.cmu.graphchi.datablocks.BytesToValueConverter;
 import edu.cmu.graphchi.datablocks.DataBlockManager;
 import edu.cmu.graphchi.io.CompressedIO;
+import nom.tam.util.BufferedDataInputStream;
 
 import java.io.*;
 import java.util.concurrent.TimeUnit;
@@ -109,9 +110,13 @@ public class MemoryShard <EdgeDataType> {
 
     public void loadVertices(int windowStart, int windowEnd, ChiVertex[] vertices)
             throws FileNotFoundException, IOException {
+        DataInput adjInput = null;
         if (adjData == null) {
-            loadAdj();
+            adjInput = loadAdj(windowEnd == rangeEnd && windowStart == rangeStart);
             if (!onlyAdjacency) loadEdata();
+            if (adjInput != null) {
+                System.out.println("No intermediate loading into byte array");
+            }
         }
         TimerContext _timer = loadVerticesTimers.time();
 
@@ -120,80 +125,87 @@ public class MemoryShard <EdgeDataType> {
         int edataPtr = 0;
         int adjOffset = 0;
         int sizeOf = (converter == null ? 0 : converter.sizeOf());
-        DataInputStream adjInput = new DataInputStream(new ByteArrayInputStream(adjData));
-        while(adjInput.available() > 0) {
-            if (!hasSetOffset && vid > rangeEnd) {
-                streamingOffset = adjOffset;
-                streamingOffsetEdgePtr = edataPtr;
-                streamingOffsetVid = vid;
-                hasSetOffset = true;
-            }
-            if (!hasSetRangeOffset && vid >= rangeStart) {
-                rangeStartOffset = adjOffset;
-                rangeStartEdgePtr = edataPtr;
-                hasSetRangeOffset = true;
-            }
-
-            int n = 0;
-            int ns = adjInput.readUnsignedByte();
-            adjOffset += 1;
-            assert(ns >= 0);
-            if (ns == 0) {
-                // next value tells the number of vertices with zeros
-                vid++;
-                int nz = adjInput.readUnsignedByte();
-                adjOffset += 1;
-                vid += nz;
-                continue;
-            }
-            if (ns == 0xff) {   // If 255 is not enough, then stores a 32-bit integer after.
-                n = Integer.reverseBytes(adjInput.readInt());
-                adjOffset += 4;
-            } else {
-                n = ns;
-            }
-
-            ChiVertex vertex = null;
-            if (vid >= windowStart && vid <= windowEnd) {
-                vertex = vertices[vid - windowStart];
-            }
-
-            while (--n >= 0) {
-                int target = Integer.reverseBytes(adjInput.readInt());
-                adjOffset += 4;
-                if (!(target >= rangeStart && target <= rangeEnd))
-                    throw new IllegalStateException("Target " + target + " not in range!");
-                if (vertex != null) {
-                    vertex.addOutEdge((onlyAdjacency ? -1 : blockIds[edataPtr / blocksize]), (onlyAdjacency ? -1 : edataPtr % blocksize), target);
+        if (adjInput == null) {
+            adjInput = new DataInputStream(new ByteArrayInputStream(adjData));
+        }
+        try {
+            while(true) {
+                if (!hasSetOffset && vid > rangeEnd) {
+                    streamingOffset = adjOffset;
+                    streamingOffsetEdgePtr = edataPtr;
+                    streamingOffsetVid = vid;
+                    hasSetOffset = true;
+                }
+                if (!hasSetRangeOffset && vid >= rangeStart) {
+                    rangeStartOffset = adjOffset;
+                    rangeStartEdgePtr = edataPtr;
+                    hasSetRangeOffset = true;
                 }
 
-                if (target >= windowStart) {
-                    if (target <= windowEnd) {
-                        ChiVertex dstVertex = vertices[target - windowStart];
-                        if (dstVertex != null) {
-                            dstVertex.addInEdge((onlyAdjacency ? -1 : blockIds[edataPtr / blocksize]),
-                                    (onlyAdjacency ? -1 : edataPtr % blocksize),
-                                    vid);
-                        }
-                        if (vertex != null && dstVertex != null) {
-                            dstVertex.parallelSafe = false;
-                            vertex.parallelSafe = false;
+                int n = 0;
+                int ns = adjInput.readUnsignedByte();
+                adjOffset += 1;
+                assert(ns >= 0);
+                if (ns == 0) {
+                    // next value tells the number of vertices with zeros
+                    vid++;
+                    int nz = adjInput.readUnsignedByte();
+                    adjOffset += 1;
+                    vid += nz;
+                    continue;
+                }
+                if (ns == 0xff) {   // If 255 is not enough, then stores a 32-bit integer after.
+                    n = Integer.reverseBytes(adjInput.readInt());
+                    adjOffset += 4;
+                } else {
+                    n = ns;
+                }
+
+                ChiVertex vertex = null;
+                if (vid >= windowStart && vid <= windowEnd) {
+                    vertex = vertices[vid - windowStart];
+                }
+
+                while (--n >= 0) {
+                    int target = Integer.reverseBytes(adjInput.readInt());
+                    adjOffset += 4;
+                    if (!(target >= rangeStart && target <= rangeEnd))
+                        throw new IllegalStateException("Target " + target + " not in range!");
+                    if (vertex != null) {
+                        vertex.addOutEdge((onlyAdjacency ? -1 : blockIds[edataPtr / blocksize]), (onlyAdjacency ? -1 : edataPtr % blocksize), target);
+                    }
+
+                    if (target >= windowStart) {
+                        if (target <= windowEnd) {
+                            ChiVertex dstVertex = vertices[target - windowStart];
+                            if (dstVertex != null) {
+                                dstVertex.addInEdge((onlyAdjacency ? -1 : blockIds[edataPtr / blocksize]),
+                                        (onlyAdjacency ? -1 : edataPtr % blocksize),
+                                        vid);
+                            }
+                            if (vertex != null && dstVertex != null) {
+                                dstVertex.parallelSafe = false;
+                                vertex.parallelSafe = false;
+                            }
                         }
                     }
+                    edataPtr += sizeOf;
+
+                    // TODO: skip
                 }
-                edataPtr += sizeOf;
-
-                // TODO: skip
+                vid++;
             }
-            vid++;
-        }
+        } catch (EOFException eof) {}
 
+        // Ugly
+        if (adjInput instanceof  InputStream) {
+            ((InputStream) adjInput).close();
+        }
         _timer.stop();
     }
 
 
-    private void loadAdj() throws FileNotFoundException, IOException {
-        TimerContext _timer = loadAdjTimer.time();
+    private DataInput loadAdj(boolean onlyOneRead) throws FileNotFoundException, IOException {
         File compressedFile = new File(adjDataFilename + ".gz");
         InputStream adjStreamRaw;
         long fileSizeEstimate = 0;
@@ -207,7 +219,15 @@ public class MemoryShard <EdgeDataType> {
         }
         BufferedInputStream adjStream =	new BufferedInputStream(adjStreamRaw, (int) fileSizeEstimate /
                 4);
+
+        // Hack for cases when the load is not divided into subwindows
+        if (onlyOneRead) {
+            return new BufferedDataInputStream(adjStream);
+        }
+
+        TimerContext _timer = loadAdjTimer.time();
         ByteArrayOutputStream adjDataStream = new ByteArrayOutputStream((int) fileSizeEstimate);
+
         long tot = 0;
         try {
             byte[] buf = new byte[(int) fileSizeEstimate / 4];   // Read in 16 chunks
@@ -224,10 +244,12 @@ public class MemoryShard <EdgeDataType> {
         } catch (EOFException err) {
             // Done
         }
+
         adjData = adjDataStream.toByteArray();
         adjStream.close();
         adjDataStream.close();
         _timer.stop();
+        return null;
     }
 
     private void loadEdata() throws FileNotFoundException, IOException {
