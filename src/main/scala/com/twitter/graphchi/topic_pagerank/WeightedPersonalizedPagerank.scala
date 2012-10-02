@@ -1,36 +1,34 @@
 package com.twitter.graphchi.topic_pagerank
 
-import edu.cmu.graphchi.scala._
-import edu.cmu.graphchi.datablocks.{IntConverter, FloatConverter}
-import edu.cmu.graphchi.util.IdFloat
-import edu.cmu.graphchi.util.Toplist
-import java.util.TreeSet
-import scala.collection.JavaConversions._
-import java.util.Random
-import scala.io.Source
 import edu.cmu.graphchi.ChiFilenames
-import java.io._
+import edu.cmu.graphchi.datablocks.IntConverter
 import edu.cmu.graphchi.engine.auxdata.VertexData
+import edu.cmu.graphchi.scala._
+import edu.cmu.graphchi.util.{HugeFloatMatrix, Toplist}
+import java.io._
+import scala.collection.JavaConversions._
+import scala.io.Source
+
+
+case class SumAndNormalizer(sum: java.lang.Float, normalizer: java.lang.Float) {
+  def +(that: SumAndNormalizer) = SumAndNormalizer(this.sum + that.sum, this.normalizer + that.normalizer)
+}
 
 /**
  * Computes personalized pagerank for a several "topics" a time.
- * Input: a list of files containing list of vertex-ids with non-zero reset probability
- * for a topic. TODO: improve doc.
+ * Input: a list of files containing normalized weights for each topic.
  * @author Aapo Kyrola, akyrola@twitter.com, akyrola@cs.cmu.edu
  */
-object PersonalizedPagerank {
+object WeightedPersonalizedPagerank {
 
   val RESETPROB = 0.15f
 
-  case class TopicInfo(topicName: String, seedFile: String)
+  var weights : HugeFloatMatrix = null
+
+  case class TopicInfo(topicName: String, weightFile: String)
 
   var topicInfos : Array[TopicInfo] = null
 
-  // Reset probability is encoded in an int. If a vertex value has bit T set,
-  // it is included in the seed-set for topic-computation with number T.
-  def resetProbability(v: VertexInfo[java.lang.Integer, java.lang.Float], computationId: Int, numVertices: Int) : Float = {
-    if ((v.value() & (1 << computationId)) == 0) 0.0f else 1.0f  // Do not divide by numVertices, no need to normalize (?).
-  }
 
   def initialize(initfile: String) : Int = {
     // files have to be in the same directory
@@ -43,31 +41,28 @@ object PersonalizedPagerank {
     topicInfos.size
   }
 
-  // Create the vertex-data file
+  // Initialize topic-weights
   def initVertexData[T](graphname: String, graphchiSqr: GraphChiSquared[T]) {
     val vertexDataFile = new File(ChiFilenames.getFilenameOfVertexData(graphname, new IntConverter()))
     if (vertexDataFile.exists()) vertexDataFile.delete()
 
     val vertexVals = VertexData.createIntArray(graphchiSqr.numVertices())
-
+    weights  = new HugeFloatMatrix(graphchiSqr.numVertices(), topicInfos.length)
     // Clean up....
     topicInfos.zip((0 until topicInfos.size)).foreach( x => { val (topicInfo, compidx) = x
-      Source.fromFile(topicInfo.seedFile).getLines().filter(_.length > 0)foreach(line => {
-        val vertexId = Integer.parseInt(line.split("\t")(0))
+      Source.fromFile(topicInfo.weightFile).getLines().filter(_.length > 0)foreach(line => {
+        val toks = line.split("\t")
+        val vertexId = Integer.parseInt(toks(0))
+        val weight = java.lang.Float.parseFloat(toks(2))
         if (vertexId < vertexVals.length) {   // Graph and the topic-seeds might be out of sync
-          vertexVals(vertexId) |= (1 << compidx)
-          graphchiSqr.initValue(compidx, vertexId, RESETPROB)
+          weights.setValue(vertexId, compidx, weight)
         } else println("Warning: too large vertex-id in topic top:", vertexId)
       })
     })
 
-
-    // Create the vertexData
-    val dos = new DataOutputStream(new BufferedOutputStream(new FileOutputStream(vertexDataFile)))
-    vertexVals.foreach(v => dos.writeInt(v))
-
-    dos.close()
   }
+
+
 
 
 
@@ -78,24 +73,30 @@ object PersonalizedPagerank {
     val initfile = args(3)
 
     val nComputations = initialize(initfile)
-    val graphchiSqr = new GraphChiSquared[java.lang.Float](graphname, nshards, nComputations)
-    val numVertices = graphchiSqr.numVertices()
+    val graphchiSqr = new GraphChiSquared[SumAndNormalizer](graphname, nshards, nComputations)
 
+    /* Ensure that we can run many processes in parallel */
+    ChiFilenames.vertexDataSuffix = ".weighted." + ChiFilenames.getPid
 
-    ChiFilenames.vertexDataSuffix = ".seeded." + ChiFilenames.getPid()
-    println("Initializing... Starting ", nComputations, " computations")
+    println("Initializing... Starting ", nComputations, " computations on WEIGHTED personalized pagerank.")
     initVertexData(graphname, graphchiSqr)
     println("Done initializing")
 
 
     /* Compute */
     graphchiSqr.compute(niters,
-      gatherInit = 0.0f,
-      gather =  (v, vertexId, neighborVal, gather, compid) => gather + neighborVal,
-      apply = (v, gather, compid) => (RESETPROB * resetProbability(v, compid, numVertices) +
-          (1-RESETPROB) * gather) / v.numOutEdges(),
-      vertexFilter = (v => v.numOutEdges() > 0)
-    )
+      gatherInit = SumAndNormalizer(0.0f, 0.0f),
+      gather =  (v, nbrId, neighborVal, gather, compid) => {
+        val w = weights.getValue(nbrId, compid)
+        gather + SumAndNormalizer(neighborVal * w, w)
+      },
+          apply = (v, gather, compid) =>
+              if (gather.normalizer > 0)
+                  (RESETPROB * weights.getValue(v.id(), compid) +
+                      (1 - RESETPROB) * gather.sum) / gather.normalizer
+              else 0.0f,
+          vertexFilter = (v => v.numOutEdges() > 0)
+        )
 
     println("Ready, writing toplists...")
 
@@ -103,10 +104,10 @@ object PersonalizedPagerank {
     val ntop = 10000;
     (0 until nComputations).foreach(icomp => {
       val topList = Toplist.topList(graphchiSqr.getVertexMatrix(), icomp, ntop)
-      val outputfile = "toplist." + topicInfos(icomp).topicName + ".tsv"
+      val outputfile = "toplist.weightedPR." + topicInfos(icomp).topicName + ".tsv"
 
       val writer = new BufferedWriter(new FileWriter(new File(outputfile)));
-      topList.foreach( item => writer.write(item.getVertexId + "\t" + topicInfos(icomp).topicName + "\t" + item.getValue() +"\n"))
+      topList.foreach( item => writer.write(item.getVertexId + "\t" + topicInfos(icomp).topicName + "\t" + item.getValue +"\n"))
 
       writer.close()
     })

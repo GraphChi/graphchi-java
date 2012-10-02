@@ -24,12 +24,11 @@ class VertexInfo[VT, ET](v : ChiVertex[VT, ET]) {
  * @param numShards
  * @param numComputations
  */
-class GraphChiSquared(baseFilename : String, numShards : Int, numComputations : Int)
+class GraphChiSquared[GatherType](baseFilename : String, numShards : Int, numComputations : Int)
     extends GraphChiProgram[java.lang.Integer, java.lang.Float]{
-  type VertexDataType = java.lang.Integer;
-  type EdgeDataType = java.lang.Float;
-  type GatherType = java.lang.Float;
-  type ComputationValueType = java.lang.Float;
+  type VertexDataType = java.lang.Integer
+  type EdgeDataType = java.lang.Float
+  type ComputationValueType = java.lang.Float
   val engine = new GraphChiEngine[VertexDataType, EdgeDataType](baseFilename, numShards);
   engine.setEdataConverter(new FloatConverter())
   engine.setVertexDataConverter(new IntConverter())
@@ -43,7 +42,7 @@ class GraphChiSquared(baseFilename : String, numShards : Int, numComputations : 
   val vertexMatrix = new HugeFloatMatrix(engine.numVertices(), numComputations)
 
   type GatherFunctionType = (VertexInfo[VertexDataType, EdgeDataType], Int, EdgeDataType, EdgeDataType, GatherType) => GatherType
-  type OnlyAdjGatherFunctionType = (VertexInfo[VertexDataType, EdgeDataType], Int, EdgeDataType, GatherType) => GatherType
+  type OnlyAdjGatherFunctionType = (VertexInfo[VertexDataType, EdgeDataType], Int, EdgeDataType, GatherType, Int) => GatherType
 
   // Apply: (vertex-info, gather-value, computation-id)
   type ApplyFunctionType =  (VertexInfo[VertexDataType, EdgeDataType], GatherType, Int) => ComputationValueType
@@ -112,7 +111,7 @@ class GraphChiSquared(baseFilename : String, numShards : Int, numComputations : 
           if (gatherFunc != null) {
             gathers(c) = gatherFunc(vertexInfo, nbid, rowblock(blockIdx + c), e.getValue(), gathers(c))
           } else if (gatherFuncOnlyAdj != null) {
-            gathers(c) = gatherFuncOnlyAdj(vertexInfo, nbid, rowblock(blockIdx + c), gathers(c))
+            gathers(c) = gatherFuncOnlyAdj(vertexInfo, nbid, rowblock(blockIdx + c), gathers(c), c)
           }
           c += 1
         }
