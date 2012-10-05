@@ -10,7 +10,7 @@ import java.util.Random
 import scala.io.Source
 import edu.cmu.graphchi.ChiFilenames
 import java.io._
-import edu.cmu.graphchi.engine.auxdata.VertexData
+import edu.cmu.graphchi.engine.auxdata.{DegreeData, VertexData}
 
 /**
  * Computes personalized pagerank for a several "topics" a time.
@@ -97,7 +97,26 @@ object PersonalizedPagerank {
       vertexFilter = (v => v.numOutEdges() > 0)
     )
 
-    println("Ready, writing toplists...")
+
+    println("Scale by outdegree")
+    val degreeData = new DegreeData(graphname)
+    var i = 0
+    val chunk = 1000000
+    while (i < numVertices) {
+       val last = scala.math.min(i + chunk - 1, numVertices - 1)
+       degreeData.load(i, last)
+       var j = i
+
+       while (j < last) {
+         val outdeg = degreeData.getDegree(j).outDegree
+         graphchiSqr.getVertexMatrix().multiplyRow(j, outdeg)
+         j += 1
+      }
+       i += chunk
+    }
+
+
+      println("Ready, writing toplists...")
 
     /* Output top-lists */
     val ntop = 10000;

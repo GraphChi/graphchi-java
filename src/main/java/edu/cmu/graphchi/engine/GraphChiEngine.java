@@ -79,20 +79,7 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
         this.baseFilename = baseFilename;
         this.nShards = nShards;
         loadIntervals();
-
-        int nprocs = 4;
-        if (Runtime.getRuntime().availableProcessors() > nprocs) {
-            nprocs = Runtime.getRuntime().availableProcessors();
-        }
-
-        if (System.getProperty("num_threads") != null)
-            nprocs = Integer.parseInt(System.getProperty("num_threads"));
-
-        System.out.println(":::::::: Using " + nprocs + " execution threads :::::::::");
-
-        parallelExecutor = Executors.newFixedThreadPool(nprocs);
-        loadingExecutor = Executors.newFixedThreadPool(4);
-        blockManager = new DataBlockManager();
+         blockManager = new DataBlockManager();
         degreeHandler = new DegreeData(baseFilename);
 
         memBudget = Runtime.getRuntime().maxMemory() / 4;
@@ -170,6 +157,21 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
 
 
     public void run(GraphChiProgram<VertexDataType, EdgeDataType> program, int niters) throws IOException {
+
+        int nprocs = 4;
+        if (Runtime.getRuntime().availableProcessors() > nprocs) {
+            nprocs = Runtime.getRuntime().availableProcessors();
+        }
+
+        if (System.getProperty("num_threads") != null)
+            nprocs = Integer.parseInt(System.getProperty("num_threads"));
+
+        System.out.println(":::::::: Using " + nprocs + " execution threads :::::::::");
+
+        parallelExecutor = Executors.newFixedThreadPool(nprocs);
+        loadingExecutor = Executors.newFixedThreadPool(4);
+
+
         chiContext.setNumIterations(niters);
 
         long startTime = System.currentTimeMillis();

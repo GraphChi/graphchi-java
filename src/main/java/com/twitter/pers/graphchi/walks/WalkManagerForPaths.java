@@ -10,75 +10,73 @@ import java.util.ArrayList;
 import java.util.concurrent.TimeUnit;
 
 /**
- * Manager for random walks
+ * Manager for random walks. This version has an unique id for each walk and thus
+ * uses 64-bits for each walk
  * @author Aapo Kyrola, akyrola@twitter.com, akyrola@cs.cmu.edu
  */
-public class WalkManager {
+public class WalkManagerForPaths {
 
     private final static int bucketSize = 1024; // Store walks into buckets for faster retrieval
     private final static int initialSize = Integer.parseInt(System.getProperty("walkmanager.initial_size", "256"));
 
-    private int sourceSeqIdx  = 0;
-    private int[] sources = new int[32678];
-    private int[] sourceWalkCounts = new int[32678];
+    private ArrayList<Integer> sources = new ArrayList<Integer>(32678);
+    private ArrayList<Integer> sourceWalkCounts = new ArrayList<Integer>(32678);
     private int totalWalks = 0;
 
-    private int[][] walks;
+    private long[][] walks;
     private int[] walkIndices;
 
     private int numVertices;
-    private final Timer grabTimer = Metrics.newTimer(WalkManager.class, "grab-walks", TimeUnit.SECONDS, TimeUnit.MINUTES);
-    private final Timer dumpTimer = Metrics.newTimer(WalkManager.class, "dump-walks", TimeUnit.SECONDS, TimeUnit.MINUTES);
-    private final Timer initTimer = Metrics.newTimer(WalkManager.class, "init-walks", TimeUnit.SECONDS, TimeUnit.MINUTES);
+    private final Timer grabTimer = Metrics.newTimer(WalkManagerForPaths.class, "grab-walks", TimeUnit.SECONDS, TimeUnit.MINUTES);
+    private final Timer dumpTimer = Metrics.newTimer(WalkManagerForPaths.class, "dump-walks", TimeUnit.SECONDS, TimeUnit.MINUTES);
+    private final Timer initTimer = Metrics.newTimer(WalkManagerForPaths.class, "init-walks", TimeUnit.SECONDS, TimeUnit.MINUTES);
 
 
-    public WalkManager(int numVertices) {
+    public WalkManagerForPaths(int numVertices) {
         this.numVertices = numVertices;
         System.out.println("Initial size for walk bucket: " + initialSize);
     }
 
-    public synchronized int addWalkBatch(int vertex, int numWalks) {
-        if (sourceSeqIdx >= sources.length)
-            throw new IllegalStateException("You can have a maximum of 32678 random walk sources");
-
-        sources[sourceSeqIdx] = vertex;
-        sourceWalkCounts[sourceSeqIdx] = numWalks;
+    public synchronized void addWalkBatch(int vertex, int numWalks) {
+        sources.add(vertex);
+        sourceWalkCounts.add(numWalks);
         totalWalks += numWalks;
 
-        sourceSeqIdx++;
-        return sourceSeqIdx - 1;
     }
 
 
-    public int encode(int sourceId, int hop, int off) {
-        return sourceId | ((hop << 16) & 0x000f0000) | ((off << 20) & 0xfff00000);
-    }
-
-    public int sourceIdx(int walk) {
-        return walk & 0x0000ffff;
-    }
-
-    public int hop(int walk) {
-        return (walk & 0x000f0000) >> 16;
-    }
-
-    public int off(int walk) {
-        return (walk & 0xfff00000) >> 20;
+    // Note: there are some extra bits to be used here
+    public long encode(int id, int hop, int off) {
+        return ((long)id) << 32 | (((long)hop << 16) & 0x000f0000l) | ((off << 20) & 0xfff00000l);
     }
 
 
-    public void updateWalk(int sourceId, int toVertex, int hop) {
+    public int hop(long walk) {
+        return (int) ((walk & 0x000f0000) >> 16);
+    }
+
+    public int off(long walk) {
+        return (int) ((walk & 0xfff00000l) >> 20);
+    }
+
+    public int walkId(long walk) {
+        return (int) (walk >> 32);
+    }
+
+
+    public void updateWalk(int id, int toVertex, int hop) {
         int bucket = toVertex / bucketSize;
         assert(hop < 16);
+
 
         synchronized (walks[bucket]) {
             int idx = walkIndices[bucket];
             if (idx == walks[bucket].length) {
-                int[] newBucket = new int[walks[bucket].length * 3 / 2];
+                long[] newBucket = new long[walks[bucket].length * 3 / 2];
                 System.arraycopy(walks[bucket], 0, newBucket, 0, walks[bucket].length);
                 walks[bucket] = newBucket;
             }
-            walks[bucket][idx] = encode(sourceId, hop, toVertex % bucketSize);
+            walks[bucket][idx] = encode(id, hop, toVertex % bucketSize);
             walkIndices[bucket]++;
         }
     }
@@ -87,7 +85,7 @@ public class WalkManager {
         int desiredLength = walks[bucket].length + additional;
 
         if (walks[bucket].length < desiredLength) {
-            int[] newBucket = new int[desiredLength];
+            long[] newBucket = new long[desiredLength];
             System.arraycopy(walks[bucket], 0, newBucket, 0, walks[bucket].length);
             walks[bucket] = newBucket;
         }
@@ -95,29 +93,29 @@ public class WalkManager {
 
     public void initializeWalks() {
         final TimerContext _timer = initTimer.time();
-        walks = new int[1 + numVertices / bucketSize][];
+        walks = new long[1 + numVertices / bucketSize][];
         walkIndices = new int[walks.length];
         for(int i = 0; i < walks.length; i++) {
-            walks[i] = new int[initialSize];
+            walks[i] = new long[initialSize];
             walkIndices[i] = 0;
         }
 
         /* Precalculate bucket sizes for performance */
         int[] tmpsizes = new int[walks.length];
-        for(int j=0; j < sourceSeqIdx; j++) {
-            int source = sources[j];
-            tmpsizes[source / bucketSize] += sourceWalkCounts[j];
+        for(int j=0; j < sources.size(); j++) {
+            int source = sources.get(j);
+            tmpsizes[source / bucketSize] += sourceWalkCounts.get(j);
         }
 
         for(int b=0; b < walks.length; b++) {
             expandCapacity(b, tmpsizes[b]);
         }
 
-        // TODO: allocate to match the required size (should be easy)
-        for(int i=0; i < sourceSeqIdx; i++) {
-            int source = sources[i];
-            int count = sourceWalkCounts[i];
-            for(int c=0; c<count; c++) updateWalk(i, source, 0);
+        int walkId = 0;
+        for(int i=0; i < sources.size(); i++) {
+            int source = sources.get(i);
+            int count = sourceWalkCounts.get(i);
+            for(int c=0; c<count; c++) updateWalk(walkId++, source, 0);
         }
         _timer.stop();
     }
@@ -127,23 +125,23 @@ public class WalkManager {
         return totalWalks;
     }
 
-    public WalkSnapshot grabSnapshot(final int fromVertex, final int toVertexInclusive) {
+    public WalkSnapshotForPaths grabSnapshot(final int fromVertex, final int toVertexInclusive) {
         final TimerContext _timer = grabTimer.time();
         int fromBucket = fromVertex / bucketSize;
         int toBucket = toVertexInclusive / bucketSize;
 
         /* Replace the buckets in question with empty buckets */
-        ArrayList<int[]> tmpBuckets = new ArrayList<int[]>(toBucket - fromBucket + 1);
+        ArrayList<long[]> tmpBuckets = new ArrayList<long[]>(toBucket - fromBucket + 1);
         int[] tmpBucketLengths = new int[toBucket - fromBucket + 1];
         for(int b=fromBucket; b <= toBucket; b++) {
             tmpBuckets.add(walks[b]);
             tmpBucketLengths[b - fromBucket] = walkIndices[b];
-            walks[b] = new int[initialSize];
+            walks[b] = new long[initialSize];
             walkIndices[b] = 0;
         }
 
         /* Now create data structure for fast retrieval */
-        final int[][] snapshots = new int[toVertexInclusive - fromVertex + 1][];
+        final long[][] snapshots = new long[toVertexInclusive - fromVertex + 1][];
         final int[] snapshotIdxs = new int[snapshots.length];
 
         for(int i=0; i < snapshots.length; i++) {
@@ -153,14 +151,14 @@ public class WalkManager {
         /* Add walks to snapshot arrays -- TODO: parallelize */
         for(int b=0; b < tmpBuckets.size(); b++) {
             int bucketFirstVertex = bucketSize * (fromBucket + b);
-            int[] arr = tmpBuckets.get(b);
+            long[] arr = tmpBuckets.get(b);
             int len = tmpBucketLengths[b];
 
             final int[] snapshotSizes = new int[bucketSize];
 
             /* Calculate vertex-walks sizes */
             for(int i=0; i < len; i++) {
-                int w = arr[i];
+                long w = arr[i];
                 snapshotSizes[off(w)]++;
             }
 
@@ -173,14 +171,14 @@ public class WalkManager {
 
             for(int i=0; i < snapshotSizes.length; i++) {
                 if (snapshotSizes[i] > 0 && i >= -offt && i + offt < snapshots.length)
-                    snapshots[i + offt] = new int[snapshotSizes[i]];
+                    snapshots[i + offt] = new long[snapshotSizes[i]];
             }
 
             for(int i=0; i < len; i++) {
-                int w = arr[i];
+                long w = arr[i];
                 int hop = hop(w);
+                int id = walkId(w);
                 int vertex = bucketFirstVertex + off(w);
-                int src = sourceIdx(w);
 
                 if (vertex >= fromVertex && vertex <= toVertexInclusive) {
                     int snapshotOff = vertex - fromVertex;
@@ -198,7 +196,7 @@ public class WalkManager {
                     snapshotIdxs[snapshotOff]++;
                 } else {
                     // add back
-                    updateWalk(src, vertex, hop);
+                    updateWalk(id, vertex, hop);
                 }
             }
             tmpBuckets.set(b, null); // Save memory
@@ -207,9 +205,9 @@ public class WalkManager {
         _timer.stop();
 
         /* Create the snapshot object */
-        return new WalkSnapshot() {
+        return new WalkSnapshotForPaths() {
             @Override
-            public int[] getWalksAtVertex(int vertexId) {
+            public long[] getWalksAtVertex(int vertexId) {
                 return snapshots[vertexId - fromVertex];
             }
 
@@ -226,25 +224,21 @@ public class WalkManager {
 
     }
 
-    public static int getWalkLength(int[] w) {
-        if (w == null) return 0;
-        return w.length;
-    }
+
 
     /** Dump to file all walks with more than 0 hop */
-    public void dumpToFile(WalkSnapshot snapshot, String filename) throws IOException {
+    public void dumpToFile(WalkSnapshotForPaths snapshot, String filename) throws IOException {
         final TimerContext _timer = dumpTimer.time();
         DataOutputStream dos = new DataOutputStream(new BufferedOutputStream(new FileOutputStream(new File(filename), true)));
         for(int i=snapshot.getFirstVertex(); i <= snapshot.getLastVertex(); i++) {
-            int[] ws = snapshot.getWalksAtVertex(i);
+            long[] ws = snapshot.getWalksAtVertex(i);
             if (ws != null) {
                 for(int j=0; j < ws.length; j++) {
-                    int w = ws[j];
-                    if (hop(w) > 2) { // NOTE! To save disk space
-                        int source = sources[sourceIdx(w)];
-                        dos.writeInt(source);
-                        dos.writeInt(i);
-                    }
+                    long w = ws[j];
+                    /* walk-id: int, hop: short, vertex: int */
+                    dos.writeInt(walkId(w));
+                    dos.writeShort(hop(w));
+                    dos.writeInt(i);
                 }
             }
         }
@@ -253,13 +247,10 @@ public class WalkManager {
         _timer.stop();
     }
 
-    public int getSourceVertex(int srcIdx) {
-        return sources[srcIdx];
-    }
 
     public void populateSchedulerWithSources(Scheduler scheduler) {
-        for(int i=0; i <sources.length; i++) {
-            scheduler.addTask(sources[i]);
+        for(int i=0; i < sources.size(); i++) {
+            scheduler.addTask(sources.get(i));
         }
     }
 }

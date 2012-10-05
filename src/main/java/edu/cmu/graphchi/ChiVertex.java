@@ -93,6 +93,18 @@ public class ChiVertex<VertexValue, EdgeValue> {
             return outEdgeDataArray[i];
         }
     }
+
+
+    public int getRandomNeighbor() {
+        if (numEdges() == 0) {
+            return -1;
+        }
+        int i = (int) (Math.random() * numEdges());
+        return edge(i).getVertexId();
+    }
+
+
+
     public int numOutEdges() {
         return nOutedges.get();
     }

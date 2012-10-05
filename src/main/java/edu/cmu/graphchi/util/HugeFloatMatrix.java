@@ -67,6 +67,12 @@ public class HugeFloatMatrix {
     	float[] arr = new float[(int)ncols];
     	return arr;
     }
+
+    public void multiplyRow(int row, float mul) {
+        for(int i=0; i<ncols; i++) {
+            setValue(row, i, getValue(row, i) * mul); // TODO make faster
+        }
+    }
     
     public void getRow(int row, float[] arr) {
     	long idx = (long)row * ncols;

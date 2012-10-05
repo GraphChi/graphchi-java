@@ -24,7 +24,7 @@ class VertexInfo[VT, ET](v : ChiVertex[VT, ET]) {
  * @param numShards
  * @param numComputations
  */
-class GraphChiSquared[GatherType](baseFilename : String, numShards : Int, numComputations : Int)
+class GraphChiSquared[GatherType : ClassManifest](baseFilename : String, numShards : Int, numComputations : Int)
     extends GraphChiProgram[java.lang.Integer, java.lang.Float]{
   type VertexDataType = java.lang.Integer
   type EdgeDataType = java.lang.Float
@@ -47,10 +47,11 @@ class GraphChiSquared[GatherType](baseFilename : String, numShards : Int, numCom
   // Apply: (vertex-info, gather-value, computation-id)
   type ApplyFunctionType =  (VertexInfo[VertexDataType, EdgeDataType], GatherType, Int) => ComputationValueType
 
-  var gatherFunc : GatherFunctionType  = null;
-  var gatherFuncOnlyAdj : OnlyAdjGatherFunctionType  = null;
-  var applyFunc : ApplyFunctionType = null;
-  var gatherInitVal : GatherType = 0.0f
+  var gatherFunc : GatherFunctionType  = null
+  var gatherFuncOnlyAdjOutEdges : OnlyAdjGatherFunctionType  = null
+  var gatherFuncOnlyAdj : OnlyAdjGatherFunctionType  = null
+  var applyFunc : ApplyFunctionType = null
+  var gatherInitVal : Option[GatherType] = None
   var filterFunc : (VertexInfo[VertexDataType, EdgeDataType] => Boolean) = (v => true);
 
   def initValues(computationId: Int, initValues: Iterable[(Int, java.lang.Float)]) = {
@@ -63,9 +64,9 @@ class GraphChiSquared[GatherType](baseFilename : String, numShards : Int, numCom
   def numVertices() = engine.numVertices()
 
   def compute(iterations: Int, gatherInit: GatherType, gather: GatherFunctionType, apply: ApplyFunctionType) {
-    gatherFunc = gather;
-    applyFunc = apply;
-    gatherInitVal = gatherInit
+    gatherFunc = gather
+    applyFunc = apply
+    gatherInitVal = Some(gatherInit)
     println ("Starting to run with " + numComputations + " parallel computations")
     engine.run(this, iterations)
     rep.run()
@@ -73,9 +74,9 @@ class GraphChiSquared[GatherType](baseFilename : String, numShards : Int, numCom
 
   def compute(iterations: Int, gatherInit: GatherType, gather: OnlyAdjGatherFunctionType, apply: ApplyFunctionType,
               vertexFilter : (VertexInfo[VertexDataType, EdgeDataType] => Boolean)) {
-    gatherFuncOnlyAdj = gather;
-    applyFunc = apply;
-    gatherInitVal = gatherInit
+    gatherFuncOnlyAdj = gather
+    applyFunc = apply
+    gatherInitVal = Some(gatherInit)
     filterFunc = vertexFilter
 
     println ("Starting to run with " + numComputations + " parallel computations")
@@ -88,28 +89,48 @@ class GraphChiSquared[GatherType](baseFilename : String, numShards : Int, numCom
     rep.run()
   }
 
+  def compute(iterations: Int, gatherInit: GatherType, gather: OnlyAdjGatherFunctionType, gatherOut: OnlyAdjGatherFunctionType, apply: ApplyFunctionType,
+              vertexFilter : (VertexInfo[VertexDataType, EdgeDataType] => Boolean)) {
+    gatherFuncOnlyAdj = gather
+    gatherFuncOnlyAdjOutEdges = gatherOut
+    applyFunc = apply
+    gatherInitVal = Some(gatherInit)
+    filterFunc = vertexFilter
+
+    println ("Starting to run with " + numComputations + " parallel computations")
+
+    engine.setEdataConverter(null)
+    engine.setOnlyAdjacency(true)
+    engine.setAutoLoadNext(false)
+    engine.run(this, iterations)
+    rep.run()
+  }
+
   def getVertexValue(computationId: Int, vertexId: Int) = vertexMatrix.getValue(vertexId, computationId)
 
   override def update(v: ChiVertex[VertexDataType, EdgeDataType], ctx: GraphChiContext) : Unit = {
-    var gathers = new Array[GatherType](numComputations)
-    var c = 0
-    while ( c < numComputations) { gathers(c) = gatherInitVal; c += 1}
+
     val vertexInfo = new VertexInfo(v)
     if (filterFunc(vertexInfo)) {
 
+      /********* IN-EDGES *********/
       /* Compute gathers */
       val n = v.numInEdges()
       var i = 0
 
+      var gathers = new Array[GatherType](numComputations)
+      var c = 0
+      while ( c < numComputations) { gathers(c) = gatherInitVal.get; c += 1}
+
       while (i < n)  {  // Unfortunately higher order calls like "(0 until n)" are quite a bit slower
       val e = v.inEdge(i)
         var c = 0
-        val nbid = e.getVertexId()
+        val nbid = e.getVertexId
         val rowblock = vertexMatrix.getRowBlock(nbid) // premature optimization!
         val blockIdx = vertexMatrix.getBlockIdx(nbid)
         while (c < numComputations) {
           if (gatherFunc != null) {
-            gathers(c) = gatherFunc(vertexInfo, nbid, rowblock(blockIdx + c), e.getValue(), gathers(c))
+            gathers(c) = gatherFunc(vertexInfo, nbid, rowblock(blockIdx + c), e.getValue, gathers(c))
           } else if (gatherFuncOnlyAdj != null) {
             gathers(c) = gatherFuncOnlyAdj(vertexInfo, nbid, rowblock(blockIdx + c), gathers(c), c)
           }
@@ -119,11 +140,32 @@ class GraphChiSquared[GatherType](baseFilename : String, numShards : Int, numCom
         i += 1
       }
 
+      /******** OUT-EDGES - HACKY  *********/
+      if (gatherFuncOnlyAdjOutEdges != null) {
+        val on = v.numOutEdges()
+        i = 0
+        while (i < on)  {  // Unfortunately higher order calls like "(0 until n)" are quite a bit slower
+        val e = v.outEdge(i)
+          var c = 0
+          val nbid = e.getVertexId
+          val rowblock = vertexMatrix.getRowBlock(nbid) // premature optimization!
+          val blockIdx = vertexMatrix.getBlockIdx(nbid)
+          while (c < numComputations) {
+            if (gatherFuncOnlyAdjOutEdges != null) {
+              gathers(c) = gatherFuncOnlyAdjOutEdges(vertexInfo, nbid, rowblock(blockIdx + c), gathers(c), c)
+            }
+            c += 1
+          }
+
+          i += 1
+        }
+      }
+
       /* Apply and write into the matrix */
       c = 0
       while ( c < numComputations) {
         val newVertexVal = applyFunc(vertexInfo, gathers(c), c)
-        vertexMatrix.setValue(v.getId(), c, newVertexVal)
+        vertexMatrix.setValue(v.getId, c, newVertexVal)
         c += 1
       }
     }

@@ -2,7 +2,7 @@ package com.twitter.graphchi.topic_pagerank
 
 import edu.cmu.graphchi.ChiFilenames
 import edu.cmu.graphchi.datablocks.IntConverter
-import edu.cmu.graphchi.engine.auxdata.VertexData
+import edu.cmu.graphchi.engine.auxdata.{DegreeData, VertexData}
 import edu.cmu.graphchi.scala._
 import edu.cmu.graphchi.util.{HugeFloatMatrix, Toplist}
 import java.io._
@@ -17,6 +17,7 @@ case class SumAndNormalizer(sum: java.lang.Float, normalizer: java.lang.Float) {
 /**
  * Computes personalized pagerank for a several "topics" a time.
  * Input: a list of files containing normalized weights for each topic.
+ * Restricts the graph to only those who have non-zero weight for a topic.
  * @author Aapo Kyrola, akyrola@twitter.com, akyrola@cs.cmu.edu
  */
 object WeightedPersonalizedPagerank {
@@ -55,8 +56,8 @@ object WeightedPersonalizedPagerank {
         val vertexId = Integer.parseInt(toks(0))
         val weight = java.lang.Float.parseFloat(toks(2))
         if (vertexId < vertexVals.length) {   // Graph and the topic-seeds might be out of sync
-          weights.setValue(vertexId, compidx, weight)
-        } else println("Warning: too large vertex-id in topic top:", vertexId)
+          if (weight > 0.0) weights.setValue(vertexId, compidx, 1.0f)    // Use weight 1.0 for all with any non-zero weight
+        } else println("Warning: too large vertex-id in initial vector", vertexId)
       })
     })
 
@@ -73,7 +74,9 @@ object WeightedPersonalizedPagerank {
     val initfile = args(3)
 
     val nComputations = initialize(initfile)
+
     val graphchiSqr = new GraphChiSquared[SumAndNormalizer](graphname, nshards, nComputations)
+    val numVertices = graphchiSqr.numVertices()
 
     /* Ensure that we can run many processes in parallel */
     ChiFilenames.vertexDataSuffix = ".weighted." + ChiFilenames.getPid
@@ -82,21 +85,64 @@ object WeightedPersonalizedPagerank {
     initVertexData(graphname, graphchiSqr)
     println("Done initializing")
 
+    println("Vertex 0")
+    (0 until nComputations).foreach(icomp => {println(icomp + ": " + graphchiSqr.getVertexMatrix().getValue(0, icomp))})
+
 
     /* Compute */
     graphchiSqr.compute(niters,
       gatherInit = SumAndNormalizer(0.0f, 0.0f),
       gather =  (v, nbrId, neighborVal, gather, compid) => {
-        val w = weights.getValue(nbrId, compid)
-        gather + SumAndNormalizer(neighborVal * w, w)
+
+        gather + SumAndNormalizer(neighborVal, 0)
+
       },
-          apply = (v, gather, compid) =>
+      gatherOut =  (v, nbrId, neighborVal, gather, compid) => {
+        val w = weights.getValue(nbrId, compid)
+        gather + SumAndNormalizer(0, w)
+      },
+          apply = (v, gather, compid) => {
+            if (v.id == 0) {
+                println("Vertex 0 apply: gather=" + gather)
+                println("value: " + (RESETPROB * weights.getValue(v.id(), compid) +
+                  (1 - RESETPROB) * gather.sum))
+            }
+            val incomingrank = weights.getValue(v.id(), compid) * gather.sum
+            val newval =
               if (gather.normalizer > 0)
                   (RESETPROB * weights.getValue(v.id(), compid) +
-                      (1 - RESETPROB) * gather.sum) / gather.normalizer
-              else 0.0f,
+                      (1 - RESETPROB) * incomingrank) / gather.normalizer
+              else (RESETPROB * weights.getValue(v.id(), compid) +
+                  (1 - RESETPROB) * incomingrank)
+            if (newval > 1e10) {
+               println("Too big value!")
+            }
+            newval
+          },
           vertexFilter = (v => v.numOutEdges() > 0)
         )
+
+    println("Vertex 0")
+    (0 until nComputations).foreach(icomp => {println(icomp + ": " + graphchiSqr.getVertexMatrix().getValue(0, icomp))})
+
+    println("Scale by weighted outdegree")
+    // Run another run of GraphChi (not optimal, would not need out-edges)
+    graphchiSqr.compute(1,
+      gatherInit = SumAndNormalizer(0.0f, 0.0f),
+      gather =  (v, nbrId, neighborVal, gather, compid) => {gather},
+      gatherOut =  (v, nbrId, neighborVal, gather, compid) => {
+        val w = weights.getValue(nbrId, compid)
+        gather + SumAndNormalizer(0, w)
+      },
+      apply = (v, gather, compid) =>  {
+                if (gather.normalizer > 0)
+                  graphchiSqr.getVertexMatrix().getValue(v.id, compid) * gather.normalizer
+                else
+                  graphchiSqr.getVertexMatrix().getValue(v.id, compid)
+                }
+           ,
+      vertexFilter = (v => v.numOutEdges() > 0)
+    )
 
     println("Ready, writing toplists...")
 
