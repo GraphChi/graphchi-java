@@ -18,7 +18,7 @@ import java.util.TreeSet;
 public class Pagerank implements GraphChiProgram<Float, Float> {
 
 
-    public void update(ChiVertex<Float, Float> vertex, GraphChiContext context) {
+    public void update(ChiVertex<Float, Float> vertex, GraphChiContext context)  {
         if (context.getIteration() == 0) {
             vertex.setValue(1.0f);
         } else {
@@ -33,6 +33,7 @@ public class Pagerank implements GraphChiProgram<Float, Float> {
         for(int i=0; i<vertex.numOutEdges(); i++) {
             vertex.outEdge(i).setValue(outValue);
         }
+
 
         if (vertex.getId() % 100000 == 0 || vertex.getId() == 8737 || vertex.getId() == 2914) {
             System.out.println(vertex.getId() + " => " + vertex.getValue());
