@@ -7,65 +7,76 @@ package edu.cmu.graphchi.util;
  *
  */
 public class HugeFloatMatrix {
-	
-	private int BLOCKSIZE = 1024 * 1024 * 16; // 16M * 4 = 64 megabytes
+
+    private int BLOCKSIZE = 1024 * 1024 * 16; // 16M * 4 = 64 megabytes
     private long nrows, ncols;
     private float[][] data;
-    
-    public HugeFloatMatrix(long nrows, long ncols) {
-    	this.nrows = (long)nrows;
-    	this.ncols = (long)ncols;
-    	
-    	while(BLOCKSIZE % ncols != 0) BLOCKSIZE++;
-    	
-    	long elements = nrows * ncols;
-    	int nblocks = (int) (elements / (long)BLOCKSIZE + (elements % BLOCKSIZE == 0 ? 0 : 1));
-    	data = new float[nblocks][];
-    	
-    	System.out.println("Creating " + nblocks + " blocks");
-    	for(int i=0; i<nblocks; i++) {
-    		data[i] = new float[BLOCKSIZE];
-    	}
+
+    public HugeFloatMatrix(long nrows, long ncols, float initialValue) {
+        this.nrows = (long)nrows;
+        this.ncols = (long)ncols;
+
+        while(BLOCKSIZE % ncols != 0) BLOCKSIZE++;
+
+        long elements = nrows * ncols;
+        int nblocks = (int) (elements / (long)BLOCKSIZE + (elements % BLOCKSIZE == 0 ? 0 : 1));
+        data = new float[nblocks][];
+
+        System.out.println("Creating " + nblocks + " blocks");
+        for(int i=0; i<nblocks; i++) {
+            data[i] = new float[BLOCKSIZE];
+
+            if (initialValue != 0.0f) {
+                float[] mat = data[i];
+                for(int j=0; j<BLOCKSIZE; j++) {
+                    mat[j] = initialValue;
+                }
+            }
+        }
     }
-    
+
+    public HugeFloatMatrix(long nrows, long ncols) {
+        this(nrows, ncols, 0.0f);
+    }
+
     public long size() {
-    	return nrows * ncols;
+        return nrows * ncols;
     }
 
     public long getNumRows() {
         return nrows;
     }
-    
+
     public float getValue(int row, int col) {
-    	long idx = (long)row * ncols + (long)col;
-    	int block = (int) (idx / BLOCKSIZE);
-    	int blockidx = (int) (idx % BLOCKSIZE);
-    	return data[block][blockidx];
+        long idx = (long)row * ncols + (long)col;
+        int block = (int) (idx / BLOCKSIZE);
+        int blockidx = (int) (idx % BLOCKSIZE);
+        return data[block][blockidx];
     }
-    
+
     public void setValue(int row, int col, float val) {
-    	long idx = (long)row * ncols + (long)col;
-    	int block = (int) (idx / BLOCKSIZE);
-    	int blockidx = (int) (idx % BLOCKSIZE);
-    	data[block][blockidx] = val;
+        long idx = (long)row * ncols + (long)col;
+        int block = (int) (idx / BLOCKSIZE);
+        int blockidx = (int) (idx % BLOCKSIZE);
+        data[block][blockidx] = val;
     }
-    
+
     // Premature optimization
     public float[] getRowBlock(int row) {
-    	long idx = (long)row * ncols;
-    	int block = (int) (idx / BLOCKSIZE);
-    	return data[block];
+        long idx = (long)row * ncols;
+        int block = (int) (idx / BLOCKSIZE);
+        return data[block];
     }
-    
+
     public int getBlockIdx(int row) {
-    	long idx = (long)row * ncols;
-    	int blockidx = (int) (idx % BLOCKSIZE);
-    	return blockidx;
+        long idx = (long)row * ncols;
+        int blockidx = (int) (idx % BLOCKSIZE);
+        return blockidx;
     }
-     
+
     public float[] getEmptyRow() {
-    	float[] arr = new float[(int)ncols];
-    	return arr;
+        float[] arr = new float[(int)ncols];
+        return arr;
     }
 
     public void multiplyRow(int row, float mul) {
@@ -73,12 +84,32 @@ public class HugeFloatMatrix {
             setValue(row, i, getValue(row, i) * mul); // TODO make faster
         }
     }
-    
+
     public void getRow(int row, float[] arr) {
-    	long idx = (long)row * ncols;
-    	int block = (int) (idx / BLOCKSIZE);
-    	int blockidx = (int) (idx % BLOCKSIZE);
-    	System.arraycopy(data[block], blockidx, arr, 0, (int)ncols);
+        long idx = (long)row * ncols;
+        int block = (int) (idx / BLOCKSIZE);
+        int blockidx = (int) (idx % BLOCKSIZE);
+        System.arraycopy(data[block], blockidx, arr, 0, (int)ncols);
     }
-	
+
+
+    /** Divides each item by the sum of squares */
+    public void normalizeSquared(int col) {
+        double sqr = 0.0f;
+        for(int j=0; j < nrows; j++) {
+            double x = (double) getValue(j, col);
+            sqr += x * x;
+        }
+        System.out.println("Normalize-squared: " + col + " sqr: " + sqr);
+
+        float div = (float) Math.sqrt(sqr);
+        System.out.println("Div : " + div);
+
+        if (sqr == 0.0f) throw new IllegalArgumentException("Column was all-zeros!");
+        for(int j=0; j < nrows; j++) {
+            float x = getValue(j, col);
+            setValue(j, col, x / div);
+        }
+    }
+
 }

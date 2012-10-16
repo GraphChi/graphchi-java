@@ -40,8 +40,6 @@ public class ChiVertex<VertexValue, EdgeValue> {
     private AtomicInteger nOutedges = new AtomicInteger(0);
     private int[] outEdgeDataArray = null;
 
-    private int inDegree, outDegree;
-
     /* Internal management */
     public boolean parallelSafe = true;
 

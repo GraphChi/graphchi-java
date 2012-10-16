@@ -101,7 +101,7 @@ class GraphChiSquared[GatherType : ClassManifest](baseFilename : String, numShar
 
     engine.setEdataConverter(null)
     engine.setOnlyAdjacency(true)
-    engine.setAutoLoadNext(false)
+    engine.setAutoLoadNext(true)
     engine.run(this, iterations)
     rep.run()
   }

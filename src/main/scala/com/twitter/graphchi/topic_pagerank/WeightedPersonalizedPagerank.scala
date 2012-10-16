@@ -43,21 +43,26 @@ object WeightedPersonalizedPagerank {
   }
 
   // Initialize topic-weights
-  def initVertexData[T](graphname: String, graphchiSqr: GraphChiSquared[T]) {
+  def initVertexData[T](graphname: String, graphchiSqr: GraphChiSquared[T], cutoff: Float) {
     val vertexDataFile = new File(ChiFilenames.getFilenameOfVertexData(graphname, new IntConverter()))
     if (vertexDataFile.exists()) vertexDataFile.delete()
 
     val vertexVals = VertexData.createIntArray(graphchiSqr.numVertices())
     weights  = new HugeFloatMatrix(graphchiSqr.numVertices(), topicInfos.length)
+
     // Clean up....
     topicInfos.zip((0 until topicInfos.size)).foreach( x => { val (topicInfo, compidx) = x
-      Source.fromFile(topicInfo.weightFile).getLines().filter(_.length > 0)foreach(line => {
+      val weightFile = topicInfo.weightFile.split(":")(0)
+      val doSquare = topicInfo.weightFile.contains(":sqr")
+      println(topicInfo.weightFile)
+      if (doSquare) println("Square weight...")
+      Source.fromFile(weightFile).getLines().filter(_.length > 0)foreach(line => {
         val toks = line.split("\t")
         val vertexId = Integer.parseInt(toks(0))
         val weight = java.lang.Float.parseFloat(toks(2))
         if (vertexId < vertexVals.length) {   // Graph and the topic-seeds might be out of sync
-          if (weight > 0.0) weights.setValue(vertexId, compidx, weight)    // Use weight 1.0 for all with any non-zero weight
-        } else println("Warning: too large vertex-id in initial vector", vertexId)
+          if (weight > cutoff) weights.setValue(vertexId, compidx, if (doSquare) weight*weight else weight )    // Use weight 1.0 for all with any non-zero weight
+        } //else println("Warning: too large vertex-id in initial vector", vertexId)
       })
     })
 
@@ -72,6 +77,7 @@ object WeightedPersonalizedPagerank {
     val nshards = Integer.parseInt(args(1))
     val niters = Integer.parseInt(args(2))
     val initfile = args(3)
+    val cutoff = args(4).toFloat
 
     val nComputations = initialize(initfile)
 
@@ -79,54 +85,46 @@ object WeightedPersonalizedPagerank {
     val numVertices = graphchiSqr.numVertices()
 
     /* Ensure that we can run many processes in parallel */
-    ChiFilenames.vertexDataSuffix = ".weighted." + ChiFilenames.getPid
+    ChiFilenames.vertexDataSuffix = ".multicomp." + ChiFilenames.getPid
 
     println("Initializing... Starting ", nComputations, " computations on WEIGHTED personalized pagerank.")
-    initVertexData(graphname, graphchiSqr)
+    println("Using weight cutoff:" + cutoff)
+    initVertexData(graphname, graphchiSqr, cutoff)
     println("Done initializing")
-
-    println("Vertex 0")
-    (0 until nComputations).foreach(icomp => {println(icomp + ": " + graphchiSqr.getVertexMatrix().getValue(0, icomp))})
 
 
     /* Compute */
     graphchiSqr.compute(niters,
       gatherInit = SumAndNormalizer(0.0f, 0.0f),
       gather =  (v, nbrId, neighborVal, gather, compid) => {
-
-        gather + SumAndNormalizer(neighborVal, 0)
-
+         gather + SumAndNormalizer(neighborVal, 0)
       },
       gatherOut =  (v, nbrId, neighborVal, gather, compid) => {
         val w = weights.getValue(nbrId, compid)
         gather + SumAndNormalizer(0, w)
       },
-          apply = (v, gather, compid) => {
-            if (v.id == 0) {
-                println("Vertex 0 apply: gather=" + gather)
-                println("value: " + (RESETPROB * weights.getValue(v.id(), compid) +
-                  (1 - RESETPROB) * gather.sum))
-            }
-            val incomingrank = weights.getValue(v.id(), compid) * gather.sum
-            val newval =
-              if (gather.normalizer > 0)
-                  (RESETPROB * weights.getValue(v.id(), compid) +
-                      (1 - RESETPROB) * incomingrank) / gather.normalizer
-              else (RESETPROB * weights.getValue(v.id(), compid) +
-                  (1 - RESETPROB) * incomingrank)
-            if (newval > 1e10) {
-               println("Too big value!")
-            }
-            newval
-          },
-          vertexFilter = (v => v.numOutEdges() > 0)
-        )
+      apply = (v, gather, compid) => {
+        val incomingrank = weights.getValue(v.id(), compid) * gather.sum
+        val newval =
+          if (gather.normalizer > 0)
+            (RESETPROB * weights.getValue(v.id(), compid) +
+                (1 - RESETPROB) * incomingrank) / gather.normalizer
+          else (RESETPROB * weights.getValue(v.id(), compid) +
+              (1 - RESETPROB) * incomingrank)
+        if (newval > 1e10) {
+          println("Too big value!")
+        }
+        newval
+      },
+      vertexFilter = (v => v.numOutEdges() > 0)
+    )
 
-    println("Vertex 0")
-    (0 until nComputations).foreach(icomp => {println(icomp + ": " + graphchiSqr.getVertexMatrix().getValue(0, icomp))})
 
-    println("Scale by weighted outdegree")
-    // Run another run of GraphChi (not optimal, would not need out-edges)
+    println("Scale by multicomp outdegree")
+
+
+    // TODO: disable in-edges
+    /* Run another run of GraphChi (not optimal, would not need in-edges) */
     graphchiSqr.compute(1,
       gatherInit = SumAndNormalizer(0.0f, 0.0f),
       gather =  (v, nbrId, neighborVal, gather, compid) => {gather},
@@ -135,12 +133,12 @@ object WeightedPersonalizedPagerank {
         gather + SumAndNormalizer(0, w)
       },
       apply = (v, gather, compid) =>  {
-                if (gather.normalizer > 0)
-                  graphchiSqr.getVertexMatrix().getValue(v.id, compid) * gather.normalizer
-                else
-                  graphchiSqr.getVertexMatrix().getValue(v.id, compid)
-                }
-           ,
+        if (gather.normalizer > 0)
+          graphchiSqr.getVertexMatrix().getValue(v.id, compid) * gather.normalizer
+        else
+          graphchiSqr.getVertexMatrix().getValue(v.id, compid)
+      }
+      ,
       vertexFilter = (v => v.numOutEdges() > 0)
     )
 
@@ -150,7 +148,7 @@ object WeightedPersonalizedPagerank {
     val ntop = 10000;
     (0 until nComputations).foreach(icomp => {
       val topList = Toplist.topList(graphchiSqr.getVertexMatrix(), icomp, ntop)
-      val outputfile = "toplist.weightedPR." + topicInfos(icomp).topicName + ".tsv"
+      val outputfile = "toplist.weightedPR." + topicInfos(icomp).topicName + "_cutoff_" + cutoff + ".tsv"
 
       val writer = new BufferedWriter(new FileWriter(new File(outputfile)));
       topList.foreach( item => writer.write(item.getVertexId + "\t" + topicInfos(icomp).topicName + "\t" + item.getValue +"\n"))
