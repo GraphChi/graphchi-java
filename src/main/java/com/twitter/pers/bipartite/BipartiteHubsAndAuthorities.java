@@ -14,10 +14,7 @@ import edu.cmu.graphchi.util.HugeFloatMatrix;
 import edu.cmu.graphchi.util.IdFloat;
 import edu.cmu.graphchi.util.Toplist;
 
-import java.io.BufferedWriter;
-import java.io.File;
-import java.io.FileWriter;
-import java.io.IOException;
+import java.io.*;
 import java.util.List;
 import java.util.TreeSet;
 import java.util.concurrent.TimeUnit;
@@ -165,6 +162,17 @@ public class BipartiteHubsAndAuthorities implements GraphChiProgram<Float, Float
     }
 
     private static int findApproxMaximumLeftVertex(String graph) throws IOException {
+
+        /* Check if a file exists that states the number */
+        File overrideFile = new File(graph + ".maxleft");
+        if (overrideFile.exists()) {
+            BufferedReader rd = new BufferedReader(new FileReader(overrideFile));
+            String ln = rd.readLine();
+            System.out.println("---> Override: " + ln);
+            return Integer.parseInt(ln);
+        }
+
+
         DegreeData degData = new DegreeData(graph);
 
         int vertexSt = 0;
