@@ -80,7 +80,7 @@ public class SketchSet {
         if (distance >= maxDistance) distance = maxDistance;
         current &= ~seedMasks[seedSet];
         current &= ~distanceMasks[seedSet];
-        current |= ((long)distance << distanceShift[seedSet])
+        current |= ((long)distance << distanceShift[seedSet]);
         current |= ((long)seedIndex << seedShift[seedSet]);
         return current;
     }
