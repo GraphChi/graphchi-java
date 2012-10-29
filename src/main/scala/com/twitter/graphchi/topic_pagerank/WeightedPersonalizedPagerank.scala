@@ -61,10 +61,13 @@ object WeightedPersonalizedPagerank {
         val vertexId = Integer.parseInt(toks(0))
         val weight = java.lang.Float.parseFloat(toks(2))
         if (vertexId < vertexVals.length) {   // Graph and the topic-seeds might be out of sync
-          if (weight > cutoff) weights.setValue(vertexId, compidx, if (doSquare) weight*weight else weight )    // Use weight 1.0 for all with any non-zero weight
+              val oldWeight = weights.getValue(vertexId, compidx)
+              weights.setValue(vertexId, compidx, oldWeight + (if (doSquare) weight*weight else weight) )    // Use weight 1.0 for all with any non-zero weight
         } //else println("Warning: too large vertex-id in initial vector", vertexId)
       })
     })
+
+    weights.zeroLessThan(cutoff)
 
   }
 

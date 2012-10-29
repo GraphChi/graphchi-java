@@ -112,4 +112,16 @@ public class HugeFloatMatrix {
         }
     }
 
+    /**
+     * Sets every value less than a cutoff value to zero.
+     * @param cutOff
+     */
+    public void zeroLessThan(float cutOff) {
+        for(int i=0; i < data.length; i++) {
+            float[] block = data[i];
+            for(int j=0; j < block.length; j++) {
+                if (block[j] != 0.0f && block[j] < cutOff) block[j] = 0.0f;
+            }
+        }
+    }
 }

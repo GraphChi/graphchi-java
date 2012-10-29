@@ -20,11 +20,13 @@ public class WeightUtil {
                 String[] toks = ln.split("\t");
                 int vertexId = Integer.parseInt(toks[0]);
                 float weight = Float.parseFloat(toks[toks.length - 1]);
-                if (weight >= cutOff && vertexId < weightMatrix.getNumRows())
-                    weightMatrix.setValue(vertexId, compId, weight);
+                if (vertexId < weightMatrix.getNumRows())
+                    weightMatrix.setValue(vertexId, compId, weight + weightMatrix.getValue(vertexId, compId));
             }
         }
         rd.close();
+
+        weightMatrix.zeroLessThan(cutOff);
     }
 
 }

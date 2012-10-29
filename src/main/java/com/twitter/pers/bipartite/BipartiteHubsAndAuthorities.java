@@ -20,18 +20,20 @@ import java.util.TreeSet;
 import java.util.concurrent.TimeUnit;
 
 /**
+ * Implementation of Kleinberg's HITS algorithm
  * @author Aapo Kyrola, akyrola@cs.cmu.edu, akyrola@twitter.com
  */
 public class BipartiteHubsAndAuthorities implements GraphChiProgram<Float, Float> {
 
-    public final static int RIGHTSIDE_MIN = 2000000000;
+    protected final static int RIGHTSIDE_MIN = 2000000000;
 
-    private HugeFloatMatrix leftWeightMatrix;
-    private HugeFloatMatrix leftScoreMatrix;
-    private HugeFloatMatrix rightScoreMatrix;
-    int numComputations;
+    protected HugeFloatMatrix leftWeightMatrix;
+    protected HugeFloatMatrix leftScoreMatrix;
+    protected HugeFloatMatrix rightScoreMatrix;
+    protected int numComputations;
 
-    private BipartiteHubsAndAuthorities(List<ComputationInfo> computations, int maxLeftVertex, int maxRightVertex, float  cutOff)
+
+    protected BipartiteHubsAndAuthorities(List<ComputationInfo> computations, int maxLeftVertex, int maxRightVertex, float  cutOff)
             throws IOException {
         numComputations = computations.size();
 
@@ -72,12 +74,15 @@ public class BipartiteHubsAndAuthorities implements GraphChiProgram<Float, Float
                     continue;
                 }
                 float sumLeft = 0.0f;
+                int maxLeft = (int) leftWeightMatrix.getNumRows();
                 for(int e=0; e < vertex.numEdges(); e++) {
                     int nbId = vertex.edge(e).getVertexId();
-                    sumLeft += leftWeightMatrix.getValue(nbId, compId) * leftScoreMatrix.getValue(nbId, compId);
+                    if (nbId < maxLeft) {
+                        sumLeft += leftWeightMatrix.getValue(nbId, compId) * leftScoreMatrix.getValue(nbId, compId);
+                    }
                 }
                 rightScoreMatrix.setValue(vertex.getId() - RIGHTSIDE_MIN, compId, sumLeft);
-            }
+                 }
         }
     }
 
@@ -111,6 +116,8 @@ public class BipartiteHubsAndAuthorities implements GraphChiProgram<Float, Float
     public void endSubInterval(GraphChiContext ctx, VertexInterval interval) {
     }
 
+
+
     public static void main(String[] args) throws Exception {
         SimpleMetricsReporter rep = SimpleMetricsReporter.enable(2, TimeUnit.MINUTES);
 
@@ -127,9 +134,8 @@ public class BipartiteHubsAndAuthorities implements GraphChiProgram<Float, Float
         /* Find the maximum vertex id on left-side by looking at the first non-zero degree */
         int leftMax = findApproxMaximumLeftVertex(graph);
 
-        GraphChiEngine engine = new GraphChiEngine<Float, Float>(graph, nshards);
-        BipartiteHubsAndAuthorities bhaa = new BipartiteHubsAndAuthorities(computations,
-                leftMax, engine.numVertices(), cutOff);
+        GraphChiEngine<Float, Float> engine = new GraphChiEngine<Float, Float>(graph, nshards);
+        BipartiteHubsAndAuthorities bhaa = initializeApp(cutOff, computations, leftMax, engine);
 
         engine.setOnlyAdjacency(true);
         engine.setAutoLoadNext(true);
@@ -139,13 +145,20 @@ public class BipartiteHubsAndAuthorities implements GraphChiProgram<Float, Float
         engine.setEdataConverter(null);
         engine.setVertexDataConverter(null);
         engine.run(bhaa, niters);
+        outputResults(bhaa, cutOff, computations, "hubsauth");
 
 
+        /* Report metrics */
+        Metrics.shutdown();
+        rep.run();
+    }
+
+    protected static void outputResults(BipartiteHubsAndAuthorities app, float cutOff, List<ComputationInfo> computations, String appName) throws IOException {
         /* Output top-lists */
         int ntop = 10000;
         for(int icomp=0; icomp < computations.size(); icomp++) {
-            TreeSet<IdFloat> topList = Toplist.topList(bhaa.leftScoreMatrix, icomp, ntop);
-            String outputfile = "toplist.weightedHubsAuth." + computations.get(icomp).getName() + "_cutoff_" + cutOff + ".tsv";
+            TreeSet<IdFloat> topList = Toplist.topList(app.leftScoreMatrix, icomp, ntop);
+            String outputfile = "toplist." + appName + "." + computations.get(icomp).getName() + "_cutoff_" + cutOff + ".tsv";
 
             BufferedWriter writer = new BufferedWriter(new FileWriter(new File(outputfile)));
 
@@ -154,14 +167,16 @@ public class BipartiteHubsAndAuthorities implements GraphChiProgram<Float, Float
 
 
             writer.close();
-        };
-
-        /* Report metrics */
-        Metrics.shutdown();
-        rep.run();
+        }
+        ;
     }
 
-    private static int findApproxMaximumLeftVertex(String graph) throws IOException {
+    protected static BipartiteHubsAndAuthorities initializeApp(float cutOff, List<ComputationInfo> computations, int leftMax, GraphChiEngine engine) throws IOException {
+        return new BipartiteHubsAndAuthorities(computations,
+                    leftMax, engine.numVertices(), cutOff);
+    }
+
+    protected static int findApproxMaximumLeftVertex(String graph) throws IOException {
 
         /* Check if a file exists that states the number */
         File overrideFile = new File(graph + ".maxleft");

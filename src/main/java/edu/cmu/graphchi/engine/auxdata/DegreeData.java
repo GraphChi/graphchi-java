@@ -3,6 +3,7 @@ package edu.cmu.graphchi.engine.auxdata;
 import edu.cmu.graphchi.ChiFilenames;
 import ucar.unidata.io.RandomAccessFile;
 
+import java.io.EOFException;
 import java.io.IOException;
 /**
  * Copyright [2012] [Aapo Kyrola, Guy Blelloch, Carlos Guestrin / Carnegie Mellon University]
@@ -42,8 +43,14 @@ public class DegreeData {
 
         degreeData = new byte[(int) dataSize];
 
-        degreeFile.seek(dataStart);
-        degreeFile.readFully(degreeData);
+        try {
+            degreeFile.seek(dataStart);
+            degreeFile.readFully(degreeData);
+        } catch (EOFException eof) {
+            System.err.println("Tried to read past file: " + dataStart + " --- " + (dataStart + dataSize));
+            // But continue
+
+        }
     }
 
     public VertexDegree getDegree(int vertexId) {

@@ -241,16 +241,19 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
                 subIntervalStart = intervalSt;
 
                 while (subIntervalStart <= intervalEn) {
-                    if (anyVertexScheduled(subIntervalStart, Math.min(intervalEn, subIntervalStart + maxWindow ))) {
+                    int adjMaxWindow = maxWindow;
+                    if (Integer.MAX_VALUE - subIntervalStart < maxWindow) adjMaxWindow = Integer.MAX_VALUE - subIntervalStart - 1;
+
+                    if (anyVertexScheduled(subIntervalStart, Math.min(intervalEn, subIntervalStart + adjMaxWindow ))) {
                         ChiVertex<VertexDataType, EdgeDataType>[] vertices = null;
                         int vertexBlockId = -1;
 
                         if (!autoLoadNext || nextWindow == null) {
                             try {
 
-                                subIntervalEnd = determineNextWindow(subIntervalStart, Math.min(intervalEn, subIntervalStart + maxWindow ));
+                                subIntervalEnd = determineNextWindow(subIntervalStart, Math.min(intervalEn, subIntervalStart + adjMaxWindow ));
                             } catch (NoEdgesInIntervalException nie) {
-                                subIntervalEnd = Math.min(intervalEn, subIntervalStart + maxWindow );
+                                subIntervalEnd = Math.min(intervalEn, subIntervalStart + adjMaxWindow );
                                 System.out.println("No edges, skip");
                                 continue;
                             }
@@ -291,9 +294,12 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
 
                         if (autoLoadNext) {
                             /* Start a future for loading the next window */
+                            adjMaxWindow = maxWindow;
+                            if (Integer.MAX_VALUE - subIntervalEnd < maxWindow) adjMaxWindow = Integer.MAX_VALUE - subIntervalEnd - 1;
+
                             if (subIntervalEnd + 1 <= intervalEn) {
                                 nextWindow = new FutureTask<IntervalData>(new AutoLoaderTask(new VertexInterval(subIntervalEnd + 1,
-                                        Math.min(intervalEn, subIntervalEnd + 1 + maxWindow)), execInterval, memoryShard));
+                                        Math.min(intervalEn, subIntervalEnd + 1 + adjMaxWindow)), execInterval, memoryShard));
                             } else if (execInterval < nShards - 1) {
                                 int nextIntervalSt = intervals.get(execInterval + 1).getFirstVertex();
                                 int nextIntervalEn = intervals.get(execInterval + 1).getLastVertex();
@@ -301,7 +307,7 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
                                 slidingShards.get(execInterval).setOffset(memoryShard.getStreamingOffset(),
                                         memoryShard.getStreamingOffsetVid(), memoryShard.getStreamingOffsetEdgePtr());
                                 nextWindow = new FutureTask<IntervalData>(new AutoLoaderTask(new VertexInterval(nextIntervalSt,
-                                        Math.min(nextIntervalEn, nextIntervalSt + 1 + maxWindow)), execInterval + 1,
+                                        Math.min(nextIntervalEn, nextIntervalSt + 1 + adjMaxWindow)), execInterval + 1,
                                         createMemoryShard(nextIntervalSt, nextIntervalEn, execInterval + 1)));
 
                             }
