@@ -110,19 +110,15 @@ public class MemoryShard <EdgeDataType> {
 
     public void loadVertices(int windowStart, int windowEnd, ChiVertex[] vertices, boolean disableOutEdges)
             throws FileNotFoundException, IOException {
-        System.out.println("loadVertices...");
         DataInput adjInput = null;
         if (adjData == null) {
-            System.out.println("Step 1");
             adjInput = loadAdj(windowEnd == rangeEnd && windowStart == rangeStart);
-            System.out.println("Step 2");
 
             if (!onlyAdjacency) loadEdata();
             if (adjInput != null) {
                 System.out.println("No intermediate loading into byte array");
             }
         }
-        System.out.println("Step 3");
 
         TimerContext _timer = loadVerticesTimers.time();
 
@@ -215,7 +211,6 @@ public class MemoryShard <EdgeDataType> {
         File compressedFile = new File(adjDataFilename + ".gz");
         InputStream adjStreamRaw;
         long fileSizeEstimate = 0;
-        System.out.println("A1");
         if (compressedFile.exists()) {
             System.out.println("Note: using compressed: " + compressedFile.getAbsolutePath());
             adjStreamRaw = new GZIPInputStream(new FileInputStream(compressedFile));
@@ -223,27 +218,19 @@ public class MemoryShard <EdgeDataType> {
         } else {
             adjStreamRaw = new FileInputStream(adjDataFilename);
             fileSizeEstimate = new File(adjDataFilename).length();
-            System.out.println("A1.5: " + adjDataFilename);
 
         }
-        System.out.println("A2: " + onlyOneRead + ", str:" + adjStreamRaw);
         if (onlyOneRead) {
             return new BufferedDataInputStream(adjStreamRaw,  (int) fileSizeEstimate / 64 + 1024);
         }
-        System.out.println("A3");
 
         BufferedInputStream adjStream =	new BufferedInputStream(adjStreamRaw, (int) fileSizeEstimate /
                 4);
 
         // Hack for cases when the load is not divided into subwindows
-
-        System.out.println("A4");
-
         TimerContext _timer = loadAdjTimer.time();
-        System.out.println("A5a: " + fileSizeEstimate);
 
         ByteArrayOutputStream adjDataStream = new ByteArrayOutputStream((int) fileSizeEstimate);
-        System.out.println("A5");
 
         long tot = 0;
         try {
@@ -261,14 +248,11 @@ public class MemoryShard <EdgeDataType> {
         } catch (EOFException err) {
             // Done
         }
-        System.out.println("A6");
 
         adjData = adjDataStream.toByteArray();
-        System.out.println("A6.5");
 
         adjStream.close();
         adjDataStream.close();
-        System.out.println("A7");
 
         _timer.stop();
         return null;
