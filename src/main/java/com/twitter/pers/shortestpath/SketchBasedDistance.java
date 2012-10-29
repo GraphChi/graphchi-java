@@ -34,7 +34,10 @@ public class SketchBasedDistance implements GraphChiProgram<Integer, Integer> {
     public SketchBasedDistance(String graphName, int numVertices) throws IOException {
         sketchSet = new SketchSet(SEEDSETS);
         sketchSet.selectSeeds(graphName, numVertices);
-        distanceMatrix = new HugeLongMatrix(numVertices, 2);
+
+        /* Initialize all vertices */
+        long initDistances = sketchSet.initialValue();
+        distanceMatrix = new HugeLongMatrix(numVertices, 2, initDistances);
 
         /* Initialize seeds */
         for(int seedSet=0; seedSet<SEEDSETS; seedSet++) {
