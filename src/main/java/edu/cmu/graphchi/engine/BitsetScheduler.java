@@ -1,5 +1,6 @@
 package edu.cmu.graphchi.engine;
 
+import edu.cmu.graphchi.ChiVertex;
 import edu.cmu.graphchi.Scheduler;
 
 import java.util.BitSet;
@@ -51,5 +52,17 @@ public class BitsetScheduler implements Scheduler {
     public void removeAllTasks() {
         bitset.clear();
         hasNewTasks = false;
+    }
+
+    @Override
+    public void scheduleOutNeighbors(ChiVertex vertex) {
+        int nEdges = vertex.numOutEdges();
+        for(int i=0; i < nEdges; i++) addTask(vertex.outEdge(i).getVertexId());
+    }
+
+    @Override
+    public void scheduleInNeighbors(ChiVertex vertex) {
+        int nEdges = vertex.numInEdges();
+        for(int i=0; i < nEdges; i++) addTask(vertex.inEdge(i).getVertexId());
     }
 }

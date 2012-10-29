@@ -1,6 +1,10 @@
 package com.twitter.pers.shortestpath;
 
+import edu.cmu.graphchi.engine.auxdata.DegreeData;
+
+import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Random;
 
@@ -14,7 +18,7 @@ import java.util.Random;
  */
 public class SketchSet {
 
-    private int maxDistance = 7; // 3 bits
+    public final int maxDistance = 7; // 3 bits
     private int nSets;
     private int bitsToEncode;
     private HashSet<Integer> chosenSeeds = new HashSet<Integer>(1000);
@@ -34,8 +38,57 @@ public class SketchSet {
         this.distanceShift = new int[nSets];
     }
 
-    public void selectSeeds(int nVertices) {
+    /**
+     * Find the greatest index i of cumulativeDegree so that val < cumulativeDegree[i]
+     * @param cumulativeDegree
+     * @param val
+     * @return
+     */
+    private int findIdx(long[] cumulativeDegree, long val) {
+        int idx = Arrays.binarySearch(cumulativeDegree, val);
+        if (idx < 0) {
+            // Value not found, but: index of the search key, if it is contained in the list; otherwise, (-(insertion point) - 1)
+            return -(idx + 1);
+        }
+        return idx;
+    }
+
+    public int[] seeds(int seedSet) {
+        return seeds.get(seedSet);
+    }
+
+    /**
+     * Selects the seeds randomly weighted by in-degree
+     * @param graphName
+     * @param nVertices
+     * @throws IOException
+     */
+    public void selectSeeds(String graphName, int nVertices) throws IOException {
+        long[] cumdegree = new long[nVertices];
+        long cumulant = 0;
+
+        /* Load degree data */
+        if (graphName != null) {
+            DegreeData degreeData = new DegreeData(graphName);
+            int v=0;
+            while ( v < nVertices) {
+                int st = v;
+                int en = Math.min(v + 10000000, nVertices) - 1;
+                degreeData.load(st, en);
+                for(int i=st; i<=en; i++) {
+                    cumulant += degreeData.getDegree(i).inDegree;
+                    cumdegree[i] = cumulant;
+                }
+
+                v += 10000000;
+            }
+        }  else {
+            // Do an array of ones (this is for unit-tests mostly)
+            for(int i=0; i<cumdegree.length; i++) cumdegree[i] = i;
+            cumulant = cumdegree.length;
+        }
         bitsToEncode = 0;
+        long totalSeeds = 0;
         Random random = new Random();
         // Actually, should choose seeds from each of the
         // strongly connected components?
@@ -48,7 +101,7 @@ public class SketchSet {
             for(int i=0; i<nSeeds; i++) {
                 boolean success = false;
                 while(!success) {
-                    int vertex = random.nextInt(nVertices);
+                    int vertex = findIdx(cumdegree, random.nextLong() % cumulant);
                     success = !chosenSeeds.contains(vertex);
                     if (success) {
                         chosenSeeds.add(vertex);
@@ -56,6 +109,7 @@ public class SketchSet {
                     }
                 }
             }
+            totalSeeds += nSeeds;
 
             distanceShift[setNum] = bitsToEncode;
             distanceMasks[setNum] = 7l << bitsToEncode;
@@ -66,6 +120,7 @@ public class SketchSet {
         }
         System.out.println("Bits to encode: " + bitsToEncode);
         if (bitsToEncode >= 64) throw new IllegalArgumentException("Too many sets to encode in 64 bits!");
+        System.out.println("Total seeds: " + totalSeeds);
     }
 
     public long initialValue() {

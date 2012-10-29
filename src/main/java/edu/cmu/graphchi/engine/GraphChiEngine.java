@@ -829,6 +829,14 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
         public void removeAllTasks() {
 
         }
+
+        @Override
+        public void scheduleOutNeighbors(ChiVertex vertex) {
+        }
+
+        @Override
+        public void scheduleInNeighbors(ChiVertex vertex) {
+        }
     }
 
 

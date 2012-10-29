@@ -17,4 +17,9 @@ public interface Scheduler {
     public boolean isScheduled(int i);
 
     public void removeAllTasks();
+
+    void scheduleOutNeighbors(ChiVertex vertex);
+
+    void scheduleInNeighbors(ChiVertex vertex);
+
 }

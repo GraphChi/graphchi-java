@@ -3,6 +3,7 @@ package com.twitter.pers.graphchi.shortestpath;
 import com.twitter.pers.shortestpath.SketchSet;
 import org.junit.Test;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Random;
 
@@ -19,9 +20,9 @@ public class TestSketchSet {
     }
 
     @Test
-    public void testInit() {
+    public void testInit()  throws IOException  {
         sketchSet = new SketchSet(9);
-        sketchSet.selectSeeds(100000000);
+        sketchSet.selectSeeds(null, 100000);
 
         // Everything should start with max distance now
         long current = sketchSet.initialValue();
@@ -35,12 +36,12 @@ public class TestSketchSet {
     }
 
     @Test
-    public void testSetValues() {
+    public void testSetValues() throws IOException {
         sketchSet = new SketchSet(9);
-        sketchSet.selectSeeds(100000000);
+        sketchSet.selectSeeds(null, 10000);
         long current = sketchSet.initialValue();
         sketchSet = new SketchSet(9);
-        sketchSet.selectSeeds(100000000);
+        sketchSet.selectSeeds(null, 1000000);
         Random random = new Random(260379);
 
         ArrayList<Integer> chosenSeeds = new ArrayList<Integer>();
