@@ -150,7 +150,20 @@ public class SketchSet {
 
 
     public SketchPath sketchPath(int from, int dest, long fromDistanceTable, long toDistanceTable) {
-
+        SketchPath bestPath = new SketchPath(from, dest, -1, Integer.MAX_VALUE, Integer.MAX_VALUE);
+        for(int i=0; i < nSets; i++) {
+            if (seedIndex(fromDistanceTable, i) == seedIndex(toDistanceTable, i)) {
+                int distFrom = distance(fromDistanceTable, i);
+                int distTo = distance(toDistanceTable, i);
+                if (distFrom + distTo <= bestPath.getDistance()) {
+                    // Favor later seed sets as they are more "special"
+                    bestPath.setViaSeed(seeds(i)[seedIndex(fromDistanceTable, i)]);
+                    bestPath.setDistanceFromSeedToDest(distTo);
+                    bestPath.setDistanceFromVertexToSeed(distFrom);
+                }
+            }
+        }
+        return bestPath;
     }
 
 }
