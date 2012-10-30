@@ -149,4 +149,8 @@ public class SketchSet {
     }
 
 
+    public SketchPath sketchPath(int from, int dest, long fromDistanceTable, long toDistanceTable) {
+
+    }
+
 }

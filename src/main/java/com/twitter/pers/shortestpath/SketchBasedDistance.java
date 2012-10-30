@@ -66,9 +66,13 @@ public class SketchBasedDistance implements GraphChiProgram<Integer, Integer> {
                 for(int s=0; s<SEEDSETS; s++) {
                     int nbDistance = sketchSet.distance(nbDistances, s);
                     int myDistance = sketchSet.distance(myDistances, s);
-                    if (nbDistance + 1 < myDistance) {
+                    int nbSketchIdx = sketchSet.seedIndex(nbDistances, s);
+                    int mySketchIdx = sketchSet.seedIndex(myDistances, s);
+
+                    if (nbDistance + 1 < myDistance || (nbDistance + 1 == myDistance && nbSketchIdx < mySketchIdx)) {
                         // My distance is min(1 + shortest distance to a neighbor )
-                        myDistances = sketchSet.encode(myDistances, s, sketchSet.seedIndex(nbDistances, s), nbDistance + 1);
+                        // Ties are breaked by choosing the one with minimum ID. Important!
+                        myDistances = sketchSet.encode(myDistances, s, nbSketchIdx, nbDistance + 1);
                     }
                 }
             }
