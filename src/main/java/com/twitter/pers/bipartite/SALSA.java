@@ -1,5 +1,6 @@
 package com.twitter.pers.bipartite;
 
+import com.twitter.pers.Experiment;
 import com.twitter.pers.multicomp.ComputationInfo;
 import com.yammer.metrics.Metrics;
 import edu.cmu.graphchi.ChiVertex;
@@ -103,15 +104,17 @@ public class SALSA extends BipartiteHubsAndAuthorities {
     public static void main(String[] args) throws Exception {
         SimpleMetricsReporter rep = SimpleMetricsReporter.enable(2, TimeUnit.MINUTES);
 
-        int k=0;
-        String graph = args[k++];
-        int nshards = Integer.parseInt(args[k++]);
-        int niters = Integer.parseInt(args[k++]);
-        String inputFile = args[k++];
-        float cutOff = Float.parseFloat(args[k++]);
+        String experimentDefinition = args[0];
+        Experiment experiment = new Experiment(experimentDefinition);
 
         /* Initialize computations */
-        List<ComputationInfo> computations = ComputationInfo.loadComputations(inputFile);
+        String graph = experiment.getGraph();
+        int nshards = experiment.getNumShards();
+        float cutOff = Float.parseFloat(experiment.getProperty("cutoff"));
+        int niters = experiment.getNumIterations();
+
+        /* Initialize computations */
+        List<ComputationInfo> computations = ComputationInfo.loadComputations(experiment.getFilenameProperty("inputlist"));
 
         /* Find the maximum vertex id on left-side by looking at the first non-zero degree */
         int leftMax = findApproxMaximumLeftVertex(graph);
@@ -129,7 +132,7 @@ public class SALSA extends BipartiteHubsAndAuthorities {
         engine.run(salsa, niters);
 
 
-        outputResults(salsa, cutOff, computations, "salsa");
+        outputResults(experiment, salsa, cutOff, computations, "salsa");
 
         /* Report metrics */
         Metrics.shutdown();

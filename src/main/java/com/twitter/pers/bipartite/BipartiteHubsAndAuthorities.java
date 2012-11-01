@@ -1,5 +1,6 @@
 package com.twitter.pers.bipartite;
 
+import com.twitter.pers.Experiment;
 import com.twitter.pers.multicomp.ComputationInfo;
 import com.twitter.pers.multicomp.WeightUtil;
 import com.yammer.metrics.Metrics;
@@ -15,6 +16,7 @@ import edu.cmu.graphchi.util.IdFloat;
 import edu.cmu.graphchi.util.Toplist;
 
 import java.io.*;
+import java.util.HashMap;
 import java.util.List;
 import java.util.TreeSet;
 import java.util.concurrent.TimeUnit;
@@ -82,7 +84,7 @@ public class BipartiteHubsAndAuthorities implements GraphChiProgram<Float, Float
                     }
                 }
                 rightScoreMatrix.setValue(vertex.getId() - RIGHTSIDE_MIN, compId, sumLeft);
-                 }
+            }
         }
     }
 
@@ -121,15 +123,16 @@ public class BipartiteHubsAndAuthorities implements GraphChiProgram<Float, Float
     public static void main(String[] args) throws Exception {
         SimpleMetricsReporter rep = SimpleMetricsReporter.enable(2, TimeUnit.MINUTES);
 
-        int k=0;
-        String graph = args[k++];
-        int nshards = Integer.parseInt(args[k++]);
-        int niters = Integer.parseInt(args[k++]);
-        String inputFile = args[k++];
-        float cutOff = Float.parseFloat(args[k++]);
+        String experimentDefinition = args[0];
+        Experiment experiment = new Experiment(experimentDefinition);
 
         /* Initialize computations */
-        List<ComputationInfo> computations = ComputationInfo.loadComputations(inputFile);
+        String graph = experiment.getGraph();
+        int nshards = experiment.getNumShards();
+        float cutOff = Float.parseFloat(experiment.getProperty("cutoff"));
+        int niters = experiment.getNumIterations();
+
+        List<ComputationInfo> computations = ComputationInfo.loadComputations(experiment.getFilenameProperty("inputlist"));
 
         /* Find the maximum vertex id on left-side by looking at the first non-zero degree */
         int leftMax = findApproxMaximumLeftVertex(graph);
@@ -145,35 +148,38 @@ public class BipartiteHubsAndAuthorities implements GraphChiProgram<Float, Float
         engine.setEdataConverter(null);
         engine.setVertexDataConverter(null);
         engine.run(bhaa, niters);
-        outputResults(bhaa, cutOff, computations, "hubsauth");
-
+        outputResults(experiment, bhaa, cutOff, computations, "hubsauth");
 
         /* Report metrics */
         Metrics.shutdown();
         rep.run();
     }
 
-    protected static void outputResults(BipartiteHubsAndAuthorities app, float cutOff, List<ComputationInfo> computations, String appName) throws IOException {
+    protected static void outputResults(Experiment exp, BipartiteHubsAndAuthorities app, float cutOff, List<ComputationInfo> computations, String appName) throws IOException {
         /* Output top-lists */
         int ntop = 10000;
         for(int icomp=0; icomp < computations.size(); icomp++) {
             TreeSet<IdFloat> topList = Toplist.topList(app.leftScoreMatrix, icomp, ntop);
-            String outputfile = "toplist." + appName + "." + computations.get(icomp).getName() + "_cutoff_" + cutOff + ".tsv";
+            HashMap<String, String> placeholders = new HashMap<String, String>();
+            placeholders.put("topic", computations.get(icomp).getName());
+            placeholders.put("algo", appName);
 
+            String outputfile = exp.getOutputName(placeholders);
             BufferedWriter writer = new BufferedWriter(new FileWriter(new File(outputfile)));
 
             for(IdFloat item : topList) {
-                writer.write(item.getVertexId() + "\t" + computations.get(icomp).getName() + "\t" + item.getValue() +"\n");                }
+                writer.write(item.getVertexId() + "\t" + computations.get(icomp).getName() + "\t" + item.getValue() +"\n");
+            }
 
 
             writer.close();
         }
-        ;
+
     }
 
     protected static BipartiteHubsAndAuthorities initializeApp(float cutOff, List<ComputationInfo> computations, int leftMax, GraphChiEngine engine) throws IOException {
         return new BipartiteHubsAndAuthorities(computations,
-                    leftMax, engine.numVertices(), cutOff);
+                leftMax, engine.numVertices(), cutOff);
     }
 
     protected static int findApproxMaximumLeftVertex(String graph) throws IOException {
