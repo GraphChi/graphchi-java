@@ -27,7 +27,7 @@ public class WeightUtil {
         rd.close();
 
         if (weightedAlgorithm) {
-        weightMatrix.zeroLessThan(cutOff);
+            weightMatrix.zeroLessThan(cutOff);
         } else {
             weightMatrix.binaryFilter(cutOff, 1.0f);
         }

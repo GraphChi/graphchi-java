@@ -135,7 +135,6 @@ public class SketchBasedDistance implements GraphChiProgram<Integer, Integer> {
         sketchApp.save(graph + ".distancemat");
 
         /* Report metrics */
-        Metrics.shutdown();
         rep.run();
     }
 

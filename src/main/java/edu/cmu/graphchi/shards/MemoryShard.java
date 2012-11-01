@@ -52,8 +52,8 @@ public class MemoryShard <EdgeDataType> {
     private int streamingOffset, streamingOffsetEdgePtr, streamingOffsetVid;
     private int blocksize;
 
-    private final Timer loadAdjTimer = Metrics.newTimer(MemoryShard.class, "load-adj", TimeUnit.SECONDS, TimeUnit.MINUTES);
-    private final Timer loadVerticesTimers = Metrics.newTimer(MemoryShard.class, "load-vertices", TimeUnit.SECONDS, TimeUnit.MINUTES);
+    private final Timer loadAdjTimer = Metrics.defaultRegistry().newTimer(MemoryShard.class, "load-adj", TimeUnit.SECONDS, TimeUnit.MINUTES);
+    private final Timer loadVerticesTimers = Metrics.defaultRegistry().newTimer(MemoryShard.class, "load-vertices", TimeUnit.SECONDS, TimeUnit.MINUTES);
 
 
     private MemoryShard() {}

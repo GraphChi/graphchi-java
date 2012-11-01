@@ -27,9 +27,9 @@ public class WalkManagerForPaths {
     private int[] walkIndices;
 
     private int numVertices;
-    private final Timer grabTimer = Metrics.newTimer(WalkManagerForPaths.class, "grab-walks", TimeUnit.SECONDS, TimeUnit.MINUTES);
-    private final Timer dumpTimer = Metrics.newTimer(WalkManagerForPaths.class, "dump-walks", TimeUnit.SECONDS, TimeUnit.MINUTES);
-    private final Timer initTimer = Metrics.newTimer(WalkManagerForPaths.class, "init-walks", TimeUnit.SECONDS, TimeUnit.MINUTES);
+    private final Timer grabTimer = Metrics.defaultRegistry().newTimer(WalkManagerForPaths.class, "grab-walks", TimeUnit.SECONDS, TimeUnit.MINUTES);
+    private final Timer dumpTimer = Metrics.defaultRegistry().newTimer(WalkManagerForPaths.class, "dump-walks", TimeUnit.SECONDS, TimeUnit.MINUTES);
+    private final Timer initTimer = Metrics.defaultRegistry().newTimer(WalkManagerForPaths.class, "init-walks", TimeUnit.SECONDS, TimeUnit.MINUTES);
 
 
     public WalkManagerForPaths(int numVertices) {

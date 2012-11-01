@@ -178,8 +178,6 @@ public class DrunkardMob implements GraphChiProgram<Integer, Boolean> {
 
         long sumWalks = VertexAggregator.sumInt(baseFilename);
         System.out.println("Total hops (in file): " + sumWalks);
-
-        Metrics.shutdown();
         rep.run();
     }
 }
