@@ -124,4 +124,19 @@ public class HugeFloatMatrix {
             }
         }
     }
+
+    /**
+     * Sets all values less than cutOff to zero, everyone else to value
+     * @param cutOff
+     * @param value
+     */
+    public void binaryFilter(float cutOff, float value) {
+        for(int i=0; i < data.length; i++) {
+            float[] block = data[i];
+            for(int j=0; j < block.length; j++) {
+                block[j] = (block[j] >= cutOff ? 1.0f : 0.0f) * value;
+            }
+        }
+    }
+
 }

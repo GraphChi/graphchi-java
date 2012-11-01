@@ -27,7 +27,7 @@ import java.util.concurrent.TimeUnit;
  */
 public class BipartiteHubsAndAuthorities implements GraphChiProgram<Float, Float> {
 
-    protected final static int RIGHTSIDE_MIN = 2000000000;
+    protected static int RIGHTSIDE_MIN = -1;
 
     protected HugeFloatMatrix leftWeightMatrix;
     protected HugeFloatMatrix leftScoreMatrix;
@@ -35,7 +35,8 @@ public class BipartiteHubsAndAuthorities implements GraphChiProgram<Float, Float
     protected int numComputations;
 
 
-    protected BipartiteHubsAndAuthorities(List<ComputationInfo> computations, int maxLeftVertex, int maxRightVertex, float  cutOff)
+    protected BipartiteHubsAndAuthorities(List<ComputationInfo> computations, int maxLeftVertex, int maxRightVertex, float cutOff,
+                                          boolean weighted)
             throws IOException {
         numComputations = computations.size();
 
@@ -46,8 +47,10 @@ public class BipartiteHubsAndAuthorities implements GraphChiProgram<Float, Float
 
         for(ComputationInfo compInfo : computations) {
             System.out.println("Loading weights: " + compInfo);
-            WeightUtil.loadWeights(compInfo, leftWeightMatrix, cutOff);
+            WeightUtil.loadWeights(compInfo, leftWeightMatrix, cutOff, weighted);
         }
+
+        if (RIGHTSIDE_MIN  < 0) throw new IllegalArgumentException("list-id-offset not set!");
     }
 
     @Override
@@ -131,6 +134,8 @@ public class BipartiteHubsAndAuthorities implements GraphChiProgram<Float, Float
         int nshards = experiment.getNumShards();
         float cutOff = Float.parseFloat(experiment.getProperty("cutoff"));
         int niters = experiment.getNumIterations();
+        boolean weighted = Integer.parseInt(experiment.getProperty("weighted")) == 1;
+        BipartiteHubsAndAuthorities.RIGHTSIDE_MIN = Integer.parseInt(experiment.getProperty("list_id_offset"));
 
         List<ComputationInfo> computations = ComputationInfo.loadComputations(experiment.getFilenameProperty("inputlist"));
 
@@ -138,7 +143,7 @@ public class BipartiteHubsAndAuthorities implements GraphChiProgram<Float, Float
         int leftMax = findApproxMaximumLeftVertex(graph);
 
         GraphChiEngine<Float, Float> engine = new GraphChiEngine<Float, Float>(graph, nshards);
-        BipartiteHubsAndAuthorities bhaa = initializeApp(cutOff, computations, leftMax, engine);
+        BipartiteHubsAndAuthorities bhaa = initializeApp(cutOff, computations, leftMax, engine, weighted);
 
         engine.setOnlyAdjacency(true);
         engine.setAutoLoadNext(true);
@@ -148,10 +153,9 @@ public class BipartiteHubsAndAuthorities implements GraphChiProgram<Float, Float
         engine.setEdataConverter(null);
         engine.setVertexDataConverter(null);
         engine.run(bhaa, niters);
-        outputResults(experiment, bhaa, cutOff, computations, "hubsauth");
+        outputResults(experiment, bhaa, cutOff, computations, "hubsauth" + (weighted ? "_weighted" : "_unweighted"));
 
         /* Report metrics */
-        Metrics.shutdown();
         rep.run();
     }
 
@@ -170,16 +174,15 @@ public class BipartiteHubsAndAuthorities implements GraphChiProgram<Float, Float
             for(IdFloat item : topList) {
                 writer.write(item.getVertexId() + "\t" + computations.get(icomp).getName() + "\t" + item.getValue() +"\n");
             }
-
-
             writer.close();
         }
 
     }
 
-    protected static BipartiteHubsAndAuthorities initializeApp(float cutOff, List<ComputationInfo> computations, int leftMax, GraphChiEngine engine) throws IOException {
+    protected static BipartiteHubsAndAuthorities initializeApp(float cutOff, List<ComputationInfo> computations, int leftMax,
+                                                               GraphChiEngine engine, boolean weighted) throws IOException {
         return new BipartiteHubsAndAuthorities(computations,
-                leftMax, engine.numVertices(), cutOff);
+                leftMax, engine.numVertices(), cutOff, weighted);
     }
 
     protected static int findApproxMaximumLeftVertex(String graph) throws IOException {

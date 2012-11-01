@@ -11,7 +11,7 @@ import java.io.IOException;
  */
 public class WeightUtil {
 
-    public static void loadWeights(ComputationInfo compInfo, HugeFloatMatrix weightMatrix, float cutOff) throws IOException {
+    public static void loadWeights(ComputationInfo compInfo, HugeFloatMatrix weightMatrix, float cutOff, boolean weightedAlgorithm) throws IOException {
         int compId = compInfo.getId();
         BufferedReader rd = new BufferedReader(new FileReader(compInfo.getInputFile()));
         String ln;
@@ -26,7 +26,11 @@ public class WeightUtil {
         }
         rd.close();
 
+        if (weightedAlgorithm) {
         weightMatrix.zeroLessThan(cutOff);
+        } else {
+            weightMatrix.binaryFilter(cutOff, 1.0f);
+        }
     }
 
 }
