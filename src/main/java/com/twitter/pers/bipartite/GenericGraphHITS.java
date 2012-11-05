@@ -23,15 +23,15 @@ import java.util.List;
 import java.util.TreeSet;
 
 /**
- *  SALSA but on a generic graph. Compute a separate left-value (hub)
+ *  HITS but on a generic graph. Compute a separate left-value (hub)
  *  and a right-value (authority) for each vertex.
  *  ANNOYINGLY, this is now reverse siding to the bipartite-versions... Sorry
  */
-public class GenericGraphSALSA implements GraphChiProgram<Boolean, Float> {
+public class GenericGraphHITS implements GraphChiProgram<Boolean, Float> {
 
     HugeFloatMatrix scores;
 
-    public GenericGraphSALSA(int numVertices) {
+    public GenericGraphHITS(int numVertices) {
         scores = new HugeFloatMatrix(numVertices, 2, 1.0f);
     }
 
@@ -47,17 +47,12 @@ public class GenericGraphSALSA implements GraphChiProgram<Boolean, Float> {
         for(int i=0; i < nEdges; i++) {
             ChiEdge<Float> edge = (side == 0 ? vertex.outEdge(i) : vertex.inEdge(i));
             float val = scores.getValue(edge.getVertexId(), 1 - side);
-            float w   = (side == 0 ? edge.getValue() : 1.0f);
+            float w   = edge.getValue();
             totalWeight += w;
             sum += val * w;
         }
         if (totalWeight > 0) {
-            if (lastIteration) {
-                assert(side == 1);
-                scores.setValue(vertex.getId(), side, sum);
-            } else {
-                scores.setValue(vertex.getId(), side, sum / (side == 0 ? totalWeight : nEdges)); // Although totalWeight should be nEdges, float errors make it less reliable
-            }
+            scores.setValue(vertex.getId(), side, sum);  // Difference to SALSA: no normalization here, but at the end of iteration.
         }  else {
             scores.setValue(vertex.getId(), side, 0.0f);
         }
@@ -68,6 +63,10 @@ public class GenericGraphSALSA implements GraphChiProgram<Boolean, Float> {
     }
 
     public void endIteration(GraphChiContext ctx) {
+        System.out.println("Normalizing...");
+        // Normalize
+        int side = (ctx.getIteration() % 2);
+        scores.normalizeSquared(side);
     }
 
     public void beginInterval(GraphChiContext ctx, VertexInterval interval) {
@@ -90,9 +89,9 @@ public class GenericGraphSALSA implements GraphChiProgram<Boolean, Float> {
         engine.setModifiesInedges(false);
         engine.setModifiesOutedges(false);
 
-        GenericGraphSALSA salsa = new GenericGraphSALSA(engine.numVertices());
-        engine.run(salsa, 2 * experiment.getNumIterations());   // Twice the iterations, alternating left and right
-        salsa.outputResults(experiment);
+        GenericGraphHITS hits = new GenericGraphHITS(engine.numVertices());
+        engine.run(hits, 2 * experiment.getNumIterations());   // Twice the iterations, alternating left and right
+        hits.outputResults(experiment);
     }
 
     protected void outputResults(Experiment exp) throws IOException {
@@ -100,7 +99,7 @@ public class GenericGraphSALSA implements GraphChiProgram<Boolean, Float> {
         int ntop = 10000;
         TreeSet<IdFloat> topList = Toplist.topList(scores, 1, ntop);
         HashMap<String, String> placeholders = new HashMap<String, String>();
-        placeholders.put("algo", "generic-salsa");
+        placeholders.put("algo", "generic-hits");
 
         String outputfile = exp.getOutputName(placeholders);
         BufferedWriter writer = new BufferedWriter(new FileWriter(new File(outputfile)));
