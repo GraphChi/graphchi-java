@@ -105,6 +105,8 @@ public class HugeFloatMatrix {
         float div = (float) Math.sqrt(sqr);
         System.out.println("Div : " + div);
 
+        if (Float.isInfinite(div) || Float.isNaN(div)) throw new RuntimeException("Illegal normalizer: " + div);
+
         if (sqr == 0.0f) throw new IllegalArgumentException("Column was all-zeros!");
         for(int j=0; j < nrows; j++) {
             float x = getValue(j, col);

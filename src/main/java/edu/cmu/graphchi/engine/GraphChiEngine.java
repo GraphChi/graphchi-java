@@ -508,9 +508,6 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
                 v.setDataPtr(vertexDataHandler.getVertexValuePtr(j + firstVertexId, blockId));
             }
             vertices[j] = v;
-
-            if (j % 200000 == 0)
-                System.out.println("Init progress: " + j + " / " + nvertices);
         }
 
 
