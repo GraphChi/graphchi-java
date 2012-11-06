@@ -53,9 +53,9 @@ public class SALSA extends BipartiteHubsAndAuthorities {
 
                 if (myWeight > 0.0f) {
                     if (context.getIteration() > 0) {
-                    for(int e=0; e < vertex.numEdges(); e++) {
-                        sumRight += rightScoreMatrix.getValue(vertex.edge(e).getVertexId() - RIGHTSIDE_MIN, compId);
-                    }
+                        for(int e=0; e < vertex.numEdges(); e++) {
+                            sumRight += rightScoreMatrix.getValue(vertex.edge(e).getVertexId() - RIGHTSIDE_MIN, compId);
+                        }
                     } else {
                         sumRight = 1.0f;
                     }

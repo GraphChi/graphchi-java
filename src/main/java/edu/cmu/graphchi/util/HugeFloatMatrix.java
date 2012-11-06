@@ -61,6 +61,13 @@ public class HugeFloatMatrix {
         data[block][blockidx] = val;
     }
 
+    public void add(int row, int col, float delta) {
+        long idx = (long)row * ncols + (long)col;
+        int block = (int) (idx / BLOCKSIZE);
+        int blockidx = (int) (idx % BLOCKSIZE);
+        data[block][blockidx] += delta;
+    }
+
     // Premature optimization
     public float[] getRowBlock(int row) {
         long idx = (long)row * ncols;
@@ -111,6 +118,13 @@ public class HugeFloatMatrix {
         for(int j=0; j < nrows; j++) {
             float x = getValue(j, col);
             setValue(j, col, x / div);
+        }
+    }
+
+
+    public void setColumn(int col, float val) {
+        for(int j=0; j < nrows; j++) {
+            this.setValue(j, col, val);
         }
     }
 

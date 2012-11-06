@@ -35,28 +35,23 @@ public class GenericGraphSALSA implements GraphChiProgram<Boolean, Float> {
         scores = new HugeFloatMatrix(numVertices, 2, 1.0f);
     }
 
+
+    // Bulk synchronous
     @Override
     public void update(ChiVertex<Boolean, Float> vertex, GraphChiContext context) {
-        boolean lastIteration = (context.getIteration() == context.getNumIterations() - 1);
-
         int side = (context.getIteration() % 2);
 
         float totalWeight = 0.0f;
-        float sum = 0.0f;
         int nEdges =  (side == 0 ? vertex.numOutEdges() : vertex.numInEdges());
         for(int i=0; i < nEdges; i++) {
             ChiEdge<Float> edge = (side == 0 ? vertex.outEdge(i) : vertex.inEdge(i));
-            float val = scores.getValue(edge.getVertexId(), 1 - side);
-            float w   = (side == 0 ? edge.getValue() : 1.0f);
-            totalWeight += w;
-            sum += val * w;
+            totalWeight += edge.getValue();
         }
         if (totalWeight > 0) {
-            if (lastIteration) {
-                assert(side == 1);
-                scores.setValue(vertex.getId(), side, sum);
-            } else {
-                scores.setValue(vertex.getId(), side, sum / (side == 0 ? totalWeight : nEdges)); // Although totalWeight should be nEdges, float errors make it less reliable
+            float myScore = scores.getValue(vertex.getId(), side);
+            for(int i=0; i < nEdges; i++) {
+                ChiEdge<Float> edge = (side == 0 ? vertex.outEdge(i) : vertex.inEdge(i));
+                scores.add(edge.getVertexId(), 1 - side, myScore * edge.getValue() / totalWeight);
             }
         }  else {
             scores.setValue(vertex.getId(), side, 0.0f);
@@ -65,6 +60,10 @@ public class GenericGraphSALSA implements GraphChiProgram<Boolean, Float> {
     }
 
     public void beginIteration(GraphChiContext ctx) {
+        int side = (ctx.getIteration() % 2);
+
+        // Zero-out the other side
+        scores.setColumn(1 - side, 0.0f);
     }
 
     public void endIteration(GraphChiContext ctx) {
