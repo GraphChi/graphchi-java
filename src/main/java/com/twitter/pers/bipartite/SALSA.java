@@ -19,9 +19,9 @@ import java.util.concurrent.TimeUnit;
  */
 public class SALSA extends BipartiteHubsAndAuthorities {
 
-    protected SALSA(List<ComputationInfo> computations, int maxLeftVertex, int maxRightVertex, float cutOff, boolean weighted)
+    protected SALSA(List<ComputationInfo> computations, int maxLeftVertex, int maxRightVertex, float cutOff, boolean weighted, boolean initWeights)
             throws IOException {
-        super(computations, maxLeftVertex, maxRightVertex, cutOff, weighted);
+        super(computations, maxLeftVertex, maxRightVertex, cutOff, weighted, initWeights);
     }
 
     @Override
@@ -114,6 +114,8 @@ public class SALSA extends BipartiteHubsAndAuthorities {
         float cutOff = Float.parseFloat(experiment.getProperty("cutoff"));
         int niters = experiment.getNumIterations();
         boolean weighted = Integer.parseInt(experiment.getProperty("weighted")) == 1;
+        boolean initWeights = Integer.parseInt(experiment.getProperty("weighted")) == 2;
+
         SALSA.RIGHTSIDE_MIN = Integer.parseInt(experiment.getProperty("list_id_offset"));
 
         /* Initialize computations */
@@ -123,7 +125,7 @@ public class SALSA extends BipartiteHubsAndAuthorities {
         int leftMax = findApproxMaximumLeftVertex(graph);
 
         GraphChiEngine<Float, Float> engine = new GraphChiEngine<Float, Float>(graph, nshards);
-        SALSA salsa = initializeApp(cutOff, computations, leftMax, engine, weighted);
+        SALSA salsa = initializeApp(cutOff, computations, leftMax, engine, weighted, initWeights);
 
         engine.setOnlyAdjacency(true);
         engine.setAutoLoadNext(true);
@@ -142,8 +144,9 @@ public class SALSA extends BipartiteHubsAndAuthorities {
     }
 
 
-    protected static SALSA initializeApp(float cutOff, List<ComputationInfo> computations, int leftMax, GraphChiEngine engine, boolean weighted) throws IOException {
-        return new SALSA(computations, leftMax, engine.numVertices(), cutOff, weighted);
+    protected static SALSA initializeApp(float cutOff, List<ComputationInfo> computations, int leftMax,
+                                         GraphChiEngine engine, boolean weighted, boolean initWeights) throws IOException {
+        return new SALSA(computations, leftMax, engine.numVertices(), cutOff, weighted, initWeights);
     }
 
 }

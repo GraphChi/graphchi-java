@@ -35,19 +35,34 @@ public class BipartiteHubsAndAuthorities implements GraphChiProgram<Float, Float
     protected int numComputations;
 
 
+    /**
+     * HITS algorithms
+     * @param computations list of parallel computations to run
+     * @param maxLeftVertex
+     * @param maxRightVertex
+     * @param cutOff minimum value for a weight to be included in the graph
+     * @param weighted weighted HITS?
+     * @param initWeights whether to use the initial weights
+     * @throws IOException
+     */
     protected BipartiteHubsAndAuthorities(List<ComputationInfo> computations, int maxLeftVertex, int maxRightVertex, float cutOff,
-                                          boolean weighted)
+                                          boolean weighted, boolean initWeights)
             throws IOException {
         numComputations = computations.size();
 
         leftWeightMatrix = new HugeFloatMatrix(maxLeftVertex + 1, numComputations);
-        leftScoreMatrix = new HugeFloatMatrix(maxLeftVertex + 1, numComputations, 1.0f);
+
         rightScoreMatrix = new HugeFloatMatrix(maxRightVertex - RIGHTSIDE_MIN + 1, numComputations, 1.0f);
+        leftScoreMatrix = new HugeFloatMatrix(maxLeftVertex + 1, numComputations, 1.0f);
 
 
         for(ComputationInfo compInfo : computations) {
             System.out.println("Loading weights: " + compInfo);
             WeightUtil.loadWeights(compInfo, leftWeightMatrix, cutOff, weighted);
+            if (initWeights) {
+                System.out.println("Loading initial weights: " + compInfo);
+                WeightUtil.loadWeights(compInfo, leftScoreMatrix, cutOff, true);
+            }
         }
 
         if (RIGHTSIDE_MIN  < 0) throw new IllegalArgumentException("list-id-offset not set!");
@@ -135,6 +150,7 @@ public class BipartiteHubsAndAuthorities implements GraphChiProgram<Float, Float
         float cutOff = Float.parseFloat(experiment.getProperty("cutoff"));
         int niters = experiment.getNumIterations();
         boolean weighted = Integer.parseInt(experiment.getProperty("weighted")) == 1;
+        boolean initWeights = Integer.parseInt(experiment.getProperty("weighted")) == 2;
         BipartiteHubsAndAuthorities.RIGHTSIDE_MIN = Integer.parseInt(experiment.getProperty("list_id_offset"));
 
         List<ComputationInfo> computations = ComputationInfo.loadComputations(experiment.getFilenameProperty("inputlist"));
@@ -143,7 +159,7 @@ public class BipartiteHubsAndAuthorities implements GraphChiProgram<Float, Float
         int leftMax = findApproxMaximumLeftVertex(graph);
 
         GraphChiEngine<Float, Float> engine = new GraphChiEngine<Float, Float>(graph, nshards);
-        BipartiteHubsAndAuthorities bhaa = initializeApp(cutOff, computations, leftMax, engine, weighted);
+        BipartiteHubsAndAuthorities bhaa = initializeApp(cutOff, computations, leftMax, engine, weighted, initWeights);
 
         engine.setOnlyAdjacency(true);
         engine.setAutoLoadNext(true);
@@ -159,7 +175,8 @@ public class BipartiteHubsAndAuthorities implements GraphChiProgram<Float, Float
         rep.run();
     }
 
-    protected static void outputResults(Experiment exp, BipartiteHubsAndAuthorities app, float cutOff, List<ComputationInfo> computations, String appName) throws IOException {
+    protected static void outputResults(Experiment exp, BipartiteHubsAndAuthorities app, float cutOff,
+                                        List<ComputationInfo> computations, String appName) throws IOException {
         /* Output top-lists */
         int ntop = 10000;
         for(int icomp=0; icomp < computations.size(); icomp++) {
@@ -180,9 +197,9 @@ public class BipartiteHubsAndAuthorities implements GraphChiProgram<Float, Float
     }
 
     protected static BipartiteHubsAndAuthorities initializeApp(float cutOff, List<ComputationInfo> computations, int leftMax,
-                                                               GraphChiEngine engine, boolean weighted) throws IOException {
+                                                               GraphChiEngine engine, boolean weighted, boolean initWeights) throws IOException {
         return new BipartiteHubsAndAuthorities(computations,
-                leftMax, engine.numVertices(), cutOff, weighted);
+                leftMax, engine.numVertices(), cutOff, weighted, initWeights);
     }
 
     protected static int findApproxMaximumLeftVertex(String graph) throws IOException {
@@ -196,7 +213,6 @@ public class BipartiteHubsAndAuthorities implements GraphChiProgram<Float, Float
             return Integer.parseInt(ln);
         }
 
-
         DegreeData degData = new DegreeData(graph);
 
         int vertexSt = 0;
@@ -205,7 +221,6 @@ public class BipartiteHubsAndAuthorities implements GraphChiProgram<Float, Float
         boolean  found = false;
 
         while(maxId < RIGHTSIDE_MIN) {
-
             degData.load(vertexSt, maxId);
 
             boolean nonzero = false;

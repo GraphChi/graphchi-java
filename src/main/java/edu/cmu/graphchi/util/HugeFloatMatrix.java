@@ -6,11 +6,12 @@ package edu.cmu.graphchi.util;
  * @author akyrola
  *
  */
-public class HugeFloatMatrix {
+public class HugeFloatMatrix implements Cloneable {
 
     private int BLOCKSIZE = 1024 * 1024 * 16; // 16M * 4 = 64 megabytes
     private long nrows, ncols;
     private float[][] data;
+
 
     public HugeFloatMatrix(long nrows, long ncols, float initialValue) {
         this.nrows = (long)nrows;
@@ -154,5 +155,6 @@ public class HugeFloatMatrix {
             }
         }
     }
+
 
 }
