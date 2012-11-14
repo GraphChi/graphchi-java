@@ -28,12 +28,8 @@ public class DrunkardMob implements GraphChiProgram<Integer, Boolean> {
 
     private WalkManager walkManager;
     private WalkSnapshot curWalkSnapshot;
-    private int maxHops;
-    private String basefileName;
 
-    public DrunkardMob(int maxHops, String basefileName) {
-        this.maxHops = maxHops;
-        this.basefileName = basefileName;
+    public DrunkardMob() {
     }
 
     public void update(ChiVertex<Integer, Boolean> vertex, GraphChiContext context) {
@@ -41,24 +37,25 @@ public class DrunkardMob implements GraphChiProgram<Integer, Boolean> {
         if (context.getIteration() == 0) vertex.setValue(0);
         if (walksAtMe == null) return;
 
-        int walkLength = WalkManager.getWalkLength(walksAtMe);
+        int walkLength = walksAtMe.length;
         int numWalks = 0;
         for(int i=0; i < walkLength; i++) {
             int walk = walksAtMe[i];
-            int hop = walkManager.hop(walk);
-            if (hop > 0) numWalks++;
-            if (hop < maxHops) {
-                // Choose a random destination and move the walk forward
-                int dst;
-                if (vertex.numOutEdges() > 0) {
-                    dst = vertex.getRandomOutNeighbor();
-                } else {
-                    // Dead end!
-                    dst = walkManager.getSourceVertex(walkManager.sourceIdx(walk));
-                }
-                walkManager.updateWalk(walkManager.sourceIdx(walk), dst, hop + 1);
-                context.getScheduler().addTask(dst);
+            boolean hop = walkManager.hop(walk);
+            // Choose a random destination and move the walk forward
+            int dst;
+            if (vertex.getId() != walkManager.getSourceVertex(walk)) {
+                numWalks++;
             }
+            if (vertex.numOutEdges() > 0) {
+                dst = vertex.getRandomOutNeighbor();
+            } else {
+                // Dead end!
+                dst = walkManager.getSourceVertex(walkManager.sourceIdx(walk));
+            }
+            walkManager.updateWalk(walkManager.sourceIdx(walk), dst, !hop);
+            context.getScheduler().addTask(dst);
+
         }
         vertex.setValue(vertex.getValue() + numWalks);
     }
@@ -83,7 +80,7 @@ public class DrunkardMob implements GraphChiProgram<Integer, Boolean> {
 
         String walkDir = System.getProperty("walk.dir", ".");
         final String filename = walkDir + "/walks_" + interval.getFirstVertex() + "-" + interval.getLastVertex() + ".dat";
-        if (ctx.getIteration() == 0 || true) { // NOTE, temporary hack to save disk space but have the same I/O cost for testing
+        if (ctx.getIteration() == 0) { // NOTE, temporary hack to save disk space but have the same I/O cost for testing
             new File(filename).delete();
         }
 
@@ -148,11 +145,11 @@ public class DrunkardMob implements GraphChiProgram<Integer, Boolean> {
             long t1 = System.currentTimeMillis();
 
             /* Initialize application object */
-            DrunkardMob mob = new DrunkardMob(maxHops, baseFilename);
+            DrunkardMob mob = new DrunkardMob();
 
             /* Initialize Random walks */
             int nVertices = engine.numVertices();
-            mob.walkManager = new WalkManager(nVertices);
+            mob.walkManager = new WalkManager(nVertices, nSources);
 
             for(int i=0; i < nSources; i++) {
                 int source = (int) (Math.random() * nVertices);

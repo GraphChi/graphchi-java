@@ -15,12 +15,15 @@ import java.util.concurrent.TimeUnit;
  */
 public class WalkManager {
 
-    private final static int bucketSize = 1024; // Store walks into buckets for faster retrieval
+    private static final int MAX_SOURCES = 16777216;
+
+    private final static int bucketSize = 128; // Store walks into buckets for faster retrieval
     private final static int initialSize = Integer.parseInt(System.getProperty("walkmanager.initial_size", "256"));
 
     private int sourceSeqIdx  = 0;
-    private int[] sources = new int[32678];
-    private int[] sourceWalkCounts = new int[32678];
+    private int[] sources;
+
+    private int[] sourceWalkCounts = null;
     private int totalWalks = 0;
 
     private int[][] walks;
@@ -32,14 +35,17 @@ public class WalkManager {
     private final Timer initTimer = Metrics.defaultRegistry().newTimer(WalkManager.class, "init-walks", TimeUnit.SECONDS, TimeUnit.MINUTES);
 
 
-    public WalkManager(int numVertices) {
+    public WalkManager(int numVertices, int numSources) {
         this.numVertices = numVertices;
+        if (numSources > MAX_SOURCES) throw new IllegalArgumentException("Max sources: " + numSources);
+        sources = new int[numSources];
+        sourceWalkCounts = new int[numSources];
         System.out.println("Initial size for walk bucket: " + initialSize);
     }
 
     public synchronized int addWalkBatch(int vertex, int numWalks) {
         if (sourceSeqIdx >= sources.length)
-            throw new IllegalStateException("You can have a maximum of 32678 random walk sources");
+            throw new IllegalStateException("You can have a maximum of " + sources.length + " random walk sources");
 
         sources[sourceSeqIdx] = vertex;
         sourceWalkCounts[sourceSeqIdx] = numWalks;
@@ -50,27 +56,39 @@ public class WalkManager {
     }
 
 
-    public int encode(int sourceId, int hop, int off) {
-        return sourceId | ((hop << 16) & 0x000f0000) | ((off << 20) & 0xfff00000);
+    /**
+     * Encode a walk
+     * @param sourceId index of the rousce vertex
+     * @param hop true if odd, false if even
+     * @param off bucket offset
+     * @return
+     */
+    int encode(int sourceId, boolean hop, int off) {
+        assert(off < 128);
+        int hopbit = (hop ? 1 : 0);
+        return ((hopbit << 31) & 0x80000000) | ((off << 24) & 0x7f000000)| (sourceId & 0xffffff);
     }
 
     public int sourceIdx(int walk) {
-        return walk & 0x0000ffff;
+        return walk & 0xffffff;
     }
 
-    public int hop(int walk) {
-        return (walk & 0x000f0000) >> 16;
+    public boolean hop(int walk) {
+        return (0 != (walk & 0x80000000));
     }
 
     public int off(int walk) {
-        return (walk & 0xfff00000) >> 20;
+        return (walk & 0x7f000000) >> 24;
     }
 
 
-    public void updateWalk(int sourceId, int toVertex, int hop) {
+    /**
+     * @param sourceId
+     * @param toVertex
+     * @param hop true if odd, false if even hop
+     */
+    public void updateWalk(int sourceId, int toVertex, boolean hop) {
         int bucket = toVertex / bucketSize;
-        assert(hop < 16);
-
         synchronized (walks[bucket]) {
             int idx = walkIndices[bucket];
             if (idx == walks[bucket].length) {
@@ -117,7 +135,7 @@ public class WalkManager {
         for(int i=0; i < sourceSeqIdx; i++) {
             int source = sources[i];
             int count = sourceWalkCounts[i];
-            for(int c=0; c<count; c++) updateWalk(i, source, 0);
+            for(int c=0; c<count; c++) updateWalk(i, source, false);
         }
         _timer.stop();
     }
@@ -178,7 +196,7 @@ public class WalkManager {
 
             for(int i=0; i < len; i++) {
                 int w = arr[i];
-                int hop = hop(w);
+                boolean hop = hop(w);
                 int vertex = bucketFirstVertex + off(w);
                 int src = sourceIdx(w);
 
@@ -240,11 +258,9 @@ public class WalkManager {
             if (ws != null) {
                 for(int j=0; j < ws.length; j++) {
                     int w = ws[j];
-                    if (hop(w) > 2) { // NOTE! To save disk space
-                        int source = sources[sourceIdx(w)];
-                        dos.writeInt(source);
-                        dos.writeInt(i);
-                    }
+                    int source = sources[sourceIdx(w)];
+                    dos.writeInt(source);
+                    dos.writeInt(i);
                 }
             }
         }

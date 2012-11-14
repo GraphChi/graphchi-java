@@ -15,29 +15,32 @@ public class TestWalkManager {
 
     @Test
     public void testWalkEncodings() {
-        WalkManager wmgr = new WalkManager(1000);
-        int x = wmgr.encode(3, 2, 284);
-        int hop = wmgr.hop(x);
+        WalkManager wmgr = new WalkManager(1000, 10000);
+        int x = wmgr.encode(3, true, 114);
+
+        System.out.println("X = " + x);
+
+        boolean hop = wmgr.hop(x);
         int src = wmgr.sourceIdx(x);
         int off = wmgr.off(x);
         assertEquals(3, src);
-        assertEquals(2, hop);
-        assertEquals(284, off);
+        assertEquals(true, hop);
+        assertEquals(114, off);
 
-        x = wmgr.encode(878, 0, 999);
+        x = wmgr.encode(16777200, false, 126);
         hop = wmgr.hop(x);
         src = wmgr.sourceIdx(x);
         off = wmgr.off(x);
-        assertEquals(878, src);
-        assertEquals(0, hop);
-        assertEquals(999, off);
+        assertEquals(16777200, src);
+        assertEquals(false, hop);
+        assertEquals(126, off);
 
-        x = wmgr.encode(16367, 8, 0);
+        x = wmgr.encode(16367, true, 0);
         hop = wmgr.hop(x);
         src = wmgr.sourceIdx(x);
         off = wmgr.off(x);
         assertEquals(16367, src);
-        assertEquals(8, hop);
+        assertEquals(true, hop);
         assertEquals(0, off);
     }
 
@@ -46,7 +49,7 @@ public class TestWalkManager {
     @Test
     public void testWalkManager() throws IOException {
         int nvertices = 33333;
-        WalkManager wmgr = new WalkManager(nvertices);
+        WalkManager wmgr = new WalkManager(nvertices, 40000);
         int tot = 0;
         for(int j=877; j < 3898; j++) {
             wmgr.addWalkBatch(j, (j % 100) + 10);
@@ -65,7 +68,7 @@ public class TestWalkManager {
 
             for(int w : vertexwalks) {
                 if (w != -1)
-                    assertEquals(0, wmgr.hop(w));
+                    assertEquals(false, wmgr.hop(w));
             }
         }
         assertEquals(890, snapshot1.getFirstVertex());
@@ -105,20 +108,20 @@ public class TestWalkManager {
         }
 
         /* Then update some walks */
-        wmgr.updateWalk(88, 22098, 5);
-        wmgr.updateWalk(41, 76, 3);
+        wmgr.updateWalk(88, 22098, true);
+        wmgr.updateWalk(41, 76, false);
 
         WalkSnapshot snapshot7 = wmgr.grabSnapshot(76, 22098);
         int[] w1 = snapshot7.getWalksAtVertex(76);
         assertEquals(1, WalkManager.getWalkLength(w1));
         int w = w1[0];
         assertEquals(41, wmgr.sourceIdx(w));
-        assertEquals(3, wmgr.hop(w));
+        assertEquals(false, wmgr.hop(w));
 
         int[] w2 = snapshot7.getWalksAtVertex(22098);
         w = w2[0];
         assertEquals(88, wmgr.sourceIdx(w));
-        assertEquals(5, wmgr.hop(w));
+        assertEquals(true, wmgr.hop(w));
 
     }
 
