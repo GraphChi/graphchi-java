@@ -21,7 +21,7 @@ public class LabelAnalysis {
     /* TODO: faster, more memory efficient */
 
     /**
-     * Analyzes the labels of the vertices and outputs a file baseFilenaem + ".components"
+     * Analyzes the labels of the vertices and outputs a file baseFilename + ".components"
      * with label,count.  Singletons labels not listed.
      * @param baseFilename
      * @return
