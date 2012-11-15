@@ -89,6 +89,9 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
 
     }
 
+    public ArrayList<VertexInterval> getIntervals() {
+        return intervals;
+    }
 
     protected void loadIntervals() throws FileNotFoundException, IOException {
         String intervalFilename = ChiFilenames.getFilenameIntervals(baseFilename, nShards);
