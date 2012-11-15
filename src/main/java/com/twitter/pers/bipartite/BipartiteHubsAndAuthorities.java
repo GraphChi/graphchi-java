@@ -51,7 +51,6 @@ public class BipartiteHubsAndAuthorities implements GraphChiProgram<Float, Float
         numComputations = computations.size();
 
         leftWeightMatrix = new HugeFloatMatrix(maxLeftVertex + 1, numComputations);
-
         rightScoreMatrix = new HugeFloatMatrix(maxRightVertex - RIGHTSIDE_MIN + 1, numComputations, 1.0f);
         leftScoreMatrix = new HugeFloatMatrix(maxLeftVertex + 1, numComputations, 1.0f);
 
@@ -70,7 +69,6 @@ public class BipartiteHubsAndAuthorities implements GraphChiProgram<Float, Float
 
     @Override
     public void update(ChiVertex<Float, Float> vertex, GraphChiContext context) {
-
         boolean isLeft = vertex.getId() < RIGHTSIDE_MIN;
 
         for(int compId=0; compId < numComputations; compId++) {
