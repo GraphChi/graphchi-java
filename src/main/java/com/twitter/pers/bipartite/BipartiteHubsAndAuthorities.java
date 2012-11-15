@@ -33,6 +33,7 @@ public class BipartiteHubsAndAuthorities implements GraphChiProgram<Float, Float
     protected HugeFloatMatrix leftScoreMatrix;
     protected HugeFloatMatrix rightScoreMatrix;
     protected int numComputations;
+    protected boolean initWeights;
 
 
     /**
@@ -49,7 +50,7 @@ public class BipartiteHubsAndAuthorities implements GraphChiProgram<Float, Float
                                           boolean weighted, boolean initWeights)
             throws IOException {
         numComputations = computations.size();
-
+        this.initWeights = initWeights;
         leftWeightMatrix = new HugeFloatMatrix(maxLeftVertex + 1, numComputations);
         rightScoreMatrix = new HugeFloatMatrix(maxRightVertex - RIGHTSIDE_MIN + 1, numComputations, 1.0f);
         leftScoreMatrix = new HugeFloatMatrix(maxLeftVertex + 1, numComputations, 1.0f);
@@ -70,9 +71,14 @@ public class BipartiteHubsAndAuthorities implements GraphChiProgram<Float, Float
     @Override
     public void update(ChiVertex<Float, Float> vertex, GraphChiContext context) {
         boolean isLeft = vertex.getId() < RIGHTSIDE_MIN;
-
+        if (isLeft && initWeights && context.getIteration() == 0) {
+            // If the left side has initial weights, then we need
+            // to run right side (the hubs) first.
+            return;
+        }
         for(int compId=0; compId < numComputations; compId++) {
             if (isLeft) {
+
                 if (vertex.getId() >= leftWeightMatrix.getNumRows()) {
                     continue;
                 }

@@ -29,7 +29,11 @@ public class SALSA extends BipartiteHubsAndAuthorities {
         if (RIGHTSIDE_MIN  < 0) throw new IllegalArgumentException("list-id-offset not set!");
 
         boolean isLeft = vertex.getId() < RIGHTSIDE_MIN;
-
+        if (isLeft && initWeights && context.getIteration() == 0) {
+            // If the left side has initial weights, then we need
+            // to run right side (the hubs) first.
+            return;
+        }
         if (context.getIteration() == context.getNumIterations() - 1) {
             // Last iteration
             if (isLeft) {
@@ -47,6 +51,7 @@ public class SALSA extends BipartiteHubsAndAuthorities {
                 if (vertex.getId() >= leftWeightMatrix.getNumRows()) {
                     continue;
                 }
+
                 /* Left side */
                 float sumRight = 0.0f;
                 float myWeight = leftWeightMatrix.getValue(vertex.getId(), compId);
