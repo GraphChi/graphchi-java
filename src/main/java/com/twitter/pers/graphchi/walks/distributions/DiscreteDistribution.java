@@ -1,6 +1,12 @@
 package com.twitter.pers.graphchi.walks.distributions;
 
-import java.util.Arrays;
+import edu.cmu.graphchi.aggregators.ForeachCallback;
+import edu.cmu.graphchi.aggregators.VertexAggregator;
+import edu.cmu.graphchi.datablocks.IntConverter;
+import edu.cmu.graphchi.util.IdCount;
+import edu.cmu.graphchi.util.IdInt;
+
+import java.util.*;
 
 /**
  * Presents a map from integers to frequencies.
@@ -17,6 +23,29 @@ public class DiscreteDistribution {
         ids = new int[initialCapacity];
         counts = new int[initialCapacity];
         uniqueCount = initialCapacity;
+    }
+
+
+    public TreeSet<IdCount> getTop(int topN) {
+        final TreeSet<IdCount> topList = new TreeSet<IdCount>(new Comparator<IdCount>() {
+            public int compare(IdCount a, IdCount b) {
+                return (a.count > b.count ? -1 : (a.count == b.count ? 0 : 1)); // Descending order
+            }
+        });
+        IdCount least = null;
+        for(int i=0; i<uniqueCount; i++) {
+            if (topList.size() < topN) {
+                topList.add(new IdCount(ids[i], counts[i]));
+                least = topList.last();
+            } else {
+                if (counts[i] > least.count) {
+                    topList.remove(least);
+                    topList.add(new IdCount(ids[i], counts[i]));
+                    least = topList.last();
+                }
+            }
+        }
+        return topList;
     }
 
     /**

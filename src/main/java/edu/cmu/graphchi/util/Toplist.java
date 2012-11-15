@@ -37,8 +37,6 @@ public class Toplist {
         }
 
         );
-
-
         return topList;
     }
 

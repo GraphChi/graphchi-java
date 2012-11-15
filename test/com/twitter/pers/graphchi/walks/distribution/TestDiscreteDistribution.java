@@ -1,6 +1,7 @@
 package com.twitter.pers.graphchi.walks.distribution;
 
 import com.twitter.pers.graphchi.walks.distributions.DiscreteDistribution;
+import edu.cmu.graphchi.util.IdCount;
 import org.junit.Test;
 
 import java.util.*;
@@ -64,37 +65,37 @@ public class TestDiscreteDistribution {
 
 
     private int[] toIntArray(ArrayList<Integer> arr) {
-       int[] a = new int[arr.size()];
-       for(int i=0; i<arr.size(); i++) {
-           a[i] = arr.get(i);
-       }
-       return a;
+        int[] a = new int[arr.size()];
+        for(int i=0; i<arr.size(); i++) {
+            a[i] = arr.get(i);
+        }
+        return a;
     }
 
     @Test
     public void testBigMerge() {
-        Random r = new Random();
+        Random r = new Random(260379);
+
         TreeMap<Integer, Integer> leftSet = new TreeMap<Integer, Integer>();
         TreeMap<Integer, Integer> rightSet = new TreeMap<Integer, Integer>();
 
         // There must be collisions and also some omissions
         for(int i=0; i < 4001; i++) {
-             leftSet.put(r.nextInt(4000),  r.nextInt(1000));
-             rightSet.put(r.nextInt(4000),  r.nextInt(1000));
+            leftSet.put(r.nextInt(4000),  r.nextInt(1000));
+            rightSet.put(r.nextInt(4000),  r.nextInt(1000));
         }
 
         // Compose
         ArrayList<Integer> leftArray = new ArrayList<Integer>(4000);
         for(Map.Entry<Integer ,Integer> e : leftSet.entrySet()) {
-           for(int j=0; j<e.getValue(); j++) leftArray.add(e.getKey());
+            for(int j=0; j<e.getValue(); j++) leftArray.add(e.getKey());
         }
         ArrayList<Integer> rightArray = new ArrayList<Integer>(4000);
         for(Map.Entry<Integer ,Integer> e : rightSet.entrySet()) {
             for(int j=0; j<e.getValue(); j++) rightArray.add(e.getKey());
         }
 
-
-
+        // Create and Merge
         DiscreteDistribution leftDist = new DiscreteDistribution(toIntArray(leftArray));
         DiscreteDistribution rightDist = new DiscreteDistribution(toIntArray(rightArray));
         DiscreteDistribution mergedDist = DiscreteDistribution.merge(leftDist, rightDist);
@@ -106,5 +107,46 @@ public class TestDiscreteDistribution {
             assertEquals(rc, rightDist.getCount(i));
             assertEquals(lc + rc, mergedDist.getCount(i));
         }
+    }
+
+    private void insertMultiple(ArrayList<Integer> arr, int val, int n) {
+        for(int i=0; i<n; i++) arr.add(val);
+    }
+
+    @Test
+    public void testTop() {
+        Random r = new Random(260379);
+
+        ArrayList<Integer> workArr = new ArrayList<Integer>();
+        TreeMap<Integer, Integer> countToId = new TreeMap<Integer, Integer>(new Comparator<Integer>() {
+            public int compare(Integer integer, Integer integer1) {
+                return -integer.compareTo(integer1);
+            }
+        });
+        for(int i=1; i < 200; i+=2) {
+            int n;
+            do {
+                n = r.nextInt(10000);
+            } while (countToId.containsKey(n)); // Unique count keys
+            countToId.put(n, i);
+            insertMultiple(workArr, i, n);
+        }
+
+        DiscreteDistribution dist = new DiscreteDistribution(toIntArray(workArr));
+        TreeSet<IdCount> top = dist.getTop(10);
+
+        Iterator<IdCount> topIterator = top.iterator();
+        int j = 0;
+        for(Map.Entry <Integer, Integer> e : countToId.entrySet()) {
+            IdCount topEntryJ = topIterator.next();
+            assertEquals((int)e.getValue(), topEntryJ.id);
+            assertEquals((int)e.getKey(), topEntryJ.count);
+            j++;
+            if (!topIterator.hasNext()) {
+                assertEquals(10, j);
+                break;
+            }
+        }
+
     }
 }
