@@ -10,6 +10,8 @@ import java.util.*;
 
 /**
  * Presents a map from integers to frequencies.
+ * Special distributions for avoidance can be used to exclude
+ * certain ids from the distributions in merges.
  * @author Aapo Kyrola, akyrola@twitter.com, akyrola@cs.cmu.edu
  */
 public class DiscreteDistribution {
@@ -49,7 +51,7 @@ public class DiscreteDistribution {
     }
 
     /**
-     * Constructs a distribution from a sorted list of entries
+     * Constructs a distribution from a sorted list of entries.
      * @param sortedIdList
      */
     public DiscreteDistribution(int[] sortedIdList) {
@@ -92,6 +94,18 @@ public class DiscreteDistribution {
         counts[idx] = curCount;
     }
 
+    /**
+     * Create a special avoidance distribution, where each count is -1.
+     * @param avoids  sorted list of ids to avoid
+     * @return
+     */
+    public static DiscreteDistribution createAvoidanceDistribution(int[] avoids) {
+        DiscreteDistribution avoidDistr = new DiscreteDistribution(avoids);
+        Arrays.fill(avoidDistr.counts, -1);
+        return avoidDistr;
+    }
+
+
     public int getCount(int id) {
         int idx = Arrays.binarySearch(ids, id);
         if (idx >= 0) {
@@ -107,11 +121,18 @@ public class DiscreteDistribution {
     }
 
 
+    /**
+     * Merge too distribution. If either has a negative entry for some id, it will
+     * remain negative in the merged distribution (see createAvoidDistribution).
+     * @param d1
+     * @param d2
+     * @return
+     */
     public static DiscreteDistribution merge(DiscreteDistribution d1, DiscreteDistribution d2) {
         /* Merge style algorithm */
 
         /* 1. first count number of different pairs */
-        int combinedCount = 0;
+        int combinedUniqueIndices = 0;
         int leftIdx = 0;
         int rightIdx = 0;
         final int leftCount = d1.size();
@@ -121,20 +142,20 @@ public class DiscreteDistribution {
             if (d1.ids[leftIdx] == d2.ids[rightIdx]) {
                 leftIdx++;
                 rightIdx++;
-                combinedCount++;
+                combinedUniqueIndices++;
             } else if (d1.ids[leftIdx] < d2.ids[rightIdx]) {
-                combinedCount++;
+                combinedUniqueIndices++;
                 leftIdx++;
             } else {
-                combinedCount++;
+                combinedUniqueIndices++;
                 rightIdx++;
             }
         }
-        combinedCount += (rightCount - rightIdx);
-        combinedCount += (leftCount - leftIdx);
+        combinedUniqueIndices += (rightCount - rightIdx);
+        combinedUniqueIndices += (leftCount - leftIdx);
 
         /* Create new merged distribution by doing the actual merge */
-        DiscreteDistribution merged = new DiscreteDistribution(combinedCount);
+        DiscreteDistribution merged = new DiscreteDistribution(combinedUniqueIndices);
         leftIdx = 0;
         rightIdx = 0;
         int idx = 0;
@@ -142,18 +163,23 @@ public class DiscreteDistribution {
             if (d1.ids[leftIdx] == d2.ids[rightIdx]) {
                 merged.ids[idx] = d1.ids[leftIdx];
                 merged.counts[idx] = d1.counts[leftIdx] + d2.counts[rightIdx];
+
+                // Force to retain negativity
+                if (d1.counts[leftIdx] < 0 || d2.counts[rightIdx] < 0) {
+                    merged.counts[idx] = -1;
+                }
                 leftIdx++;
                 rightIdx++;
                 idx++;
 
             } else if (d1.ids[leftIdx] < d2.ids[rightIdx]) {
                 merged.ids[idx] = d1.ids[leftIdx];
-                merged.counts[idx] = d1.counts[leftIdx];
+                merged.counts[idx] = d1.counts[leftIdx];   // Note, retains negativity
                 idx++;
                 leftIdx++;
             } else {
                 merged.ids[idx] = d2.ids[rightIdx];
-                merged.counts[idx] = d2.counts[rightIdx];
+                merged.counts[idx] = d2.counts[rightIdx];   // Note, retains negativity
                 idx++;
                 rightIdx++;
             }

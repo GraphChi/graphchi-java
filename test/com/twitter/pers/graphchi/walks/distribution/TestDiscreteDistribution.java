@@ -95,17 +95,21 @@ public class TestDiscreteDistribution {
             for(int j=0; j<e.getValue(); j++) rightArray.add(e.getKey());
         }
 
-        // Create and Merge
+        // Create and Merge (both ways)
         DiscreteDistribution leftDist = new DiscreteDistribution(toIntArray(leftArray));
         DiscreteDistribution rightDist = new DiscreteDistribution(toIntArray(rightArray));
-        DiscreteDistribution mergedDist = DiscreteDistribution.merge(leftDist, rightDist);
+        DiscreteDistribution mergedDist1 = DiscreteDistribution.merge(leftDist, rightDist);
+        DiscreteDistribution mergedDist2 = DiscreteDistribution.merge(rightDist, leftDist);
+
         for(int i=0; i < 5000; i++) {
             int lc = (leftSet.containsKey(i) ? leftSet.get(i) : 0);
             int rc = (rightSet.containsKey(i) ? rightSet.get(i) : 0);
 
             assertEquals(lc, leftDist.getCount(i));
             assertEquals(rc, rightDist.getCount(i));
-            assertEquals(lc + rc, mergedDist.getCount(i));
+            assertEquals(lc + rc, mergedDist1.getCount(i));
+            assertEquals(lc + rc, mergedDist2.getCount(i));
+
         }
     }
 
@@ -133,6 +137,7 @@ public class TestDiscreteDistribution {
         }
 
         DiscreteDistribution dist = new DiscreteDistribution(toIntArray(workArr));
+
         TreeSet<IdCount> top = dist.getTop(10);
 
         Iterator<IdCount> topIterator = top.iterator();
@@ -147,6 +152,61 @@ public class TestDiscreteDistribution {
                 break;
             }
         }
+    }
 
+    @Test
+    public void testAvoidance() {
+        Random r = new Random(260379);
+
+        /* First create some data  */
+        ArrayList<Integer> workArr = new ArrayList<Integer>();
+        TreeMap<Integer, Integer> countToId = new TreeMap<Integer, Integer>(new Comparator<Integer>() {
+            public int compare(Integer integer, Integer integer1) {
+                return -integer.compareTo(integer1);
+            }
+        });
+        for(int i=1; i < 200; i++) {
+            int n;
+            do {
+                n = r.nextInt(10000);
+            } while (countToId.containsKey(n)); // Unique count keys
+            countToId.put(n, i);
+            insertMultiple(workArr, i, n);
+        }
+        DiscreteDistribution dist = new DiscreteDistribution(toIntArray(workArr));
+
+
+        /* Then insert some edges to avoid */
+        int[] avoids = new int[] {0, 2, 4, 32,33, 66, 67,68,  99, 102, 184};
+        DiscreteDistribution avoidDistr = DiscreteDistribution.createAvoidanceDistribution(avoids);
+
+        // Test the merge works both ways
+        DiscreteDistribution mergedL = DiscreteDistribution.merge(dist, avoidDistr);
+        DiscreteDistribution mergedR = DiscreteDistribution.merge(avoidDistr, dist);
+
+        for(int a : avoids) {
+            assertEquals(-1, avoidDistr.getCount(a));
+            assertEquals(-1, mergedL.getCount(a));
+            assertEquals(-1, mergedR.getCount(a));
+        }
+
+        TreeSet<IdCount> top = dist.getTop(10);
+        Iterator<IdCount> topIterator = top.iterator();
+        int j = 0;
+        HashSet<Integer> avoidSet = new HashSet<Integer>();
+        for(int a : avoids) avoidSet.add(a);
+        for(Map.Entry <Integer, Integer> e : countToId.entrySet()) {
+            IdCount topEntryJ = topIterator.next();
+
+            if (!avoidSet.contains(e.getKey())) {
+                assertEquals((int)e.getValue(), topEntryJ.id);
+                assertEquals((int)e.getKey(), topEntryJ.count);
+                j++;
+                if (!topIterator.hasNext()) {
+                    assertEquals(10, j);
+                    break;
+                }
+            }
+        }
     }
 }
