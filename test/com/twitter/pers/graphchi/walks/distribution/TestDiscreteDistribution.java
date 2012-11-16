@@ -155,6 +155,40 @@ public class TestDiscreteDistribution {
     }
 
     @Test
+    public void testFiltering() {
+        DiscreteDistribution d1 = new DiscreteDistribution(new int[] {1,1,1,8,8,8,9,22,22,22,22,22,333,333,333,333,333,333,333,333});
+        assertEquals(3, d1.getCount(1));
+        assertEquals(3, d1.getCount(8));
+        assertEquals(1, d1.getCount(9));
+        assertEquals(5, d1.getCount(22));
+        assertEquals(8, d1.getCount(333));
+
+        DiscreteDistribution notReallyFiltered = d1.filteredDistribution(1);
+        assertTrue(notReallyFiltered == d1);
+
+        DiscreteDistribution filtered = d1.filteredDistribution(4);
+        assertEquals(0, filtered.getCount(1));
+        assertEquals(0, filtered.getCount(8));
+        assertEquals(0, filtered.getCount(9));
+        assertEquals(5, filtered.getCount(22));
+        assertEquals(8, filtered.getCount(333));
+
+        DiscreteDistribution filteredAll = d1.filteredDistribution(100);
+        DiscreteDistribution filteredAll2 = filtered.filteredDistribution(100);
+
+        assertEquals(0, filteredAll.getCount(1));
+        assertEquals(0, filteredAll.getCount(8));
+        assertEquals(0, filteredAll.getCount(9));
+        assertEquals(0, filteredAll.getCount(22));
+        assertEquals(0, filteredAll.getCount(333));
+        assertEquals(0, filteredAll2.getCount(1));
+        assertEquals(0, filteredAll2.getCount(8));
+        assertEquals(0, filteredAll2.getCount(9));
+        assertEquals(0, filteredAll2.getCount(22));
+        assertEquals(0, filteredAll2.getCount(333));
+    }
+
+    @Test
     public void testAvoidance() {
         Random r = new Random(260379);
 

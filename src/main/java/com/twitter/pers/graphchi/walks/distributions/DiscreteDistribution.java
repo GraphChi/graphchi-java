@@ -94,6 +94,33 @@ public class DiscreteDistribution {
         counts[idx] = curCount;
     }
 
+
+    /**
+     * Creates a new distribution with all entries with count less than
+     * minimumCount removed.
+     */
+    public DiscreteDistribution filteredDistribution(int minimumCount) {
+        int toRemove = 0;
+        for(int i=0; i < uniqueCount; i++) {
+            toRemove += (counts[i] < minimumCount ? 1 : 0);
+        }
+
+        if (toRemove == 0) {
+            return this;   // We can safely return same instance, as this is immutable
+        }
+
+        DiscreteDistribution filteredDist = new DiscreteDistribution(uniqueCount - toRemove);
+        int idx = 0;
+        for(int i=0; i < uniqueCount; i++) {
+            if (counts[i] >= minimumCount) {
+                filteredDist.ids[idx] = ids[i];
+                filteredDist.counts[idx] = counts[i];
+                idx++;
+            }
+        }
+        return filteredDist;
+    }
+
     /**
      * Create a special avoidance distribution, where each count is -1.
      * @param avoids  sorted list of ids to avoid
@@ -129,6 +156,10 @@ public class DiscreteDistribution {
      * @return
      */
     public static DiscreteDistribution merge(DiscreteDistribution d1, DiscreteDistribution d2) {
+
+        if (d1.uniqueCount == 0) return d2;
+        if (d2.uniqueCount == 0) return d1;
+
         /* Merge style algorithm */
 
         /* 1. first count number of different pairs */
