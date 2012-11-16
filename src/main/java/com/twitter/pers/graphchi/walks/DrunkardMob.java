@@ -85,10 +85,11 @@ public class DrunkardMob implements GraphChiProgram<Integer, Boolean> {
         }
 
         // Launch a thread to dump
+        final WalkSnapshot snapshot = curWalkSnapshot;
         Thread dumperThread = new Thread(new Runnable() {
             public void run() {
                 try {
-                    walkManager.dumpToFile(curWalkSnapshot, filename);
+                    walkManager.dumpToFile(snapshot, filename);
                 } catch (Exception err) {
                     err.printStackTrace();
                 }

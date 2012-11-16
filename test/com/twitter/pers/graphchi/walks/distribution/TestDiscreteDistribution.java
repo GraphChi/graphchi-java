@@ -61,6 +61,13 @@ public class TestDiscreteDistribution {
         assertEquals(3, merged2.getCount(1000));
         assertEquals(2, merged2.getCount(2000));
         assertEquals(1, merged2.getCount(30000));
+
+        DiscreteDistribution empty = new DiscreteDistribution();
+        DiscreteDistribution mergedWithEmpty = DiscreteDistribution.merge(empty, d1);
+        DiscreteDistribution mergedWithEmpty2 = DiscreteDistribution.merge(d2, empty);
+        assertTrue(d1 == mergedWithEmpty);
+        assertTrue(d2 == mergedWithEmpty2);
+
     }
 
 

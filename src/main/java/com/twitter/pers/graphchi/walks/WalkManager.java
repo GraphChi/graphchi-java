@@ -6,7 +6,8 @@ import com.yammer.metrics.core.TimerContext;
 import edu.cmu.graphchi.Scheduler;
 
 import java.io.*;
-import java.util.ArrayList;
+import java.lang.management.MemoryManagerMXBean;
+import java.util.*;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -28,6 +29,7 @@ public class WalkManager {
 
     private int[][] walks;
     private int[] walkIndices;
+    private Map<Integer, Integer> sourceMap;
 
     private int numVertices;
     private final Timer grabTimer = Metrics.defaultRegistry().newTimer(WalkManager.class, "grab-walks", TimeUnit.SECONDS, TimeUnit.MINUTES);
@@ -41,6 +43,18 @@ public class WalkManager {
         sources = new int[numSources];
         sourceWalkCounts = new int[numSources];
         System.out.println("Initial size for walk bucket: " + initialSize);
+    }
+
+    public boolean isSource(int vertexId) {
+        return sourceMap.containsKey(vertexId);
+    }
+
+    public int getVertexSourceIdx(int vertexId) {
+        return sourceMap.get(vertexId);
+    }
+
+    public int[] getSources() {
+        return sources;
     }
 
     public synchronized int addWalkBatch(int vertex, int numWalks) {
@@ -57,28 +71,29 @@ public class WalkManager {
 
 
     /**
-     * Encode a walk
+     * Encode a walk. Note, as sourceIdx is the highest order bits, the
+     * walks can be sorted by source simply by sorting the list.
      * @param sourceId index of the rousce vertex
      * @param hop true if odd, false if even
      * @param off bucket offset
      * @return
      */
-    int encode(int sourceId, boolean hop, int off) {
+    static int encode(int sourceId, boolean hop, int off) {
         assert(off < 128);
         int hopbit = (hop ? 1 : 0);
-        return ((hopbit << 31) & 0x80000000) | ((off << 24) & 0x7f000000)| (sourceId & 0xffffff);
+        return ((sourceId & 0xffffff) << 8) | ((off & 0x7f) << 1) | hopbit;
     }
 
-    public int sourceIdx(int walk) {
-        return walk & 0xffffff;
+    public static int sourceIdx(int walk) {
+        return ((walk & 0xffffff00) >> 8) & 0xffffff;
     }
 
-    public boolean hop(int walk) {
-        return (0 != (walk & 0x80000000));
+    public static boolean hop(int walk) {
+        return (walk % 2 == 1);
     }
 
-    public int off(int walk) {
-        return (walk & 0x7f000000) >> 24;
+    public static int off(int walk) {
+        return (walk >> 1) & 0x7f;
     }
 
 
@@ -120,6 +135,14 @@ public class WalkManager {
             walkIndices[i] = 0;
         }
 
+        /* Truncate sources */
+        if (sourceSeqIdx < sources.length) {
+            int[] tmpsrcs = new int[sourceSeqIdx];
+            System.arraycopy(sources, 0, tmpsrcs, 0, sourceSeqIdx);
+            sources = tmpsrcs;
+        }
+
+
         /* Precalculate bucket sizes for performance */
         int[] tmpsizes = new int[walks.length];
         for(int j=0; j < sourceSeqIdx; j++) {
@@ -136,6 +159,12 @@ public class WalkManager {
             int source = sources[i];
             int count = sourceWalkCounts[i];
             for(int c=0; c<count; c++) updateWalk(i, source, false);
+        }
+
+        // Create sourceMap
+        sourceMap = new HashMap<Integer, Integer>(sources.length);
+        for(int i=0; i < sourceSeqIdx; i++) {
+            sourceMap.put(sources[i], i);
         }
         _timer.stop();
     }
@@ -226,6 +255,13 @@ public class WalkManager {
 
         /* Create the snapshot object */
         return new WalkSnapshot() {
+
+            public int numWalks() {
+                int sum = 0;
+                for(int i=0; i<snapshots.length; i++) sum += snapshots[i].length;
+                return sum;
+            }
+
             @Override
             public int[] getWalksAtVertex(int vertexId) {
                 return snapshots[vertexId - fromVertex];
@@ -240,6 +276,8 @@ public class WalkManager {
             public int getLastVertex() {
                 return toVertexInclusive;
             }
+
+
         };
 
     }

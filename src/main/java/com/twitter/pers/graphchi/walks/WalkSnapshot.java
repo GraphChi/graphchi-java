@@ -11,4 +11,6 @@ public interface WalkSnapshot {
     int getFirstVertex();
 
     int getLastVertex();
+
+    public int numWalks();
 }

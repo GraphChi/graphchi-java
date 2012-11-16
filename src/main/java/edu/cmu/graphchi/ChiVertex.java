@@ -4,6 +4,7 @@ import edu.cmu.graphchi.datablocks.BytesToValueConverter;
 import edu.cmu.graphchi.datablocks.ChiPointer;
 import edu.cmu.graphchi.datablocks.DataBlockManager;
 import edu.cmu.graphchi.engine.auxdata.VertexDegree;
+import sun.reflect.generics.reflectiveObjects.NotImplementedException;
 
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -165,6 +166,18 @@ public class ChiVertex<VertexValue, EdgeValue> {
 
     public int numEdges() {
         return nInedges + nOutedges.get();
+    }
+
+    public int[] getOutNeighborArray() {
+        if (edgeValueConverter != null) {
+            int[] nbrs = new int[numOutEdges()];
+            for(int i=0; i<nbrs.length; i++) {
+                nbrs[i] = outEdgeDataArray[(i * 3) + 2];
+            }
+            return nbrs;
+        } else {
+            return outEdgeDataArray.clone();
+        }
     }
 
 

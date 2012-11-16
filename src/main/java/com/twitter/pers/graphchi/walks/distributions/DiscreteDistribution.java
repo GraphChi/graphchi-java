@@ -27,6 +27,13 @@ public class DiscreteDistribution {
         uniqueCount = initialCapacity;
     }
 
+    /**
+     * Create an empty distribution
+     */
+    public DiscreteDistribution() {
+        this(0);
+    }
+
 
     public TreeSet<IdCount> getTop(int topN) {
         final TreeSet<IdCount> topList = new TreeSet<IdCount>(new Comparator<IdCount>() {
