@@ -119,12 +119,14 @@ public class DrunkardMobWithCompanion implements GraphChiProgram<Integer, Boolea
                     int[] vertices = new int[n];
                     int idx = 0;
                     for(int v=snapshot.getFirstVertex(); v<=snapshot.getLastVertex(); v++) {
-                       int[] walksAtVertex = snapshot.getWalksAtVertex(v);
-                       for(int j=0; j<walksAtVertex.length; j++) {
-                           walks[idx] = walksAtVertex[j];
-                           vertices[idx] = v;
-                           idx++;
-                       }
+                        int[] walksAtVertex = snapshot.getWalksAtVertex(v);
+                        if (walksAtVertex != null) {
+                            for(int j=0; j<walksAtVertex.length; j++) {
+                                walks[idx] = walksAtVertex[j];
+                                vertices[idx] = v;
+                                idx++;
+                            }
+                        }
                     }
                     companion.processWalks(walks, vertices);
                 } catch (Exception err) {
@@ -177,7 +179,7 @@ public class DrunkardMobWithCompanion implements GraphChiProgram<Integer, Boolea
             engine.setMemoryBudgetMb(1200);
             engine.setUseStaticWindowSize(false); // Disable dynamic window size detection
             engine.setEnableDeterministicExecution(false);
-            engine.setAutoLoadNext(true);
+            engine.setAutoLoadNext(false);
             engine.setMaxWindow(2000000); // Handle maximum 2M vertices a time.
 
             long t1 = System.currentTimeMillis();

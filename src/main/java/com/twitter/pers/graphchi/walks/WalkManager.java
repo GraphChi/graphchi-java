@@ -258,7 +258,7 @@ public class WalkManager {
 
             public int numWalks() {
                 int sum = 0;
-                for(int i=0; i<snapshots.length; i++) sum += snapshots[i].length;
+                for(int i=0; i<snapshots.length; i++) sum += (snapshots[i] != null ? snapshots[i].length : 0);
                 return sum;
             }
 
@@ -307,8 +307,8 @@ public class WalkManager {
         _timer.stop();
     }
 
-    public int getSourceVertex(int srcIdx) {
-        return sources[srcIdx];
+    public int getSourceVertex(int walk) {
+        return sources[sourceIdx(walk)];
     }
 
     public void populateSchedulerWithSources(Scheduler scheduler) {
