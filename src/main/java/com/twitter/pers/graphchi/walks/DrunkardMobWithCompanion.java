@@ -18,6 +18,7 @@ import java.rmi.Naming;
 import java.rmi.RemoteException;
 import java.util.TreeSet;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Launch millions (?) of random walks and record the
@@ -30,6 +31,7 @@ public class DrunkardMobWithCompanion implements GraphChiProgram<Integer, Boolea
     private WalkManager walkManager;
     private WalkSnapshot curWalkSnapshot;
     private RemoteDrunkardCompanion companion;
+    private AtomicInteger outStanding = new AtomicInteger(0);
 
     public DrunkardMobWithCompanion(String companionAddress) throws Exception {
         companion = (RemoteDrunkardCompanion) Naming.lookup(companionAddress);
@@ -94,6 +96,17 @@ public class DrunkardMobWithCompanion implements GraphChiProgram<Integer, Boolea
 
     public void endIteration(GraphChiContext ctx) {}
 
+    public void spinUntilFinish() {
+        while (outStanding.get() > 0) {
+            try {
+                System.out.println("Waiting ...");
+                Thread.sleep(500);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+        }
+    }
+
     /**
      * At the start of interval - grab the snapshot of walks
      */
@@ -109,6 +122,7 @@ public class DrunkardMobWithCompanion implements GraphChiProgram<Integer, Boolea
         }
 
         final WalkSnapshot snapshot = curWalkSnapshot;
+        outStanding.incrementAndGet();
 
         // Launch a thread to send to the companion
         Thread dumperThread = new Thread(new Runnable() {
@@ -128,9 +142,14 @@ public class DrunkardMobWithCompanion implements GraphChiProgram<Integer, Boolea
                             }
                         }
                     }
-                    companion.processWalks(walks, vertices);
+                    synchronized (companion) {
+                        companion.processWalks(walks, vertices);
+                    }
                 } catch (Exception err) {
                     err.printStackTrace();
+                }  finally {
+                    outStanding.decrementAndGet();
+
                 }
             }
         });
@@ -196,6 +215,7 @@ public class DrunkardMobWithCompanion implements GraphChiProgram<Integer, Boolea
                 mob.walkManager.addWalkBatch(source, walksPerSource);
             }
             mob.walkManager.initializeWalks();
+
             mob.initCompanion();
 
             System.out.println("Configured " + mob.walkManager.getTotalWalks() + " walks in " +
@@ -205,6 +225,8 @@ public class DrunkardMobWithCompanion implements GraphChiProgram<Integer, Boolea
             /* Run */
             engine.run(mob, maxHops + 1);
 
+            // TODO: ensure that we have sent all walks!
+            mob.spinUntilFinish();
             mob.companion.outputDistributions(baseFilename + "_distribution.tsv");
         }
         System.out.println("Ready. Going to output...");
@@ -215,9 +237,6 @@ public class DrunkardMobWithCompanion implements GraphChiProgram<Integer, Boolea
             System.out.println(++i + ": " + vertexRank.getVertexId() + " = " + vertexRank.getValue());
         }
         System.out.println("Finished.");
-
-
-
         long sumWalks = VertexAggregator.sumInt(baseFilename);
         System.out.println("Total hops (in file): " + sumWalks);
         rep.run();

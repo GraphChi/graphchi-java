@@ -4,6 +4,7 @@ import com.twitter.pers.graphchi.walks.WalkManager;
 import edu.cmu.graphchi.util.IdCount;
 import edu.cmu.graphchi.util.IntegerBuffer;
 
+import javax.sound.midi.SysexMessage;
 import java.io.*;
 import java.rmi.Naming;
 import java.rmi.RemoteException;
@@ -13,6 +14,7 @@ import java.util.Arrays;
 import java.util.TreeSet;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * DrunkardCompanion is a remote service that receives walks from the walker
@@ -27,6 +29,7 @@ public class DrunkardCompanion extends UnicastRemoteObject implements RemoteDrun
     private Object[] locks;
     private DiscreteDistribution[] distributions;
     private IntegerBuffer[] buffers;
+    private AtomicInteger outstanding = new AtomicInteger(0);
 
     private ExecutorService parallelExecutor;
 
@@ -66,6 +69,7 @@ public class DrunkardCompanion extends UnicastRemoteObject implements RemoteDrun
 
 
     private void _processWalks(int[] walks, int[] atVertices) {
+        long t1 = System.currentTimeMillis();
         System.out.println("Processing " + walks.length + " walks...");
         for(int i=0; i < walks.length; i++) {
             int w = walks[i];
@@ -78,6 +82,7 @@ public class DrunkardCompanion extends UnicastRemoteObject implements RemoteDrun
                 }
             }
         }
+        System.out.println("Finished processing, took: " + (System.currentTimeMillis() - t1) + " ms");
     }
 
     private void drainBuffer(int sourceIdx) {
@@ -90,16 +95,30 @@ public class DrunkardCompanion extends UnicastRemoteObject implements RemoteDrun
 
     @Override
     public void processWalks(final int[] walks, final int[] atVertices) throws RemoteException {
+        outstanding.incrementAndGet();
         parallelExecutor.submit(new Runnable() {
             @Override
             public void run() {
+                try {
                 _processWalks(walks, atVertices);
+                } finally {
+                    outstanding.decrementAndGet();
+                }
             }
         });
     }
 
     @Override
     public void outputDistributions(String outputFile) throws RemoteException {
+        System.out.println("Waiting for processing to finish");
+        while(outstanding.get() > 0) {
+            System.out.println("...");
+            try {
+                Thread.sleep(500);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+        }
         System.out.println("Write output...");
         try {
             BufferedWriter wr = new BufferedWriter(new FileWriter(outputFile));
@@ -109,7 +128,7 @@ public class DrunkardCompanion extends UnicastRemoteObject implements RemoteDrun
                 drainBuffer(i);
                 DiscreteDistribution distr = distributions[i];
                 TreeSet<IdCount> topVertices = distr.getTop(10);
-                wr.write(sourceVertex);
+                wr.write(sourceVertex + "\t");
                 for(IdCount vc : topVertices) {
                    wr.write("\t");
                    wr.write(vc.id + "," + vc.count);
