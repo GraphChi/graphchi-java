@@ -62,7 +62,7 @@ public class DrunkardCompanion extends UnicastRemoteObject implements RemoteDrun
             locks[i] = new Object();
             sourceVertexIds[i] = sources[i];
             buffers[i] = new IntegerBuffer(BUFFER_CAPACITY);
-            distributions[i] = new DiscreteDistribution();
+            distributions[i] = DiscreteDistribution.createAvoidanceDistribution(new int[]{sources[i]}); // Add the vertex itself to avoids
         }
         System.out.println("Done...");
     }
@@ -75,11 +75,25 @@ public class DrunkardCompanion extends UnicastRemoteObject implements RemoteDrun
             int w = walks[i];
             int atVertex = atVertices[i];
             int sourceIdx = WalkManager.sourceIdx(w);
+
+            if (atVertex == sourceVertexIds[sourceIdx]) {
+                // Ignore - at origin
+                continue;
+            }
+
+            IntegerBuffer drainArr = null;
             synchronized (locks[sourceIdx]) {
                 buffers[sourceIdx].add(atVertex);
                 if (buffers[sourceIdx].size() >= BUFFER_MAX) {
-                    drainBuffer(sourceIdx);
+                    drainArr = buffers[sourceIdx];
+                    buffers[sourceIdx] = new IntegerBuffer(BUFFER_CAPACITY);
                 }
+            }
+
+            // Do hard part of the draining outside of lock
+            if (drainArr != null) {
+                DiscreteDistribution dist = new DiscreteDistribution(drainArr.toIntArray());
+                mergeWith(sourceIdx, dist);
             }
         }
         System.out.println("Finished processing, took: " + (System.currentTimeMillis() - t1) + " ms");
