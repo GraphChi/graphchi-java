@@ -32,6 +32,7 @@ public class DrunkardMobWithCompanion implements GraphChiProgram<Integer, Boolea
     private WalkSnapshot curWalkSnapshot;
     private RemoteDrunkardCompanion companion;
     private AtomicInteger outStanding = new AtomicInteger(0);
+    private int maxOutstanding = 8;
 
     public DrunkardMobWithCompanion(String companionAddress) throws Exception {
         companion = (RemoteDrunkardCompanion) Naming.lookup(companionAddress);
@@ -123,6 +124,16 @@ public class DrunkardMobWithCompanion implements GraphChiProgram<Integer, Boolea
 
         final WalkSnapshot snapshot = curWalkSnapshot;
         outStanding.incrementAndGet();
+
+
+        while(outStanding.get() >= maxOutstanding) {
+            System.out.print(".");
+            try {
+                Thread.sleep(500);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+        }
 
         // Launch a thread to send to the companion
         Thread dumperThread = new Thread(new Runnable() {

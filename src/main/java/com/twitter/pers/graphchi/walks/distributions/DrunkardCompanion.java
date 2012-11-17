@@ -25,6 +25,8 @@ public class DrunkardCompanion extends UnicastRemoteObject implements RemoteDrun
     private static final int BUFFER_CAPACITY = 64;
     private static final int BUFFER_MAX = 256;
 
+    private int maxOutstanding = 4;
+
     private int[] sourceVertexIds;
     private Object[] locks;
     private DiscreteDistribution[] distributions;
@@ -109,6 +111,13 @@ public class DrunkardCompanion extends UnicastRemoteObject implements RemoteDrun
 
     @Override
     public void processWalks(final int[] walks, final int[] atVertices) throws RemoteException {
+        while(outstanding.get() > maxOutstanding) {
+            System.out.println("Flow control...");
+            try {
+                Thread.sleep(100);
+            } catch (InterruptedException e) {
+            }
+        }
         outstanding.incrementAndGet();
         parallelExecutor.submit(new Runnable() {
             @Override
