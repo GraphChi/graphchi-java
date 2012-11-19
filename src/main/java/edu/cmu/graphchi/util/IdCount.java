@@ -1,10 +1,12 @@
 package edu.cmu.graphchi.util;
 
+import java.io.Serializable;
+
 /**
  * @author akyrola
  *         Date: 7/15/12
  */
-public class IdCount implements Comparable<IdCount> {
+public class IdCount implements Comparable<IdCount>, Serializable {
     public int id;
     public int count;
 

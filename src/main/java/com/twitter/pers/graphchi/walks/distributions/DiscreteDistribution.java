@@ -35,7 +35,7 @@ public class DiscreteDistribution {
     }
 
 
-    public TreeSet<IdCount> getTop(int topN) {
+    public IdCount[] getTop(int topN) {
         final TreeSet<IdCount> topList = new TreeSet<IdCount>(new Comparator<IdCount>() {
             public int compare(IdCount a, IdCount b) {
                 return (a.count > b.count ? -1 : (a.count == b.count ? 0 : 1)); // Descending order
@@ -54,7 +54,9 @@ public class DiscreteDistribution {
                 }
             }
         }
-        return topList;
+        IdCount[] topArr = new IdCount[topList.size()];
+        topList.toArray(topArr);
+        return topArr;
     }
 
     /**

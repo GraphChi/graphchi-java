@@ -1,7 +1,10 @@
 package com.twitter.pers.graphchi.walks.distributions;
 
+import edu.cmu.graphchi.util.IdCount;
+
 import java.rmi.Remote;
 import java.rmi.RemoteException;
+import java.util.TreeSet;
 
 /**
  * @author  Aapo Kyrola, akyrola@twitter.com
@@ -22,5 +25,6 @@ public interface RemoteDrunkardCompanion extends Remote {
 
     void outputDistributions(String outputFile) throws RemoteException;
 
+    IdCount[] getTop(int vertexId) throws RemoteException;
 
 }

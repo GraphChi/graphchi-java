@@ -148,16 +148,16 @@ public class TestDiscreteDistribution {
 
         DiscreteDistribution dist = new DiscreteDistribution(toIntArray(workArr));
 
-        TreeSet<IdCount> top = dist.getTop(10);
+        IdCount[] top = dist.getTop(10);
 
-        Iterator<IdCount> topIterator = top.iterator();
+
         int j = 0;
         for(Map.Entry <Integer, Integer> e : countToId.entrySet()) {
-            IdCount topEntryJ = topIterator.next();
+            IdCount topEntryJ = top[j];
             assertEquals((int)e.getValue(), topEntryJ.id);
             assertEquals((int)e.getKey(), topEntryJ.count);
             j++;
-            if (!topIterator.hasNext()) {
+            if (top.length <= j) {
                 assertEquals(10, j);
                 break;
             }
@@ -251,19 +251,18 @@ public class TestDiscreteDistribution {
             assertEquals(-1, mergedR.getCount(a));
         }
 
-        TreeSet<IdCount> top = dist.getTop(10);
-        Iterator<IdCount> topIterator = top.iterator();
+        IdCount[] top = dist.getTop(10);
         int j = 0;
         HashSet<Integer> avoidSet = new HashSet<Integer>();
         for(int a : avoids) avoidSet.add(a);
         for(Map.Entry <Integer, Integer> e : countToId.entrySet()) {
-            IdCount topEntryJ = topIterator.next();
+            IdCount topEntryJ = top[j];
 
             if (!avoidSet.contains(e.getKey())) {
                 assertEquals((int)e.getValue(), topEntryJ.id);
                 assertEquals((int)e.getKey(), topEntryJ.count);
                 j++;
-                if (!topIterator.hasNext()) {
+                if (top.length <= j) {
                     assertEquals(10, j);
                     break;
                 }

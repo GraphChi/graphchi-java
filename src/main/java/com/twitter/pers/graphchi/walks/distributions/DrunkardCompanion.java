@@ -1,5 +1,6 @@
 package com.twitter.pers.graphchi.walks.distributions;
 
+import com.sun.xml.internal.messaging.saaj.util.ByteInputStream;
 import com.twitter.pers.graphchi.walks.WalkManager;
 import edu.cmu.graphchi.util.IdCount;
 import edu.cmu.graphchi.util.IntegerBuffer;
@@ -35,11 +36,13 @@ public class DrunkardCompanion extends UnicastRemoteObject implements RemoteDrun
 
     private ExecutorService parallelExecutor;
     private Double pruneFraction;
+    private String workingDir;
 
 
-    public DrunkardCompanion(double pruneFraction) throws RemoteException {
+    public DrunkardCompanion(double pruneFraction, String workingDir) throws RemoteException {
         parallelExecutor = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
         this.pruneFraction = pruneFraction;
+        this.workingDir = workingDir;
     }
 
     private void mergeWith(int sourceIdx, DiscreteDistribution distr) {
@@ -127,9 +130,64 @@ public class DrunkardCompanion extends UnicastRemoteObject implements RemoteDrun
 
 
         System.out.println("Processing " + walks.length + " took " + (System.currentTimeMillis() - t1) + " ms.");
-
-
     }
+
+    @Override
+    public IdCount[] getTop(int vertexId) throws RemoteException {
+        int sourceIdx = Arrays.binarySearch(sourceVertexIds, vertexId);
+        if (sourceIdx >= 0) {
+            return distributions[sourceIdx].getTop(10);
+        } else {
+            // Find index
+            String[] indexFiles = new File(workingDir).list(new FilenameFilter() {
+                @Override
+                public boolean accept(File file, String s) {
+                    return (s.contains("drunkard_index."));
+                }
+            });
+
+            // Ugly
+            String curFile = null;
+            int curIndex = 0;
+            for(String indexFile : indexFiles) {
+                int indexStart = Integer.parseInt(indexFile.substring(indexFile.lastIndexOf(".") + 1));
+                if (indexStart >= vertexId) {
+                    if (curFile == null || curIndex > indexStart) {
+                        curIndex = indexStart;
+                        curFile = indexFile;
+                    }
+                }
+            }
+            if (curFile == null) throw new RuntimeException("Vertex not found in database!");
+            else {
+                System.out.println("Reading: " + curFile);
+                try {
+                    // TODO: document
+                    RandomAccessFile raf = new RandomAccessFile(new File(workingDir, curFile), "r");
+                    int rowLength = 4 + 8 * 11;
+                    int idx = (vertexId - curIndex) * rowLength;
+                    byte[] data = new byte[rowLength];
+                    raf.seek(idx);
+                    raf.read(data);
+
+                    DataInputStream dis = new DataInputStream(new ByteArrayInputStream(data));
+                    int vid = dis.readInt();
+                    if (vid != vertexId) throw new RemoteException("Mismatch: " + vid + " != " + vertexId);
+
+                    IdCount[] result = new IdCount[10];
+                    for(int j=0; j<result.length; j++) {
+                        result[j] = new IdCount(dis.readInt(), dis.readInt());
+                    }
+
+                    return result;
+                } catch (Exception e) {
+                    throw new RemoteException(e.getMessage());
+                }
+
+            }
+        }
+    }
+
 
     private void drainBuffer(int sourceIdx) {
         int[] arr = buffers[sourceIdx].toIntArray();
@@ -166,20 +224,33 @@ public class DrunkardCompanion extends UnicastRemoteObject implements RemoteDrun
         }
         System.out.println("Write output...");
         try {
-            BufferedWriter wr = new BufferedWriter(new FileWriter(outputFile));
+            DataOutputStream dos = new DataOutputStream(new BufferedOutputStream(new FileOutputStream(outputFile)));
 
             for(int i=0; i<sourceVertexIds.length; i++) {
                 int sourceVertex = sourceVertexIds[i];
                 drainBuffer(i);
                 DiscreteDistribution distr = distributions[i];
-                TreeSet<IdCount> topVertices = distr.getTop(10);
-                wr.write(sourceVertex + "\t");
+                IdCount[] topVertices = distr.getTop(10);
+                dos.writeInt(sourceVertex);
+                int written = 0;
                 for(IdCount vc : topVertices) {
-                    wr.write("\t");
-                    wr.write(vc.id + "," + vc.count);
+                    dos.writeInt(vc.id);
+                    dos.writeInt(vc.count);
+                    written++;
                 }
-                wr.write("\n");
+                while(written < 10) {
+                    written++;
+                    dos.writeInt(-1);
+                    dos.writeInt(-1);
+                }
             }
+            dos.close();
+
+            // Write index
+            File directory = new File(outputFile).getParentFile();
+            File indexFile = new File(directory, "drunkard_index." + sourceVertexIds[0]);
+            BufferedWriter wr = new BufferedWriter(new FileWriter(indexFile));
+            wr.write(outputFile);
             wr.close();
 
         } catch (Exception err) {
@@ -189,8 +260,9 @@ public class DrunkardCompanion extends UnicastRemoteObject implements RemoteDrun
 
     public static void main(String[] args) throws Exception {
         Double pruneFraction = Double.parseDouble(args[0]);
+        String workingDir = args[1];
         LocateRegistry.createRegistry(1099);
-        Naming.rebind("drunkarcompanion", new DrunkardCompanion(pruneFraction));
+        Naming.rebind("drunkarcompanion", new DrunkardCompanion(pruneFraction, workingDir));
         System.out.println("Bound to " + Naming.list("dru*")[0]);
         System.out.println("Prune fraction: " + pruneFraction);
     }
