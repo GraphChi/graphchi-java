@@ -210,10 +210,12 @@ public class DrunkardMobWithCompanion implements GraphChiProgram<Integer, Boolea
             int walksPerSource = Integer.parseInt(args[3]);
             int maxHops = Integer.parseInt(args[4]);
             int firstSource = Integer.parseInt(args[5]);
+            String companionAddress = args[6];
 
             System.out.println("Walks will start from vertices " + firstSource + " -- " + (firstSource + nSources - 1) );
             System.out.println("Going to start " + walksPerSource + " walks per source.");
             System.out.println("Max hops: " + maxHops);
+            System.out.println("Companion: " + companionAddress);
 
             /* Delete vertex data */
             File vertexDataFile = new File(ChiFilenames.getFilenameOfVertexData(baseFilename, new IntConverter()));
@@ -239,7 +241,7 @@ public class DrunkardMobWithCompanion implements GraphChiProgram<Integer, Boolea
             long t1 = System.currentTimeMillis();
 
             /* Initialize application object */
-            DrunkardMobWithCompanion mob = new DrunkardMobWithCompanion("//:1099/drunkarcompanion");
+            DrunkardMobWithCompanion mob = new DrunkardMobWithCompanion(companionAddress);
 
             /* Initialize Random walks */
             int nVertices = engine.numVertices();
@@ -261,7 +263,7 @@ public class DrunkardMobWithCompanion implements GraphChiProgram<Integer, Boolea
 
             // TODO: ensure that we have sent all walks!
             mob.spinUntilFinish();
-            mob.companion.outputDistributions(baseFilename + "_distribution.tsv");
+            mob.companion.outputDistributions(baseFilename + "_" + firstSource);
         }
 
         rep.run();

@@ -254,4 +254,11 @@ public class DiscreteDistribution {
         return merged;
     }
 
+    public int sizeExcludingAvoids() {
+        int j = 0;
+        for(int i=0; i < uniqueCount; i++) {
+            if (counts[i] > 0) j++;
+        }
+        return j;
+    }
 }
