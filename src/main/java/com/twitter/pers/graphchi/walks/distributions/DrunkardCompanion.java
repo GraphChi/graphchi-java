@@ -34,15 +34,25 @@ public class DrunkardCompanion extends UnicastRemoteObject implements RemoteDrun
     private AtomicInteger outstanding = new AtomicInteger(0);
 
     private ExecutorService parallelExecutor;
+    private Double pruneFraction;
 
 
-    public DrunkardCompanion() throws RemoteException {
+    public DrunkardCompanion(double pruneFraction) throws RemoteException {
         parallelExecutor = Executors.newFixedThreadPool(4);
+        this.pruneFraction = pruneFraction;
     }
 
     private void mergeWith(int sourceIdx, DiscreteDistribution distr) {
         synchronized (locks[sourceIdx]) {
             distributions[sourceIdx] = DiscreteDistribution.merge(distributions[sourceIdx], distr);
+
+            int sz = distributions[sourceIdx].size();
+            if (sz > 1000) {
+                int pruneLimit = (int) (distributions[sourceIdx].max() * pruneFraction);
+                distributions[sourceIdx] = distributions[sourceIdx].filteredDistribution(pruneLimit);
+                int prunedSize = distributions[sourceIdx].size();
+                System.out.println("Pruned: " + sz + " => " + pruneLimit);
+            }
         }
     }
 
@@ -123,7 +133,7 @@ public class DrunkardCompanion extends UnicastRemoteObject implements RemoteDrun
             @Override
             public void run() {
                 try {
-                _processWalks(walks, atVertices);
+                    _processWalks(walks, atVertices);
                 } finally {
                     outstanding.decrementAndGet();
                 }
@@ -153,8 +163,8 @@ public class DrunkardCompanion extends UnicastRemoteObject implements RemoteDrun
                 TreeSet<IdCount> topVertices = distr.getTop(10);
                 wr.write(sourceVertex + "\t");
                 for(IdCount vc : topVertices) {
-                   wr.write("\t");
-                   wr.write(vc.id + "," + vc.count);
+                    wr.write("\t");
+                    wr.write(vc.id + "," + vc.count);
                 }
                 wr.write("\n");
             }
@@ -166,9 +176,11 @@ public class DrunkardCompanion extends UnicastRemoteObject implements RemoteDrun
     }
 
     public static void main(String[] args) throws Exception {
+        Double pruneFraction = Double.parseDouble(args[0]);
         LocateRegistry.createRegistry(1099);
-        Naming.rebind("drunkarcompanion", new DrunkardCompanion());
+        Naming.rebind("drunkarcompanion", new DrunkardCompanion(pruneFraction));
         System.out.println("Bound to " + Naming.list("dru*")[0]);
+        System.out.println("Prune fraction: " + pruneFraction);
     }
 
 }

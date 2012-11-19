@@ -104,12 +104,12 @@ public class DiscreteDistribution {
 
     /**
      * Creates a new distribution with all entries with count less than
-     * minimumCount removed.
+     * minimumCount removed. Does not remove avoids
      */
     public DiscreteDistribution filteredDistribution(int minimumCount) {
         int toRemove = 0;
         for(int i=0; i < uniqueCount; i++) {
-            toRemove += (counts[i] < minimumCount ? 1 : 0);
+            toRemove += (counts[i] < minimumCount &&  counts[i] > 0 ? 1 : 0);
         }
 
         if (toRemove == 0) {
@@ -119,7 +119,7 @@ public class DiscreteDistribution {
         DiscreteDistribution filteredDist = new DiscreteDistribution(uniqueCount - toRemove);
         int idx = 0;
         for(int i=0; i < uniqueCount; i++) {
-            if (counts[i] >= minimumCount) {
+            if (counts[i] >= minimumCount && counts[i] > 0) {
                 filteredDist.ids[idx] = ids[i];
                 filteredDist.counts[idx] = counts[i];
                 idx++;
@@ -154,6 +154,14 @@ public class DiscreteDistribution {
         return uniqueCount;
     }
 
+
+    public int max() {
+        int mx = Integer.MIN_VALUE;
+        for(int i=0; i < counts.length; i++) {
+            if (counts[i] > mx) mx = counts[i];
+        }
+        return mx;
+    }
 
     /**
      * Merge too distribution. If either has a negative entry for some id, it will

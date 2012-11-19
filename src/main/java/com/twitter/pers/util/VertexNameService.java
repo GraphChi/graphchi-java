@@ -19,6 +19,7 @@ public class VertexNameService extends UnicastRemoteObject implements  RemoteVer
     private long nameLength;
 
     public VertexNameService(File dataFile, long nameLength) throws RemoteException {
+        super(33333);
         this.dataFile = dataFile;
         this.nameLength = nameLength;
         if (!dataFile.exists()) throw new RuntimeException("File " + dataFile.getAbsolutePath() + " not found!");
@@ -63,7 +64,7 @@ public class VertexNameService extends UnicastRemoteObject implements  RemoteVer
             System.out.println(i + " ===> " + vns.getName(i));
         }
 
-        Naming.bind(bindAddress, vns);
-        System.out.println("Bound to: " + bindAddress);
+        Naming.rebind(bindAddress, vns);
+        System.out.println("Bound to: " + bindAddress + "; uses port 33333");
     }
 }

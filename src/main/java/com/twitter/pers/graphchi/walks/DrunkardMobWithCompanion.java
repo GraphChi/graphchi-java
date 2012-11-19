@@ -35,6 +35,9 @@ public class DrunkardMobWithCompanion implements GraphChiProgram<Integer, Boolea
     private int maxOutstanding = 8;
 
     public DrunkardMobWithCompanion(String companionAddress) throws Exception {
+        if (companionAddress.contains("localhost")) {
+            RMIHack.setupLocalHostTunneling();
+        }
         companion = (RemoteDrunkardCompanion) Naming.lookup(companionAddress);
         System.out.println("Found companion: " + companion);
 
