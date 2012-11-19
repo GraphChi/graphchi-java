@@ -128,7 +128,6 @@ public class DiscreteDistribution {
                     filteredDist.counts[idx] = counts[i] - minimumCount;
                 } else {
                     filteredDist.counts[idx] = -1;
-
                 }
                 idx++;
             }

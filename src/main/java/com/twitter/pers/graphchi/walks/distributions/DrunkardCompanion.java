@@ -24,10 +24,9 @@ public class DrunkardCompanion extends UnicastRemoteObject implements RemoteDrun
     private static final int BUFFER_CAPACITY = 64;
     private static final int BUFFER_MAX = 512;
 
-    private int maxOutstanding = 32;
+    private int maxOutstanding = 4096;
 
     private int[] sourceVertexIds;
-    private Object[] bufferLocks;
     private Object[] distrLocks;
 
     private DiscreteDistribution[] distributions;
@@ -39,7 +38,7 @@ public class DrunkardCompanion extends UnicastRemoteObject implements RemoteDrun
 
 
     public DrunkardCompanion(double pruneFraction) throws RemoteException {
-        parallelExecutor = Executors.newFixedThreadPool(4);
+        parallelExecutor = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
         this.pruneFraction = pruneFraction;
     }
 
@@ -77,11 +76,9 @@ public class DrunkardCompanion extends UnicastRemoteObject implements RemoteDrun
         System.out.println("Initializing sources...");
         buffers = new IntegerBuffer[sources.length];
         sourceVertexIds = new int[sources.length];
-        bufferLocks = new Object[sources.length];
         distrLocks = new Object[sources.length];
         distributions = new DiscreteDistribution[sources.length];
         for(int i=0; i < sources.length; i++) {
-            bufferLocks[i] = new Object();
             distrLocks[i] = new Object();
             sourceVertexIds[i] = sources[i];
             buffers[i] = new IntegerBuffer(BUFFER_CAPACITY);
@@ -104,24 +101,29 @@ public class DrunkardCompanion extends UnicastRemoteObject implements RemoteDrun
             }
 
             IntegerBuffer drainArr = null;
-            synchronized (bufferLocks[sourceIdx]) {
-                buffers[sourceIdx].add(atVertex);
-                if (buffers[sourceIdx].size() >= BUFFER_MAX) {
-                    drainArr = buffers[sourceIdx];
-                    buffers[sourceIdx] = new IntegerBuffer(BUFFER_CAPACITY);
-                }
+            buffers[sourceIdx].add(atVertex);
+            if (buffers[sourceIdx].size() >= BUFFER_MAX) {
+                drainArr = buffers[sourceIdx];
+                buffers[sourceIdx] = new IntegerBuffer(BUFFER_CAPACITY);
             }
-
 
             // Do hard part of the draining outside of lock
             if (drainArr != null) {
-                int[] d = drainArr.toIntArray();
-                Arrays.sort(d);
-                DiscreteDistribution dist = new DiscreteDistribution(d);
-                mergeWith(sourceIdx, dist);
+                outstanding.incrementAndGet();
+                final IntegerBuffer toDrain = drainArr;
+                final int drainIdx = sourceIdx;
+
+                parallelExecutor.submit(new Runnable() { public void run() {
+                    int[] d = toDrain.toIntArray();
+                    Arrays.sort(d);
+                    DiscreteDistribution dist = new DiscreteDistribution(d);
+                    mergeWith(drainIdx, dist);
+                    outstanding.decrementAndGet();
+                }});
             }
         }
         System.out.println("Processing " + walks.length + " took " + (System.currentTimeMillis() - t1) + " ms.");
+
     }
 
     private void drainBuffer(int sourceIdx) {
@@ -141,19 +143,7 @@ public class DrunkardCompanion extends UnicastRemoteObject implements RemoteDrun
             } catch (InterruptedException e) {
             }
         }
-        outstanding.incrementAndGet();
-        parallelExecutor.submit(new Runnable() {
-            @Override
-            public void run() {
-                try {
-                    _processWalks(walks, atVertices);
-                } catch (Exception err) {
-                    err.printStackTrace();
-                } finally {
-                    outstanding.decrementAndGet();
-                }
-            }
-        });
+        _processWalks(walks, atVertices);
     }
 
     @Override
