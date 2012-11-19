@@ -78,6 +78,9 @@ public class DiscreteDistribution {
         for(int i=1; i < sortedIdList.length; i++) {
             if (sortedIdList[i] != sortedIdList[i - 1]) {
                 uniqueCount++;
+                if (sortedIdList[i] < sortedIdList[i - 1]) {
+                    throw new RuntimeException("Not ordered! " + sortedIdList[i] + " < " + sortedIdList[i - 1]);
+                }
             }
         }
 
@@ -104,9 +107,9 @@ public class DiscreteDistribution {
 
     /**
      * Creates a new distribution with all entries with count less than
-     * minimumCount removed. Does not remove avoids
+     * minimumCount removed, and rest changed by - minimumCount. Does not remove avoids
      */
-    public DiscreteDistribution filteredDistribution(int minimumCount) {
+    public DiscreteDistribution filteredAndShift(int minimumCount) {
         int toRemove = 0;
         for(int i=0; i < uniqueCount; i++) {
             toRemove += (counts[i] < minimumCount &&  counts[i] > 0 ? 1 : 0);
@@ -119,9 +122,14 @@ public class DiscreteDistribution {
         DiscreteDistribution filteredDist = new DiscreteDistribution(uniqueCount - toRemove);
         int idx = 0;
         for(int i=0; i < uniqueCount; i++) {
-            if (counts[i] >= minimumCount && counts[i] > 0) {
+            if (counts[i] >= minimumCount || counts[i] == (-1)) {
                 filteredDist.ids[idx] = ids[i];
-                filteredDist.counts[idx] = counts[i];
+                if ( counts[i] != (-1)) {
+                    filteredDist.counts[idx] = counts[i] - minimumCount;
+                } else {
+                    filteredDist.counts[idx] = -1;
+
+                }
                 idx++;
             }
         }

@@ -7,6 +7,7 @@ import org.junit.Test;
 import java.util.*;
 
 import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
 
 /**
  * @author Aapo Kyrola, akyrola@twitter.com, akyrola@cs.cmu.edu
@@ -61,6 +62,8 @@ public class TestDiscreteDistribution {
         assertEquals(3, merged2.getCount(1000));
         assertEquals(2, merged2.getCount(2000));
         assertEquals(1, merged2.getCount(30000));
+
+        assertEquals(8, merged2.size());
 
         DiscreteDistribution empty = new DiscreteDistribution();
         DiscreteDistribution mergedWithEmpty = DiscreteDistribution.merge(empty, d1);
@@ -170,18 +173,32 @@ public class TestDiscreteDistribution {
         assertEquals(5, d1.getCount(22));
         assertEquals(8, d1.getCount(333));
 
-        DiscreteDistribution notReallyFiltered = d1.filteredDistribution(1);
+        DiscreteDistribution notReallyFiltered = d1.filteredAndShift(1);
         assertTrue(notReallyFiltered == d1);
 
-        DiscreteDistribution filtered = d1.filteredDistribution(4);
+        DiscreteDistribution filtered = d1.filteredAndShift(4);
         assertEquals(0, filtered.getCount(1));
         assertEquals(0, filtered.getCount(8));
         assertEquals(0, filtered.getCount(9));
-        assertEquals(5, filtered.getCount(22));
-        assertEquals(8, filtered.getCount(333));
+        assertEquals(5 - 4, filtered.getCount(22));
+        assertEquals(8 - 4, filtered.getCount(333));
+        assertEquals(2, filtered.size());
 
-        DiscreteDistribution filteredAll = d1.filteredDistribution(100);
-        DiscreteDistribution filteredAll2 = filtered.filteredDistribution(100);
+        // Check that avoided ones are not filtered
+        DiscreteDistribution filteredWithAnAvoid = DiscreteDistribution.merge(d1,
+                DiscreteDistribution.createAvoidanceDistribution(new int[]{99, 108})).filteredAndShift(4);
+
+        assertEquals(0, filteredWithAnAvoid.getCount(1));
+        assertEquals(0, filteredWithAnAvoid.getCount(8));
+        assertEquals(0, filteredWithAnAvoid.getCount(9));
+        assertEquals(5 - 4, filteredWithAnAvoid.getCount(22));
+        assertEquals(8 - 4, filteredWithAnAvoid.getCount(333));
+        assertEquals(-1, filteredWithAnAvoid.getCount(99));
+        assertEquals(-1, filteredWithAnAvoid.getCount(108));
+
+
+        DiscreteDistribution filteredAll = d1.filteredAndShift(100);
+        DiscreteDistribution filteredAll2 = filtered.filteredAndShift(100);
 
         assertEquals(0, filteredAll.getCount(1));
         assertEquals(0, filteredAll.getCount(8));
@@ -193,6 +210,9 @@ public class TestDiscreteDistribution {
         assertEquals(0, filteredAll2.getCount(9));
         assertEquals(0, filteredAll2.getCount(22));
         assertEquals(0, filteredAll2.getCount(333));
+
+        assertEquals(0, filteredAll.size());
+        assertEquals(0, filteredAll2.size());
     }
 
     @Test

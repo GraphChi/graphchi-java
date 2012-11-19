@@ -4,7 +4,6 @@ import com.twitter.pers.graphchi.walks.WalkManager;
 import edu.cmu.graphchi.util.IdCount;
 import edu.cmu.graphchi.util.IntegerBuffer;
 
-import javax.sound.midi.SysexMessage;
 import java.io.*;
 import java.rmi.Naming;
 import java.rmi.RemoteException;
@@ -23,12 +22,14 @@ import java.util.concurrent.atomic.AtomicInteger;
 public class DrunkardCompanion extends UnicastRemoteObject implements RemoteDrunkardCompanion {
 
     private static final int BUFFER_CAPACITY = 64;
-    private static final int BUFFER_MAX = 256;
+    private static final int BUFFER_MAX = 512;
 
-    private int maxOutstanding = 4;
+    private int maxOutstanding = 32;
 
     private int[] sourceVertexIds;
-    private Object[] locks;
+    private Object[] bufferLocks;
+    private Object[] distrLocks;
+
     private DiscreteDistribution[] distributions;
     private IntegerBuffer[] buffers;
     private AtomicInteger outstanding = new AtomicInteger(0);
@@ -43,15 +44,23 @@ public class DrunkardCompanion extends UnicastRemoteObject implements RemoteDrun
     }
 
     private void mergeWith(int sourceIdx, DiscreteDistribution distr) {
-        synchronized (locks[sourceIdx]) {
+        synchronized (distrLocks[sourceIdx]) {
             distributions[sourceIdx] = DiscreteDistribution.merge(distributions[sourceIdx], distr);
 
             int sz = distributions[sourceIdx].size();
-            if (sz > 1000) {
-                int pruneLimit = (int) (distributions[sourceIdx].max() * pruneFraction);
-                distributions[sourceIdx] = distributions[sourceIdx].filteredDistribution(pruneLimit);
-                int prunedSize = distributions[sourceIdx].size();
-                System.out.println("Pruned: " + sz + " => " + pruneLimit);
+            if (sz > 500) {
+                int mx = distributions[sourceIdx].max();
+                int pruneLimit = (int) (mx * pruneFraction);
+                if (pruneLimit > 0) {
+                    DiscreteDistribution filtered =  distributions[sourceIdx].filteredAndShift(pruneLimit);
+                    if (filtered.size() > 25) {
+                        distributions[sourceIdx] = filtered;
+                        int prunedSize = distributions[sourceIdx].size();
+                        //  System.out.println("Pruned: " + sz + " => " + prunedSize + " max: " + mx + ", limit=" + pruneLimit);
+                    } else {
+                        //  System.out.println("Filtering would have deleted almost everything...");
+                    }
+                }
             }
         }
     }
@@ -68,10 +77,12 @@ public class DrunkardCompanion extends UnicastRemoteObject implements RemoteDrun
         System.out.println("Initializing sources...");
         buffers = new IntegerBuffer[sources.length];
         sourceVertexIds = new int[sources.length];
-        locks = new Object[sources.length];
+        bufferLocks = new Object[sources.length];
+        distrLocks = new Object[sources.length];
         distributions = new DiscreteDistribution[sources.length];
         for(int i=0; i < sources.length; i++) {
-            locks[i] = new Object();
+            bufferLocks[i] = new Object();
+            distrLocks[i] = new Object();
             sourceVertexIds[i] = sources[i];
             buffers[i] = new IntegerBuffer(BUFFER_CAPACITY);
             distributions[i] = DiscreteDistribution.createAvoidanceDistribution(new int[]{sources[i]}); // Add the vertex itself to avoids
@@ -82,7 +93,6 @@ public class DrunkardCompanion extends UnicastRemoteObject implements RemoteDrun
 
     private void _processWalks(int[] walks, int[] atVertices) {
         long t1 = System.currentTimeMillis();
-        System.out.println("Processing " + walks.length + " walks...");
         for(int i=0; i < walks.length; i++) {
             int w = walks[i];
             int atVertex = atVertices[i];
@@ -94,7 +104,7 @@ public class DrunkardCompanion extends UnicastRemoteObject implements RemoteDrun
             }
 
             IntegerBuffer drainArr = null;
-            synchronized (locks[sourceIdx]) {
+            synchronized (bufferLocks[sourceIdx]) {
                 buffers[sourceIdx].add(atVertex);
                 if (buffers[sourceIdx].size() >= BUFFER_MAX) {
                     drainArr = buffers[sourceIdx];
@@ -102,13 +112,16 @@ public class DrunkardCompanion extends UnicastRemoteObject implements RemoteDrun
                 }
             }
 
+
             // Do hard part of the draining outside of lock
             if (drainArr != null) {
-                DiscreteDistribution dist = new DiscreteDistribution(drainArr.toIntArray());
+                int[] d = drainArr.toIntArray();
+                Arrays.sort(d);
+                DiscreteDistribution dist = new DiscreteDistribution(d);
                 mergeWith(sourceIdx, dist);
             }
         }
-        System.out.println("Finished processing, took: " + (System.currentTimeMillis() - t1) + " ms");
+        System.out.println("Processing " + walks.length + " took " + (System.currentTimeMillis() - t1) + " ms.");
     }
 
     private void drainBuffer(int sourceIdx) {
@@ -134,6 +147,8 @@ public class DrunkardCompanion extends UnicastRemoteObject implements RemoteDrun
             public void run() {
                 try {
                     _processWalks(walks, atVertices);
+                } catch (Exception err) {
+                    err.printStackTrace();
                 } finally {
                     outstanding.decrementAndGet();
                 }
