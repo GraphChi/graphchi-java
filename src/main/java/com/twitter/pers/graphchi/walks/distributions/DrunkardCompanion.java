@@ -22,7 +22,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  */
 public class DrunkardCompanion extends UnicastRemoteObject implements RemoteDrunkardCompanion {
 
-    private static final int BUFFER_CAPACITY = 64;
+    private static final int BUFFER_CAPACITY = 256;
     private static final int BUFFER_MAX = 512;
 
     private int maxOutstanding = 4096;
@@ -121,11 +121,16 @@ public class DrunkardCompanion extends UnicastRemoteObject implements RemoteDrun
                 buffers[i] = new IntegerBuffer(BUFFER_CAPACITY);
 
                 parallelExecutor.submit(new Runnable() { public void run() {
-                    int[] d = toDrain.toIntArray();
-                    Arrays.sort(d);
-                    DiscreteDistribution dist = new DiscreteDistribution(d);
-                    mergeWith(drainIdx, dist);
-                    outstanding.decrementAndGet();
+                    try {
+                        int[] d = toDrain.toIntArray();
+                        Arrays.sort(d);
+                        DiscreteDistribution dist = new DiscreteDistribution(d);
+                        mergeWith(drainIdx, dist);
+                    } catch (Exception err ) {
+                        err.printStackTrace();
+                    } finally {
+                        outstanding.decrementAndGet();
+                    }
                 }});
             }
         }
@@ -212,13 +217,6 @@ public class DrunkardCompanion extends UnicastRemoteObject implements RemoteDrun
     @Override
     public void processWalks(final int[] walks, final int[] atVertices) throws RemoteException {
         try {
-            while(outstanding.get() > maxOutstanding) {
-                System.out.println("Flow control...");
-                try {
-                    Thread.sleep(100);
-                } catch (InterruptedException e) {
-                }
-            }
             synchronized (this) {
                 _processWalks(walks, atVertices);
             }
@@ -278,9 +276,8 @@ public class DrunkardCompanion extends UnicastRemoteObject implements RemoteDrun
     public static void main(String[] args) throws Exception {
         Double pruneFraction = Double.parseDouble(args[0]);
         String workingDir = args[1];
-        LocateRegistry.createRegistry(1099);
-        Naming.rebind("drunkarcompanion", new DrunkardCompanion(pruneFraction, workingDir));
-        System.out.println("Bound to " + Naming.list("dru*")[0]);
+        String bindAddress = args[2];
+        Naming.rebind(bindAddress, new DrunkardCompanion(pruneFraction, workingDir));
         System.out.println("Prune fraction: " + pruneFraction);
     }
 

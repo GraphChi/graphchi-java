@@ -34,6 +34,8 @@ public class DrunkardMobWithCompanion implements GraphChiProgram<Integer, Boolea
     private AtomicInteger outStanding = new AtomicInteger(0);
     private int maxOutstanding = 8;
 
+    private final static double RESETPROB = 0.15;
+
     public DrunkardMobWithCompanion(String companionAddress) throws Exception {
         if (companionAddress.contains("localhost")) {
             RMIHack.setupLocalHostTunneling();
@@ -65,26 +67,21 @@ public class DrunkardMobWithCompanion implements GraphChiProgram<Integer, Boolea
             if (walksAtMe == null) return;
 
             int walkLength = walksAtMe.length;
-            int numWalks = 0;
             for(int i=0; i < walkLength; i++) {
                 int walk = walksAtMe[i];
                 boolean hop = walkManager.hop(walk);
                 // Choose a random destination and move the walk forward
                 int dst;
-                if (vertex.getId() != walkManager.getSourceVertex(walk)) {
-                    numWalks++;
-                }
-                if (vertex.numOutEdges() > 0) {
+                if (vertex.numOutEdges() > 0 || Math.random() < RESETPROB) {
                     dst = vertex.getRandomOutNeighbor();
                 } else {
-                    // Dead end!
+                    // Dead end or reset
                     dst = walkManager.getSourceVertex(walkManager.sourceIdx(walk));
                 }
                 walkManager.updateWalk(walkManager.sourceIdx(walk), dst, !hop);
                 context.getScheduler().addTask(dst);
 
             }
-            vertex.setValue(vertex.getValue() + numWalks);
         } catch (RemoteException re) {
             throw new RuntimeException(re);
         }
@@ -118,12 +115,6 @@ public class DrunkardMobWithCompanion implements GraphChiProgram<Integer, Boolea
         long t = System.currentTimeMillis();
         curWalkSnapshot = walkManager.grabSnapshot(interval.getFirstVertex(), interval.getLastVertex());
         System.out.println("Grab snapshot took " + (System.currentTimeMillis() - t) + " ms.");
-
-        String walkDir = System.getProperty("walk.dir", ".");
-        final String filename = walkDir + "/walks_" + interval.getFirstVertex() + "-" + interval.getLastVertex() + ".dat";
-        if (ctx.getIteration() == 0) { // NOTE, temporary hack to save disk space but have the same I/O cost for testing
-            new File(filename).delete();
-        }
 
         final WalkSnapshot snapshot = curWalkSnapshot;
         outStanding.incrementAndGet();
@@ -236,6 +227,7 @@ public class DrunkardMobWithCompanion implements GraphChiProgram<Integer, Boolea
             engine.setUseStaticWindowSize(false); // Disable dynamic window size detection
             engine.setEnableDeterministicExecution(false);
             engine.setAutoLoadNext(false);
+            engine.setVertexDataConverter(null);
             engine.setMaxWindow(2000000); // Handle maximum 2M vertices a time.
 
             long t1 = System.currentTimeMillis();
