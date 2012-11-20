@@ -211,15 +211,19 @@ public class DrunkardCompanion extends UnicastRemoteObject implements RemoteDrun
 
     @Override
     public void processWalks(final int[] walks, final int[] atVertices) throws RemoteException {
-        while(outstanding.get() > maxOutstanding) {
-            System.out.println("Flow control...");
-            try {
-                Thread.sleep(100);
-            } catch (InterruptedException e) {
+        try {
+            while(outstanding.get() > maxOutstanding) {
+                System.out.println("Flow control...");
+                try {
+                    Thread.sleep(100);
+                } catch (InterruptedException e) {
+                }
             }
-        }
-        synchronized (this) {
-            _processWalks(walks, atVertices);
+            synchronized (this) {
+                _processWalks(walks, atVertices);
+            }
+        } catch (Exception err) {
+            err.printStackTrace();
         }
     }
 

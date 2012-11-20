@@ -143,8 +143,8 @@ public class DrunkardMobWithCompanion implements GraphChiProgram<Integer, Boolea
             public void run() {
                 try {
                     int n = snapshot.numWalks();
-                    int[] walks = new int[1024 * 1024];
-                    int[] vertices = new int[1024 * 1024];
+                    int[] walks = new int[256 * 1024];
+                    int[] vertices = new int[256 * 1024];
                     int idx = 0;
                     for(int v=snapshot.getFirstVertex(); v<=snapshot.getLastVertex(); v++) {
                         int[] walksAtVertex = snapshot.getWalksAtVertex(v);
