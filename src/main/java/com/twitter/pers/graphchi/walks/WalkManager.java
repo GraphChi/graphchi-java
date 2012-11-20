@@ -19,7 +19,7 @@ public class WalkManager {
     private static final int MAX_SOURCES = 16777216;
 
     private final static int bucketSize = 128; // Store walks into buckets for faster retrieval
-    private final static int initialSize = Integer.parseInt(System.getProperty("walkmanager.initial_size", "256"));
+    private final static int initialSize = Integer.parseInt(System.getProperty("walkmanager.initial_size", "128"));
 
     private int sourceSeqIdx  = 0;
     private int[] sources;
@@ -29,7 +29,7 @@ public class WalkManager {
 
     private int[][] walks;
     private int[] walkIndices;
-    private Map<Integer, Integer> sourceMap;
+    private BitSet sourceBitSet;
 
     private int numVertices;
     private final Timer grabTimer = Metrics.defaultRegistry().newTimer(WalkManager.class, "grab-walks", TimeUnit.SECONDS, TimeUnit.MINUTES);
@@ -42,24 +42,40 @@ public class WalkManager {
         if (numSources > MAX_SOURCES) throw new IllegalArgumentException("Max sources: " + numSources);
         sources = new int[numSources];
         sourceWalkCounts = new int[numSources];
+        sourceBitSet = new BitSet(numVertices);
         System.out.println("Initial size for walk bucket: " + initialSize);
     }
 
     public boolean isSource(int vertexId) {
-        return sourceMap.containsKey(vertexId);
+        return sourceBitSet.get(vertexId);
     }
 
     public int getVertexSourceIdx(int vertexId) {
-        return sourceMap.get(vertexId);
+        int idx = Arrays.binarySearch(sources, vertexId);
+        if (idx < 0) throw new IllegalArgumentException("Vertex was not a source!");
+        return idx;
     }
 
     public int[] getSources() {
         return sources;
     }
 
+    /**
+     * Add a set of walks from a source. Note, you must add the walks
+     * in sorted order!
+     * @param vertex  source vertex
+     * @param numWalks
+     * @return
+     */
     public synchronized int addWalkBatch(int vertex, int numWalks) {
         if (sourceSeqIdx >= sources.length)
             throw new IllegalStateException("You can have a maximum of " + sources.length + " random walk sources");
+
+        if (sourceSeqIdx > 0) {
+            if (sources[sourceSeqIdx] > vertex) {
+                throw new IllegalArgumentException("You need to add sources in order!");
+            }
+        }
 
         sources[sourceSeqIdx] = vertex;
         sourceWalkCounts[sourceSeqIdx] = numWalks;
@@ -137,12 +153,14 @@ public class WalkManager {
 
         /* Truncate sources */
         if (sourceSeqIdx < sources.length) {
+            System.out.println("Truncating...");
             int[] tmpsrcs = new int[sourceSeqIdx];
             System.arraycopy(sources, 0, tmpsrcs, 0, sourceSeqIdx);
             sources = tmpsrcs;
         }
 
 
+        System.out.println("Calculate sizes. Walks length:" + walks.length);
         /* Precalculate bucket sizes for performance */
         int[] tmpsizes = new int[walks.length];
         for(int j=0; j < sourceSeqIdx; j++) {
@@ -150,21 +168,25 @@ public class WalkManager {
             tmpsizes[source / bucketSize] += sourceWalkCounts[j];
         }
 
+
+        System.out.println("Expand capacities");
         for(int b=0; b < walks.length; b++) {
-            expandCapacity(b, tmpsizes[b]);
+            expandCapacity(b, tmpsizes[b] - initialSize);
         }
 
-        // TODO: allocate to match the required size (should be easy)
+        System.out.println("Allocating walks");
         for(int i=0; i < sourceSeqIdx; i++) {
             int source = sources[i];
             int count = sourceWalkCounts[i];
             for(int c=0; c<count; c++) updateWalk(i, source, false);
         }
 
-        // Create sourceMap
-        sourceMap = new HashMap<Integer, Integer>(sources.length);
+        sourceWalkCounts = null;
+
+        System.out.println("Set bitset...");
+        // Create source-bitset
         for(int i=0; i < sourceSeqIdx; i++) {
-            sourceMap.put(sources[i], i);
+            sourceBitSet.set(sources[i], true);
         }
         _timer.stop();
     }

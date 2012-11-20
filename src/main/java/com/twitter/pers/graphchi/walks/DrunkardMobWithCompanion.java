@@ -55,8 +55,6 @@ public class DrunkardMobWithCompanion implements GraphChiProgram<Integer, Boolea
         try {
             int[] walksAtMe = curWalkSnapshot.getWalksAtVertex(vertex.getId());
             if (context.getIteration() == 0) {
-                vertex.setValue(0);
-
                 if (walkManager.isSource(vertex.getId())) {
                     // If I am a source, tell the companion
                     int myIdx = walkManager.getVertexSourceIdx(vertex.getId());
@@ -72,13 +70,18 @@ public class DrunkardMobWithCompanion implements GraphChiProgram<Integer, Boolea
                 boolean hop = walkManager.hop(walk);
                 // Choose a random destination and move the walk forward
                 int dst;
-                if (vertex.numOutEdges() > 0 || Math.random() < RESETPROB) {
+                if (vertex.numOutEdges() > 0 && Math.random() > RESETPROB) {
                     dst = vertex.getRandomOutNeighbor();
                 } else {
                     // Dead end or reset
-                    dst = walkManager.getSourceVertex(walkManager.sourceIdx(walk));
+                    dst = walkManager.getSourceVertex(WalkManager.sourceIdx(walk));
                 }
-                walkManager.updateWalk(walkManager.sourceIdx(walk), dst, !hop);
+                walkManager.updateWalk(WalkManager.sourceIdx(walk), dst, !hop);
+
+                if (dst < 0) {
+                    throw new RuntimeException("Dst < 0?? " + dst + "; " + WalkManager.sourceIdx(walk) + "; " + walk ) ;
+                }
+
                 context.getScheduler().addTask(dst);
 
             }
@@ -241,7 +244,10 @@ public class DrunkardMobWithCompanion implements GraphChiProgram<Integer, Boolea
 
             for(int i=0; i < nSources; i++) {
                 mob.walkManager.addWalkBatch(i + firstSource, walksPerSource);
+                if (i % 100000 == 0) System.out.println("Add walk batch: " + (i + firstSource));
             }
+
+            System.out.println("Initializing walks...");
             mob.walkManager.initializeWalks();
 
             mob.initCompanion();

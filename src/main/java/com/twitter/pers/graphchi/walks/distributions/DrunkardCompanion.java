@@ -136,7 +136,10 @@ public class DrunkardCompanion extends UnicastRemoteObject implements RemoteDrun
         }
 
 
-        System.out.println("Processing " + walks.length + " took " + (System.currentTimeMillis() - t1) + " ms.");
+        long tt = (System.currentTimeMillis() - t1);
+        if (tt > 1000) {
+            System.out.println("Processing " + walks.length + " took " + tt + " ms.");
+        }
     }
 
     @Override
@@ -277,6 +280,11 @@ public class DrunkardCompanion extends UnicastRemoteObject implements RemoteDrun
         Double pruneFraction = Double.parseDouble(args[0]);
         String workingDir = args[1];
         String bindAddress = args[2];
+        try {
+            LocateRegistry.createRegistry(1099);
+        } catch (Exception err) {
+            System.out.println("Registry already created?");
+        }
         Naming.rebind(bindAddress, new DrunkardCompanion(pruneFraction, workingDir));
         System.out.println("Prune fraction: " + pruneFraction);
     }
