@@ -6,7 +6,7 @@ package com.twitter.pers.graphchi.walks;
 public interface WalkSnapshot {
 
     /** Returns walk at vertex, or null if none **/
-    int[] getWalksAtVertex(int vertexId);
+    int[] getWalksAtVertex(int vertexId, boolean processed);
 
     int getFirstVertex();
 
@@ -15,4 +15,6 @@ public interface WalkSnapshot {
     void clear(int vertexId);
 
     public int numWalks();
+
+    public void restoreUngrabbed();
 }

@@ -320,6 +320,7 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
                         /* Clear scheduler bits */
                         if (scheduler != null) scheduler.removeTasks(subIntervalStart, subIntervalEnd);
 
+                        chiContext.setCurInterval(new VertexInterval(subIntervalStart, subIntervalEnd));
                         program.beginSubInterval(chiContext, new VertexInterval(subIntervalStart, subIntervalEnd));
 
                         long t1 = System.currentTimeMillis();

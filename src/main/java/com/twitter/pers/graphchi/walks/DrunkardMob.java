@@ -33,7 +33,7 @@ public class DrunkardMob implements GraphChiProgram<Integer, Boolean> {
     }
 
     public void update(ChiVertex<Integer, Boolean> vertex, GraphChiContext context) {
-        int[] walksAtMe = curWalkSnapshot.getWalksAtVertex(vertex.getId());
+        int[] walksAtMe = curWalkSnapshot.getWalksAtVertex(vertex.getId(), true);
         if (context.getIteration() == 0) vertex.setValue(0);
         if (walksAtMe == null) return;
 
@@ -99,6 +99,7 @@ public class DrunkardMob implements GraphChiProgram<Integer, Boolean> {
     }
 
     public void endSubInterval(GraphChiContext ctx, final VertexInterval interval) {
+        curWalkSnapshot.restoreUngrabbed();
         curWalkSnapshot = null; // Release memory
     }
 

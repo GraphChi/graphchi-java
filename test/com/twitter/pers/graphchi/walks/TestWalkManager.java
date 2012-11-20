@@ -63,7 +63,7 @@ public class TestWalkManager {
         // Now get two snapshots
         WalkSnapshot snapshot1 = wmgr.grabSnapshot(890, 1300);
         for(int j=890; j <= 1300; j++) {
-            int[] vertexwalks = snapshot1.getWalksAtVertex(j);
+            int[] vertexwalks = snapshot1.getWalksAtVertex(j, true);
             assertEquals((j % 100) + 10, WalkManager.getWalkLength(vertexwalks));
 
             for(int w : vertexwalks) {
@@ -77,25 +77,25 @@ public class TestWalkManager {
         // Next snapshot should be empty
         WalkSnapshot snapshot2 = wmgr.grabSnapshot(890, 1300);
         for(int j=890; j <= 1300; j++) {
-            int[] vertexwalks = snapshot2.getWalksAtVertex(j);
+            int[] vertexwalks = snapshot2.getWalksAtVertex(j, true);
             assertNull(vertexwalks);
         }
 
         WalkSnapshot snapshot3 = wmgr.grabSnapshot(877, 889);
         for(int j=877; j <= 889; j++) {
-            int[] vertexwalks = snapshot3.getWalksAtVertex(j);
+            int[] vertexwalks = snapshot3.getWalksAtVertex(j, true);
             assertEquals((j % 100) + 10, WalkManager.getWalkLength(vertexwalks));
         }
 
         WalkSnapshot snapshot4 = wmgr.grabSnapshot(877, 889);
         for(int j=877; j <= 889; j++) {
-            int[] vertexwalks = snapshot4.getWalksAtVertex(j);
+            int[] vertexwalks = snapshot4.getWalksAtVertex(j, true);
             assertNull(vertexwalks);
         }
 
         WalkSnapshot snapshot5 = wmgr.grabSnapshot(1301, 3898);
         for(int j=1301; j < 3898; j++) {
-            int[] vertexwalks = snapshot5.getWalksAtVertex(j);
+            int[] vertexwalks = snapshot5.getWalksAtVertex(j, true);
             assertEquals((j % 100) + 10, WalkManager.getWalkLength(vertexwalks));
         }
         wmgr.dumpToFile(snapshot5, "/tmp/snapshot5");
@@ -103,7 +103,7 @@ public class TestWalkManager {
 
         WalkSnapshot snapshot6 = wmgr.grabSnapshot(1301, 3898);
         for(int j=1301; j < 3898; j++) {
-            int[] vertexwalks = snapshot6.getWalksAtVertex(j);
+            int[] vertexwalks = snapshot6.getWalksAtVertex(j, true);
             assertNull(vertexwalks);
         }
 
@@ -112,13 +112,13 @@ public class TestWalkManager {
         wmgr.updateWalk(41, 76, false);
 
         WalkSnapshot snapshot7 = wmgr.grabSnapshot(76, 22098);
-        int[] w1 = snapshot7.getWalksAtVertex(76);
+        int[] w1 = snapshot7.getWalksAtVertex(76, true);
         assertEquals(1, WalkManager.getWalkLength(w1));
         int w = w1[0];
         assertEquals(41, wmgr.sourceIdx(w));
         assertEquals(false, wmgr.hop(w));
 
-        int[] w2 = snapshot7.getWalksAtVertex(22098);
+        int[] w2 = snapshot7.getWalksAtVertex(22098, true);
         w = w2[0];
         assertEquals(88, wmgr.sourceIdx(w));
         assertEquals(true, wmgr.hop(w));

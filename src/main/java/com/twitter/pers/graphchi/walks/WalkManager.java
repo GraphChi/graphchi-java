@@ -38,6 +38,7 @@ public class WalkManager {
     private final Timer dumpTimer = Metrics.defaultRegistry().newTimer(WalkManager.class, "dump-walks", TimeUnit.SECONDS, TimeUnit.MINUTES);
     private final Timer initTimer = Metrics.defaultRegistry().newTimer(WalkManager.class, "init-walks", TimeUnit.SECONDS, TimeUnit.MINUTES);
     private final Timer schedulePopulate = Metrics.defaultRegistry().newTimer(WalkManager.class, "populate-scheduler", TimeUnit.SECONDS, TimeUnit.MINUTES);
+    private final Timer restore = Metrics.defaultRegistry().newTimer(WalkManager.class, "restore", TimeUnit.SECONDS, TimeUnit.MINUTES);
 
 
     public WalkManager(int numVertices, int numSources) {
@@ -136,6 +137,9 @@ public class WalkManager {
         }
     }
 
+
+
+
     public void expandCapacity(int bucket, int additional) {
         int desiredLength = walks[bucket].length + additional;
 
@@ -215,6 +219,7 @@ public class WalkManager {
         final int fromBucket = fromVertex / bucketSize;
         final int toBucket = toVertexInclusive / bucketSize;
         final boolean[] snapshotInitBits = new boolean[toBucket - fromBucket + 1];
+        final boolean[] processedBits = new boolean[1 + toVertexInclusive - fromVertex];
         for(int b=fromBucket; b <= toBucket; b++) {
             snapshotInitBits[b - fromBucket] = false;
         }
@@ -231,6 +236,27 @@ public class WalkManager {
                 snapshots[vertexId - fromVertex] = null;
             }
 
+            @Override
+            public void restoreUngrabbed() {
+                final TimerContext _timer = restore.time();
+                // Restore such walks that were not grabbed (because the vertex
+                // was not initially scheduled)
+                int v = fromVertex;
+                int restoreCount = 0;
+                for(int[] snapshot : snapshots) {
+                    if (snapshot != null && !processedBits[v - fromVertex]) {
+                        for(int i=0; i<snapshot.length; i++) {
+                            int w = snapshot[i];
+                            updateWalk(sourceIdx(w), v, hop(w));
+                            restoreCount++;
+                        }
+                    }
+                    v++;
+                }
+                System.out.println("Restored " + restoreCount);
+                _timer.stop();
+            }
+
             // Note: accurate number only before snapshot is being purged
             public int numWalks() {
                 int sum = 0;
@@ -241,9 +267,10 @@ public class WalkManager {
             }
 
             @Override
-            public int[] getWalksAtVertex(int vertexId) {
+            public int[] getWalksAtVertex(int vertexId, boolean processed) {
                 int bucketIdx = vertexId / bucketSize;
                 int localBucketIdx = bucketIdx - (fromVertex / bucketSize);
+                processedBits[vertexId - fromVertex] = true;
 
                 if (snapshotInitBits[localBucketIdx]) {
                     return snapshots[vertexId - fromVertex];
@@ -323,7 +350,7 @@ public class WalkManager {
         final TimerContext _timer = dumpTimer.time();
         DataOutputStream dos = new DataOutputStream(new BufferedOutputStream(new FileOutputStream(new File(filename), true)));
         for(int i=snapshot.getFirstVertex(); i <= snapshot.getLastVertex(); i++) {
-            int[] ws = snapshot.getWalksAtVertex(i);
+            int[] ws = snapshot.getWalksAtVertex(i, false);
             if (ws != null) {
                 for(int j=0; j < ws.length; j++) {
                     int w = ws[j];

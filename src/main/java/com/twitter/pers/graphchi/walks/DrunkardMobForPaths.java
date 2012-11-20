@@ -70,7 +70,9 @@ public class DrunkardMobForPaths implements GraphChiProgram<Integer, Boolean> {
         }
     }
 
-    public void endIteration(GraphChiContext ctx) {}
+    public void endIteration(GraphChiContext ctx) {
+
+    }
 
     /**
      * At the start of interval - grab the snapshot of walks

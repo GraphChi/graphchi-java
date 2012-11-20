@@ -1,5 +1,7 @@
 package edu.cmu.graphchi;
 
+import edu.cmu.graphchi.engine.VertexInterval;
+
 /**
  * Copyright [2012] [Aapo Kyrola, Guy Blelloch, Carlos Guestrin / Carnegie Mellon University]
  *
@@ -18,8 +20,17 @@ package edu.cmu.graphchi;
 public class GraphChiContext {
 
     private Scheduler scheduler;
+    private VertexInterval curInterval;
 
     public GraphChiContext() {}
+
+    public VertexInterval getCurInterval() {
+        return curInterval;
+    }
+
+    public void setCurInterval(VertexInterval curInterval) {
+        this.curInterval = curInterval;
+    }
 
     public int getIteration() {
         return iteration;

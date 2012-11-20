@@ -33,6 +33,7 @@ public class DrunkardMobWithCompanion implements GraphChiProgram<Integer, Boolea
     private final RemoteDrunkardCompanion companion;
     private AtomicInteger outStanding = new AtomicInteger(0);
     private int maxOutstanding = 8;
+    private boolean[] touched; // Ugly optimization
 
     private final static double RESETPROB = 0.15;
 
@@ -54,8 +55,16 @@ public class DrunkardMobWithCompanion implements GraphChiProgram<Integer, Boolea
     public void update(ChiVertex<Integer, Boolean> vertex, GraphChiContext context) {
         try {
             boolean  firstIteration = (context.getIteration() == 0);
-            int[] walksAtMe = curWalkSnapshot.getWalksAtVertex(vertex.getId());
-            curWalkSnapshot.clear(vertex.getId());
+            int[] walksAtMe = curWalkSnapshot.getWalksAtVertex(vertex.getId(), true);
+
+            // Very dirty memory managenet
+            if (touched[vertex.getId() - curWalkSnapshot.getFirstVertex()]) {
+                curWalkSnapshot.clear(vertex.getId());
+            } else {
+                touched[vertex.getId() - curWalkSnapshot.getFirstVertex()] = true;
+            }
+
+
             if (firstIteration) {
                 if (walkManager.isSource(vertex.getId())) {
                     // If I am a source, tell the companion
@@ -114,6 +123,7 @@ public class DrunkardMobWithCompanion implements GraphChiProgram<Integer, Boolea
         long t = System.currentTimeMillis();
         curWalkSnapshot = walkManager.grabSnapshot(interval.getFirstVertex(), interval.getLastVertex());
         System.out.println("Grab snapshot took " + (System.currentTimeMillis() - t) + " ms.");
+        touched = new boolean[1 + curWalkSnapshot.getLastVertex() - curWalkSnapshot.getFirstVertex()];
 
         final WalkSnapshot snapshot = curWalkSnapshot;
         outStanding.incrementAndGet();
@@ -139,14 +149,18 @@ public class DrunkardMobWithCompanion implements GraphChiProgram<Integer, Boolea
 
                     long ignoreCount = 0;
                     for(int v=snapshot.getFirstVertex(); v<=snapshot.getLastVertex(); v++) {
-                        int[] walksAtVertex = snapshot.getWalksAtVertex(v);
+                        int[] walksAtVertex = snapshot.getWalksAtVertex(v, false);
                         if (walksAtVertex != null) {
+                            // Dirty memory management. Set flag so this can be cleared
+                            touched[v - snapshot.getFirstVertex()] = true;
+
                             int ignoreSourceId = -1;
                             if (walkManager.isSource(v)) {
                                 ignoreSourceId = walkManager.getVertexSourceIdx(v);
                             }
                             for(int j=0; j<walksAtVertex.length; j++) {
                                 int w = walksAtVertex[j];
+
 
                                 if (WalkManager.sourceIdx(w) != ignoreSourceId)   {
                                     walks[idx] = walksAtVertex[j];
@@ -191,11 +205,13 @@ public class DrunkardMobWithCompanion implements GraphChiProgram<Integer, Boolea
     }
 
     public void endSubInterval(GraphChiContext ctx, final VertexInterval interval) {
+        curWalkSnapshot.restoreUngrabbed();
         curWalkSnapshot = null; // Release memory
     }
 
     public void beginInterval(GraphChiContext ctx, VertexInterval interval) {
         walkManager.populateSchedulerForInterval(ctx.getScheduler(), interval);
+
     }
 
     public void endInterval(GraphChiContext ctx, VertexInterval interval) {}
