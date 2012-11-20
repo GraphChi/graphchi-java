@@ -14,7 +14,7 @@ public interface WalkSnapshot {
 
     void clear(int vertexId);
 
-    public int numWalks();
+    public long numWalks();
 
     public void restoreUngrabbed();
 }

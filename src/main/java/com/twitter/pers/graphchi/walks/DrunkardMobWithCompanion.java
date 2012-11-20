@@ -17,6 +17,7 @@ import java.io.File;
 import java.rmi.Naming;
 import java.rmi.RemoteException;
 import java.util.TreeSet;
+import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -26,16 +27,16 @@ import java.util.concurrent.atomic.AtomicInteger;
  * keep track of the distribution.
  * @author Aapo Kyrola, akyrola@twitter.com, akyrola@cs.cmu.edu
  */
-public class DrunkardMobWithCompanion implements GraphChiProgram<Integer, Boolean> {
+public class DrunkardMobWithCompanion implements GraphChiProgram<Integer, Boolean>, GrabbedBucketConsumer {
 
     private WalkManager walkManager;
     private WalkSnapshot curWalkSnapshot;
     private final RemoteDrunkardCompanion companion;
-    private AtomicInteger outStanding = new AtomicInteger(0);
-    private int maxOutstanding = 8;
-    private boolean[] touched; // Ugly optimization
 
     private final static double RESETPROB = 0.15;
+    private LinkedBlockingQueue<BucketsToSend> bucketQueue = new LinkedBlockingQueue<BucketsToSend>();
+    private boolean finished = false;
+    private Thread dumperThread;
 
     public DrunkardMobWithCompanion(String companionAddress) throws Exception {
         if (companionAddress.contains("localhost")) {
@@ -44,6 +45,81 @@ public class DrunkardMobWithCompanion implements GraphChiProgram<Integer, Boolea
         companion = (RemoteDrunkardCompanion) Naming.lookup(companionAddress);
         System.out.println("Found companion: " + companion);
 
+        // Launch a thread to send to the companion
+        dumperThread = new Thread(new Runnable() {
+            public void run() {
+                int[] walks = new int[256 * 1024];
+                int[] vertices = new int[256 * 1024];
+                int idx = 0;
+                long ignoreCount = 0;
+                long counter = 0;
+
+                while(!finished || bucketQueue.size() > 0) {
+                    BucketsToSend bucket = null;
+                    try {
+                        bucket = bucketQueue.poll(1000, TimeUnit.MILLISECONDS);
+                    } catch (InterruptedException e) {
+                    }
+                    if (bucket != null) {
+                        for(int i=0; i<bucket.walks.length; i++) {
+                            int w = bucket.walks[i];
+                            int v = WalkManager.off(w) + bucket.firstVertex;
+                            if (walkManager.getSourceVertex(w) == v) {
+                                ignoreCount++;
+                                continue;
+                            }
+
+                            walks[idx] = w;
+                            vertices[idx] = v;
+                            idx++;
+
+                            if (idx >= walks.length) {
+                                try {
+                                    companion.processWalks(walks, vertices);
+                                } catch (Exception err) {
+                                    err.printStackTrace();
+                                }
+                                idx = 0;
+                            }
+
+                        }
+                        if (counter++ % 1000 == 0)
+                            System.out.println("Ignore count:" + ignoreCount + "; pending=" + bucketQueue.size());
+                    }
+                }
+
+                // Send rest
+                try {
+                    int[] tmpwalks = new int[idx];
+                    int[] tmpvertices = new int[idx];
+                    System.arraycopy(walks, 0, tmpwalks, 0, idx);
+                    System.arraycopy(vertices, 0, tmpvertices, 0, idx);
+                    companion.processWalks(tmpwalks, tmpvertices);
+                } catch (Exception err) {
+                    err.printStackTrace();
+                }
+            }
+        });
+        dumperThread.start();
+    }
+
+    private static class BucketsToSend {
+        int firstVertex;
+        int[] walks;
+
+        BucketsToSend(int firstVertex, int[] walks) {
+            this.firstVertex = firstVertex;
+            this.walks = walks;
+        }
+    }
+
+    @Override
+    public void consume(int firstVertexInBucket, int[] walkBucket) {
+        try {
+            bucketQueue.put(new BucketsToSend(firstVertexInBucket, walkBucket));
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
     }
 
     private void initCompanion() throws Exception {
@@ -54,16 +130,20 @@ public class DrunkardMobWithCompanion implements GraphChiProgram<Integer, Boolea
 
     public void update(ChiVertex<Integer, Boolean> vertex, GraphChiContext context) {
         try {
+            // Flow control
+            while (bucketQueue.size() > 1000) {
+                System.out.println("Too many buckets waiting for delivery: " + bucketQueue.size());
+                try {
+                    Thread.sleep(2000);
+                } catch (InterruptedException e) {
+                }
+            }
+
             boolean  firstIteration = (context.getIteration() == 0);
             int[] walksAtMe = curWalkSnapshot.getWalksAtVertex(vertex.getId(), true);
 
             // Very dirty memory managenet
-            if (touched[vertex.getId() - curWalkSnapshot.getFirstVertex()]) {
-                curWalkSnapshot.clear(vertex.getId());
-            } else {
-                touched[vertex.getId() - curWalkSnapshot.getFirstVertex()] = true;
-            }
-
+            curWalkSnapshot.clear(vertex.getId());
 
             if (firstIteration) {
                 if (walkManager.isSource(vertex.getId())) {
@@ -106,13 +186,19 @@ public class DrunkardMobWithCompanion implements GraphChiProgram<Integer, Boolea
     public void endIteration(GraphChiContext ctx) {}
 
     public void spinUntilFinish() {
-        while (outStanding.get() > 0) {
+        finished = true;
+        while (bucketQueue.size() > 0) {
             try {
-                System.out.println("Waiting ..." + outStanding.get());
+                System.out.println("Waiting ..." + bucketQueue.size());
                 Thread.sleep(500);
             } catch (InterruptedException e) {
                 e.printStackTrace();
             }
+        }
+        try {
+            dumperThread.join();
+        } catch (InterruptedException e) {
+            e.printStackTrace();
         }
     }
 
@@ -123,85 +209,6 @@ public class DrunkardMobWithCompanion implements GraphChiProgram<Integer, Boolea
         long t = System.currentTimeMillis();
         curWalkSnapshot = walkManager.grabSnapshot(interval.getFirstVertex(), interval.getLastVertex());
         System.out.println("Grab snapshot took " + (System.currentTimeMillis() - t) + " ms.");
-        touched = new boolean[1 + curWalkSnapshot.getLastVertex() - curWalkSnapshot.getFirstVertex()];
-
-        final WalkSnapshot snapshot = curWalkSnapshot;
-        outStanding.incrementAndGet();
-
-        while(outStanding.get() >= maxOutstanding) {
-            System.out.println("Outstanding...:" + outStanding);
-            try {
-                Thread.sleep(500);
-            } catch (InterruptedException e) {
-                e.printStackTrace();
-            }
-        }
-
-        // Launch a thread to send to the companion
-        Thread dumperThread = new Thread(new Runnable() {
-            public void run() {
-                try {
-                    int numWalks = snapshot.numWalks();
-                    long t = System.currentTimeMillis();
-                    int[] walks = new int[256 * 1024];
-                    int[] vertices = new int[256 * 1024];
-                    int idx = 0;
-
-                    long ignoreCount = 0;
-                    for(int v=snapshot.getFirstVertex(); v<=snapshot.getLastVertex(); v++) {
-                        int[] walksAtVertex = snapshot.getWalksAtVertex(v, false);
-                        if (walksAtVertex != null) {
-                            // Dirty memory management. Set flag so this can be cleared
-                            touched[v - snapshot.getFirstVertex()] = true;
-
-                            int ignoreSourceId = -1;
-                            if (walkManager.isSource(v)) {
-                                ignoreSourceId = walkManager.getVertexSourceIdx(v);
-                            }
-                            for(int j=0; j<walksAtVertex.length; j++) {
-                                int w = walksAtVertex[j];
-
-
-                                if (WalkManager.sourceIdx(w) != ignoreSourceId)   {
-                                    walks[idx] = walksAtVertex[j];
-                                    vertices[idx] = v;
-                                    idx++;
-
-                                    if (idx >= walks.length) {
-                                        try {
-                                            companion.processWalks(walks, vertices);
-                                        } catch (Exception err) {
-                                            err.printStackTrace();
-                                        }
-                                        idx = 0;
-                                    }
-                                } else {
-                                    ignoreCount++;
-                                }
-                            }
-                        }
-
-                    }
-
-                    System.out.println("Sent walks to companion in " + (System.currentTimeMillis() - t) +
-                            " ms, ignored:" + ignoreCount + " / " + numWalks);
-
-                    // Process rests
-                    int[] walksRest = new int[idx];
-                    int[] verticesRest = new int[idx];
-                    System.arraycopy(walks, 0, walksRest, 0, idx);
-                    System.arraycopy(vertices, 0, verticesRest, 0, idx);
-                    companion.processWalks(walksRest, verticesRest);
-
-                } catch (Exception err) {
-                    err.printStackTrace();
-                }  finally {
-                    outStanding.decrementAndGet();
-
-                }
-            }
-        });
-        dumperThread.start();
     }
 
     public void endSubInterval(GraphChiContext ctx, final VertexInterval interval) {
@@ -211,7 +218,7 @@ public class DrunkardMobWithCompanion implements GraphChiProgram<Integer, Boolea
 
     public void beginInterval(GraphChiContext ctx, VertexInterval interval) {
         walkManager.populateSchedulerForInterval(ctx.getScheduler(), interval);
-
+        walkManager.setBucketConsumer(this);
     }
 
     public void endInterval(GraphChiContext ctx, VertexInterval interval) {}

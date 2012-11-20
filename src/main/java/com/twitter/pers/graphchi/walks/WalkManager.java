@@ -40,6 +40,7 @@ public class WalkManager {
     private final Timer schedulePopulate = Metrics.defaultRegistry().newTimer(WalkManager.class, "populate-scheduler", TimeUnit.SECONDS, TimeUnit.MINUTES);
     private final Timer restore = Metrics.defaultRegistry().newTimer(WalkManager.class, "restore", TimeUnit.SECONDS, TimeUnit.MINUTES);
 
+    private GrabbedBucketConsumer bucketConsumer;
 
     public WalkManager(int numVertices, int numSources) {
         this.numVertices = numVertices;
@@ -62,6 +63,10 @@ public class WalkManager {
 
     public int[] getSources() {
         return sources;
+    }
+
+    public void setBucketConsumer(GrabbedBucketConsumer bucketConsumer) {
+        this.bucketConsumer = bucketConsumer;
     }
 
     /**
@@ -258,8 +263,8 @@ public class WalkManager {
             }
 
             // Note: accurate number only before snapshot is being purged
-            public int numWalks() {
-                int sum = 0;
+            public long numWalks() {
+                long sum = 0;
                 for(int b=fromBucket; b <= toBucket; b++) {
                     sum += walks[b].length;
                 }
@@ -277,12 +282,15 @@ public class WalkManager {
                 } else {
                     final TimerContext _timer = grabTimer.time();
 
+                    int[] bucketToConsume = null;
                     synchronized (bucketLocks[bucketIdx]) {
                         if (!snapshotInitBits[localBucketIdx]) {
 
                             int bucketFirstVertex = bucketSize * bucketIdx;
-                            int[] arr = walks[bucketIdx];
                             int len = walkIndices[bucketIdx];
+                            bucketToConsume = new int[len];
+                            System.arraycopy(walks[bucketIdx], 0, bucketToConsume, 0, len);
+
                             walks[bucketIdx] = new int[initialSize];
                             walkIndices[bucketIdx] = 0;
                             final int[] snapshotSizes = new int[bucketSize];
@@ -290,7 +298,7 @@ public class WalkManager {
 
                             /* Calculate vertex-walks sizes */
                             for(int i=0; i < len; i++) {
-                                int w = arr[i];
+                                int w = bucketToConsume[i];
                                 snapshotSizes[off(w)]++;
                             }
 
@@ -302,7 +310,7 @@ public class WalkManager {
                             }
 
                             for(int i=0; i < len; i++) {
-                                int w = arr[i];
+                                int w = bucketToConsume[i];
                                 int vertex = bucketFirstVertex + off(w);
 
                                 if (vertex >= fromVertex && vertex <= toVertexInclusive) {
@@ -319,6 +327,9 @@ public class WalkManager {
                             }
                             snapshotInitBits[localBucketIdx] = true;
                         }
+                    }
+                    if (bucketConsumer != null && bucketToConsume != null && bucketToConsume.length > 0) {
+                        bucketConsumer.consume(bucketIdx * bucketSize, bucketToConsume);
                     }
                     _timer.stop();
                     return snapshots[vertexId - fromVertex];
