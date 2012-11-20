@@ -178,7 +178,16 @@ public class WalkManager {
         for(int i=0; i < sourceSeqIdx; i++) {
             int source = sources[i];
             int count = sourceWalkCounts[i];
-            for(int c=0; c<count; c++) updateWalk(i, source, false);
+
+            int walk = encode(i, false, source % bucketSize);
+            int bucket = source / bucketSize;
+            int idx = walkIndices[bucket];
+            for(int c=0; c<count; c++) {
+                walks[bucket][idx++] = walk;
+            }
+            walkIndices[bucket] += count;
+
+            if (i % 100000 == 0) System.out.println(i + " / " + sourceSeqIdx);
         }
 
         sourceWalkCounts = null;
