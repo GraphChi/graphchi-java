@@ -210,6 +210,8 @@ public class WalkManager {
         int fromBucket = fromVertex / bucketSize;
         int toBucket = toVertexInclusive / bucketSize;
 
+        long t1 = System.currentTimeMillis();
+
         /* Replace the buckets in question with empty buckets */
         ArrayList<int[]> tmpBuckets = new ArrayList<int[]>(toBucket - fromBucket + 1);
         int[] tmpBucketLengths = new int[toBucket - fromBucket + 1];
@@ -220,6 +222,8 @@ public class WalkManager {
             walkIndices[b] = 0;
         }
 
+        long t2 = System.currentTimeMillis();
+
         /* Now create data structure for fast retrieval */
         final int[][] snapshots = new int[toVertexInclusive - fromVertex + 1][];
         final int[] snapshotIdxs = new int[snapshots.length];
@@ -228,6 +232,10 @@ public class WalkManager {
             snapshots[i] = null;
             snapshotIdxs[i] = 0;
         }
+
+        long t3 = System.currentTimeMillis();
+        long addedBack = 0;
+
         /* Add walks to snapshot arrays -- TODO: parallelize */
         for(int b=0; b < tmpBuckets.size(); b++) {
             int bucketFirstVertex = bucketSize * (fromBucket + b);
@@ -256,9 +264,7 @@ public class WalkManager {
 
             for(int i=0; i < len; i++) {
                 int w = arr[i];
-                boolean hop = hop(w);
                 int vertex = bucketFirstVertex + off(w);
-                int src = sourceIdx(w);
 
                 if (vertex >= fromVertex && vertex <= toVertexInclusive) {
                     int snapshotOff = vertex - fromVertex;
@@ -276,13 +282,18 @@ public class WalkManager {
                     snapshotIdxs[snapshotOff]++;
                 } else {
                     // add back
+                    boolean hop = hop(w);
+                    int src = sourceIdx(w);
                     updateWalk(src, vertex, hop);
+                    addedBack++;
                 }
             }
             tmpBuckets.set(b, null); // Save memory
         }
 
+        long t4 = System.currentTimeMillis();
         _timer.stop();
+        System.out.println("Timings: t2-t1:" + (t2-t1) + " t3-t2:" + (t3-t2) + " t4-t3:" + (t4-t3) + " added back: " + addedBack);
 
         /* Create the snapshot object */
         return new WalkSnapshot() {
