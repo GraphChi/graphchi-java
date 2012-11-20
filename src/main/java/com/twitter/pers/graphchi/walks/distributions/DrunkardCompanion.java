@@ -134,7 +134,7 @@ public class DrunkardCompanion extends UnicastRemoteObject implements RemoteDrun
 
     @Override
     public IdCount[] getTop(int vertexId) throws RemoteException {
-        int sourceIdx = Arrays.binarySearch(sourceVertexIds, vertexId);
+        int sourceIdx = (sourceVertexIds == null ? -1 : Arrays.binarySearch(sourceVertexIds, vertexId));
         if (sourceIdx >= 0) {
             return distributions[sourceIdx].getTop(10);
         } else {
@@ -150,9 +150,11 @@ public class DrunkardCompanion extends UnicastRemoteObject implements RemoteDrun
             String curFile = null;
             int curIndex = 0;
             for(String indexFile : indexFiles) {
+                System.out.println("i: " + indexFile);
                 int indexStart = Integer.parseInt(indexFile.substring(indexFile.lastIndexOf(".") + 1));
-                if (indexStart >= vertexId) {
-                    if (curFile == null || curIndex > indexStart) {
+                if (indexStart <= vertexId) {
+
+                    if (curFile == null || curIndex < indexStart) {
                         curIndex = indexStart;
                         curFile = indexFile;
                     }
@@ -162,22 +164,30 @@ public class DrunkardCompanion extends UnicastRemoteObject implements RemoteDrun
             else {
                 System.out.println("Reading: " + curFile);
                 try {
+                    File ifile = new File(workingDir, curFile);
                     // TODO: document
-                    RandomAccessFile raf = new RandomAccessFile(new File(workingDir, curFile), "r");
-                    int rowLength = 4 + 8 * 11;
+                    byte[] fnamebytes = new byte[(int)ifile.length()];
+                    new FileInputStream(ifile).read(fnamebytes);
+                    String fileName = new String(fnamebytes);
+                    System.out.println("Data file:" + fileName);
+                    RandomAccessFile raf = new RandomAccessFile(fileName, "r");
+                    int rowLength = 4 + 8 * 10;
                     int idx = (vertexId - curIndex) * rowLength;
                     byte[] data = new byte[rowLength];
                     raf.seek(idx);
                     raf.read(data);
 
+                    System.out.println("Seek: " + idx);
+
                     DataInputStream dis = new DataInputStream(new ByteArrayInputStream(data));
                     int vid = dis.readInt();
-                    if (vid != vertexId) throw new RemoteException("Mismatch: " + vid + " != " + vertexId);
 
                     IdCount[] result = new IdCount[10];
                     for(int j=0; j<result.length; j++) {
                         result[j] = new IdCount(dis.readInt(), dis.readInt());
+                        System.out.println(result[j]);
                     }
+                    if (vid != vertexId) throw new RemoteException("Mismatch: " + vid + " != " + vertexId);
 
                     return result;
                 } catch (Exception e) {
@@ -252,6 +262,7 @@ public class DrunkardCompanion extends UnicastRemoteObject implements RemoteDrun
             BufferedWriter wr = new BufferedWriter(new FileWriter(indexFile));
             wr.write(outputFile);
             wr.close();
+            System.out.println("Done...");
 
         } catch (Exception err) {
             err.printStackTrace();

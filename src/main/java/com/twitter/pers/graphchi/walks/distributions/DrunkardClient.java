@@ -1,11 +1,13 @@
 package com.twitter.pers.graphchi.walks.distributions;
 
 import com.twitter.pers.graphchi.walks.RMIHack;
+import com.twitter.pers.util.RemoteVertexNameService;
 import edu.cmu.graphchi.util.IdCount;
 
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.rmi.Naming;
+import java.util.ArrayList;
 import java.util.TreeSet;
 
 /**
@@ -15,10 +17,13 @@ public class DrunkardClient {
 
     public static void main(String[] args) throws Exception {
         String hostAddress = args[0];
+        String namingAddress = args[1];
         if (hostAddress.contains("localhost")) {
             RMIHack.setupLocalHostTunneling();
         }
         RemoteDrunkardCompanion companion = (RemoteDrunkardCompanion) Naming.lookup(hostAddress);
+        RemoteVertexNameService vns = (RemoteVertexNameService) Naming.lookup(namingAddress);
+
         BufferedReader cmd = new BufferedReader(new InputStreamReader(System.in));
         String ln;
         while ((ln = cmd.readLine()) != null) {
@@ -27,8 +32,13 @@ public class DrunkardClient {
             try {
                 IdCount[] top = companion.getTop(vertexId);
 
+                ArrayList<Integer> ids = new ArrayList<Integer>();
+                for(IdCount ic : top) ids.add(ic.id);
+                ArrayList<String> names = vns.namify(ids);
+
+                int j = 0;
                 for(IdCount ic : top) {
-                    System.out.println(ic.id + ": " + ic.count);
+                    System.out.println(names.get(j++) + ":" + ic.id + ": " + ic.count);
                 }
             } catch (Exception err) {
                 err.printStackTrace();

@@ -18,4 +18,8 @@ public class IdCount implements Comparable<IdCount>, Serializable {
     public int compareTo(IdCount idCount) {
         return (idCount.count > this.count ? 1 : (idCount.count != this.count ? -1 : 0));
     }
+
+    public String toString() {
+        return id + ": " + count;
+    }
 }
