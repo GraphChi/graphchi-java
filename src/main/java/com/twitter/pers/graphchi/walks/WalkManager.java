@@ -4,6 +4,7 @@ import com.yammer.metrics.Metrics;
 import com.yammer.metrics.core.Timer;
 import com.yammer.metrics.core.TimerContext;
 import edu.cmu.graphchi.Scheduler;
+import edu.cmu.graphchi.engine.VertexInterval;
 
 import java.io.*;
 import java.lang.management.MemoryManagerMXBean;
@@ -35,6 +36,7 @@ public class WalkManager {
     private final Timer grabTimer = Metrics.defaultRegistry().newTimer(WalkManager.class, "grab-walks", TimeUnit.SECONDS, TimeUnit.MINUTES);
     private final Timer dumpTimer = Metrics.defaultRegistry().newTimer(WalkManager.class, "dump-walks", TimeUnit.SECONDS, TimeUnit.MINUTES);
     private final Timer initTimer = Metrics.defaultRegistry().newTimer(WalkManager.class, "init-walks", TimeUnit.SECONDS, TimeUnit.MINUTES);
+    private final Timer schedulePopulate = Metrics.defaultRegistry().newTimer(WalkManager.class, "populate-scheduler", TimeUnit.SECONDS, TimeUnit.MINUTES);
 
 
     public WalkManager(int numVertices, int numSources) {
@@ -120,6 +122,7 @@ public class WalkManager {
      */
     public void updateWalk(int sourceId, int toVertex, boolean hop) {
         int bucket = toVertex / bucketSize;
+        int w = encode(sourceId, hop, toVertex % bucketSize);
         synchronized (walks[bucket]) {
             int idx = walkIndices[bucket];
             if (idx == walks[bucket].length) {
@@ -127,7 +130,7 @@ public class WalkManager {
                 System.arraycopy(walks[bucket], 0, newBucket, 0, walks[bucket].length);
                 walks[bucket] = newBucket;
             }
-            walks[bucket][idx] = encode(sourceId, hop, toVertex % bucketSize);
+            walks[bucket][idx] = w;
             walkIndices[bucket]++;
         }
     }
@@ -283,7 +286,7 @@ public class WalkManager {
 
         long t4 = System.currentTimeMillis();
         _timer.stop();
-        System.out.println("Timings: t2-t1:" + (t2-t1) + " t3-t2:" + (t3-t2) + " t4-t3:" + (t4-t3) + " added back: " + addedBack);
+        System.out.println("Timings: t2-t1:" + (t2 - t1) + " t3-t2:" + (t3 - t2) + " t4-t3:" + (t4 - t3) + " added back: " + addedBack);
 
         /* Create the snapshot object */
         return new WalkSnapshot() {
@@ -347,5 +350,28 @@ public class WalkManager {
         for(int i=0; i <sources.length; i++) {
             scheduler.addTask(sources[i]);
         }
+    }
+
+    public void populateSchedulerForInterval(Scheduler scheduler, VertexInterval interval) {
+        final TimerContext _timer = schedulePopulate.time();
+        int fromBucket = interval.getFirstVertex() / bucketSize;
+        int toBucket = interval.getLastVertex() / bucketSize;
+
+        for(int bucketIdx=fromBucket; bucketIdx <= toBucket; bucketIdx++) {
+            int vertexBase = bucketIdx * bucketSize;
+            int[] bucket = walks[bucketIdx];
+            BitSet alreadySeen = new BitSet(bucketSize);
+            int counter = 0;
+            for(int j=0; j<bucket.length; j++) {
+                int off = off(bucket[j]);
+                if (!alreadySeen.get(off))  {
+                    alreadySeen.set(off, true);
+                    counter++;
+                    scheduler.addTask(vertexBase + off);
+                    if (counter == bucketSize) break;
+                }
+            }
+        }
+        _timer.stop();
     }
 }

@@ -53,12 +53,13 @@ public class DrunkardMobWithCompanion implements GraphChiProgram<Integer, Boolea
 
     public void update(ChiVertex<Integer, Boolean> vertex, GraphChiContext context) {
         try {
+            boolean  firstIteration = (context.getIteration() == 0);
             int[] walksAtMe = curWalkSnapshot.getWalksAtVertex(vertex.getId());
-            if (context.getIteration() == 0) {
+            if (firstIteration) {
                 if (walkManager.isSource(vertex.getId())) {
                     // If I am a source, tell the companion
                     int myIdx = walkManager.getVertexSourceIdx(vertex.getId());
-                    // Add my out-neighbors to the avoidlist
+                    // Add my out-neighbors to the avoidlist. TODO: async
                     companion.setAvoidList(myIdx, vertex.getOutNeighborArray());
                 }
             }
@@ -67,23 +68,17 @@ public class DrunkardMobWithCompanion implements GraphChiProgram<Integer, Boolea
             int walkLength = walksAtMe.length;
             for(int i=0; i < walkLength; i++) {
                 int walk = walksAtMe[i];
-                boolean hop = walkManager.hop(walk);
-                // Choose a random destination and move the walk forward
+                boolean hop = WalkManager.hop(walk);
+                // Choose a random destination and move the walk forward, or
+                // reset (not on first iteration).
                 int dst;
-                if (vertex.numOutEdges() > 0 && Math.random() > RESETPROB) {
+                if (vertex.numOutEdges() > 0 && (Math.random() > RESETPROB || firstIteration)) {
                     dst = vertex.getRandomOutNeighbor();
                 } else {
                     // Dead end or reset
                     dst = walkManager.getSourceVertex(WalkManager.sourceIdx(walk));
                 }
                 walkManager.updateWalk(WalkManager.sourceIdx(walk), dst, !hop);
-
-                if (dst < 0) {
-                    throw new RuntimeException("Dst < 0?? " + dst + "; " + WalkManager.sourceIdx(walk) + "; " + walk ) ;
-                }
-
-                context.getScheduler().addTask(dst);
-
             }
         } catch (RemoteException re) {
             throw new RuntimeException(re);
@@ -122,7 +117,6 @@ public class DrunkardMobWithCompanion implements GraphChiProgram<Integer, Boolea
         final WalkSnapshot snapshot = curWalkSnapshot;
         outStanding.incrementAndGet();
 
-
         while(outStanding.get() >= maxOutstanding) {
             System.out.println("Outstanding...:" + outStanding);
             try {
@@ -136,31 +130,45 @@ public class DrunkardMobWithCompanion implements GraphChiProgram<Integer, Boolea
         Thread dumperThread = new Thread(new Runnable() {
             public void run() {
                 try {
-                    int n = snapshot.numWalks();
+                    long t = System.currentTimeMillis();
                     int[] walks = new int[256 * 1024];
                     int[] vertices = new int[256 * 1024];
                     int idx = 0;
+
+                    long ignoreCount = 0;
                     for(int v=snapshot.getFirstVertex(); v<=snapshot.getLastVertex(); v++) {
                         int[] walksAtVertex = snapshot.getWalksAtVertex(v);
                         if (walksAtVertex != null) {
+                            int ignoreSourceId = -1;
+                            if (walkManager.isSource(v)) {
+                                ignoreSourceId = walkManager.getVertexSourceIdx(v);
+                            }
                             for(int j=0; j<walksAtVertex.length; j++) {
-                                walks[idx] = walksAtVertex[j];
-                                vertices[idx] = v;
-                                idx++;
+                                int w = walksAtVertex[j];
 
-                                if (idx >= walks.length) {
-                                    try {
-                                        companion.processWalks(walks, vertices);
-                                    } catch (Exception err) {
-                                        err.printStackTrace();
+                                if (WalkManager.sourceIdx(w) != ignoreSourceId)   {
+                                    walks[idx] = walksAtVertex[j];
+                                    vertices[idx] = v;
+                                    idx++;
+
+                                    if (idx >= walks.length) {
+                                        try {
+                                            companion.processWalks(walks, vertices);
+                                        } catch (Exception err) {
+                                            err.printStackTrace();
+                                        }
+                                        idx = 0;
                                     }
-                                    idx = 0;
+                                } else {
+                                    ignoreCount++;
                                 }
-
                             }
                         }
 
                     }
+
+                    System.out.println("Sent walks to companion in " + (System.currentTimeMillis() - t) +
+                            " ms, ignored:" + ignoreCount + " / " + snapshot.numWalks());
 
                     // Process rests
                     int[] walksRest = new int[idx];
@@ -184,7 +192,9 @@ public class DrunkardMobWithCompanion implements GraphChiProgram<Integer, Boolea
         curWalkSnapshot = null; // Release memory
     }
 
-    public void beginInterval(GraphChiContext ctx, VertexInterval interval) {}
+    public void beginInterval(GraphChiContext ctx, VertexInterval interval) {
+        walkManager.populateSchedulerForInterval(ctx.getScheduler(), interval);
+    }
 
     public void endInterval(GraphChiContext ctx, VertexInterval interval) {}
 

@@ -126,20 +126,12 @@ public class DrunkardCompanion extends UnicastRemoteObject implements RemoteDrun
             int w = walks[i];
             int atVertex = atVertices[i];
             int sourceIdx = WalkManager.sourceIdx(w);
-
-            if (atVertex == sourceVertexIds[sourceIdx]) {
-                // Ignore - at origin
-                continue;
-            }
-
-            IntegerBuffer drainArr = null;
             buffers[sourceIdx].add(atVertex);
         }
         // Loop to see what to drain
         for(int i=0; i < sourceVertexIds.length; i++) {
             if (buffers[i].size() >= BUFFER_MAX) {
-
-                // Drain asynchronously
+              // Drain asynchronously
                 outstanding.incrementAndGet();
                 final IntegerBuffer toDrain = buffers[i];
                 final int drainIdx = i;
@@ -246,8 +238,9 @@ public class DrunkardCompanion extends UnicastRemoteObject implements RemoteDrun
     public void processWalks(final int[] walks, final int[] atVertices) throws RemoteException {
         try {
             pendingQueue.put(new WalkSubmission(walks, atVertices));
-            if (pendingQueue.size() > 50) {
-                System.out.println("Warning, pending queue size: " + pendingQueue.size());
+            int pending = pendingQueue.size();
+            if (pending > 50 && pending % 20 == 0) {
+                System.out.println("Warning, pending queue size: " + pending);
             }
         } catch (Exception err) {
             err.printStackTrace();

@@ -174,7 +174,6 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
         parallelExecutor = Executors.newFixedThreadPool(nprocs);
         loadingExecutor = Executors.newFixedThreadPool(4);
 
-
         chiContext.setNumIterations(niters);
 
         long startTime = System.currentTimeMillis();
@@ -253,11 +252,11 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
 
                         if (!autoLoadNext || nextWindow == null) {
                             try {
-
-                                subIntervalEnd = determineNextWindow(subIntervalStart, Math.min(intervalEn, subIntervalStart + adjMaxWindow ));
+                               subIntervalEnd = determineNextWindow(subIntervalStart, Math.min(intervalEn, subIntervalStart + adjMaxWindow ));
                             } catch (NoEdgesInIntervalException nie) {
-                                subIntervalEnd = Math.min(intervalEn, subIntervalStart + adjMaxWindow );
-                                System.out.println("No edges, skip");
+                                System.out.println("No edges, skip: " + subIntervalStart + " -- " + subIntervalEnd);
+                                subIntervalEnd = subIntervalStart + adjMaxWindow;
+                                subIntervalStart = subIntervalEnd + 1;
                                 continue;
                             }
                             int nvertices = subIntervalEnd - subIntervalStart + 1;
@@ -689,7 +688,6 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
 
             long memReq = 0;
             int maxInterval = maxVertex - subIntervalStart;
-            System.out.println("mem budget: " + memBudget / 1024. / 1024. + "mb");
             int vertexDataSizeOf = (vertexDataConverter != null ? vertexDataConverter.sizeOf() : 0);
             int edataSizeOf = (onlyAdjacency ? 0 : edataConverter.sizeOf());
 
