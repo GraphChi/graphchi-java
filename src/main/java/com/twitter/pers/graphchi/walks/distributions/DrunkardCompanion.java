@@ -49,18 +49,20 @@ public class DrunkardCompanion extends UnicastRemoteObject implements RemoteDrun
         synchronized (distrLocks[sourceIdx]) {
             distributions[sourceIdx] = DiscreteDistribution.merge(distributions[sourceIdx], distr);
 
-            int sz = distributions[sourceIdx].sizeExcludingAvoids();
-            if (sz > 200) {
-                int mx = distributions[sourceIdx].max();
-                int pruneLimit = (int) (mx * pruneFraction);
-                if (pruneLimit > 0) {
-                    DiscreteDistribution filtered =  distributions[sourceIdx].filteredAndShift(pruneLimit);
-                    if (filtered.sizeExcludingAvoids() > 25) {
-                        distributions[sourceIdx] = filtered;
-                        int prunedSize = distributions[sourceIdx].size();
-                        //  System.out.println("Pruned: " + sz + " => " + prunedSize + " max: " + mx + ", limit=" + pruneLimit);
-                    } else {
-                        //  System.out.println("Filtering would have deleted almost everything...");
+            if (pruneFraction > 0.0) {
+                int sz = distributions[sourceIdx].sizeExcludingAvoids();
+                if (sz > 200) {
+                    int mx = distributions[sourceIdx].max();
+                    int pruneLimit = (int) (mx * pruneFraction);
+                    if (pruneLimit > 0) {
+                        DiscreteDistribution filtered =  distributions[sourceIdx].filteredAndShift(pruneLimit);
+                        if (filtered.sizeExcludingAvoids() > 25) {
+                            distributions[sourceIdx] = filtered;
+                            int prunedSize = distributions[sourceIdx].size();
+                            //  System.out.println("Pruned: " + sz + " => " + prunedSize + " max: " + mx + ", limit=" + pruneLimit);
+                        } else {
+                            //  System.out.println("Filtering would have deleted almost everything...");
+                        }
                     }
                 }
             }

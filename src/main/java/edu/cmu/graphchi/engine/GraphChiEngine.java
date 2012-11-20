@@ -346,8 +346,9 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
                         program.endSubInterval(chiContext, new VertexInterval(subIntervalStart, subIntervalEnd));
 
                     }  else {
+                        subIntervalEnd = subIntervalStart + adjMaxWindow;
                         subIntervalStart = subIntervalEnd + 1;
-                        System.out.println("Skipped interval - no vertices scheduled.");
+                         System.out.println("Skipped interval - no vertices scheduled. " + subIntervalStart + " -- " + subIntervalEnd);
                     }
                 }
 
