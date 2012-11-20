@@ -14,6 +14,7 @@ import java.util.Arrays;
 import java.util.TreeSet;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
@@ -22,8 +23,18 @@ import java.util.concurrent.atomic.AtomicInteger;
  */
 public class DrunkardCompanion extends UnicastRemoteObject implements RemoteDrunkardCompanion {
 
-    private static final int BUFFER_CAPACITY = 256;
-    private static final int BUFFER_MAX = 512;
+    private static class WalkSubmission {
+        int[] walks;
+        int[] atVertices;
+
+        private WalkSubmission(int[] walks, int[] atVertices) {
+            this.walks = walks;
+            this.atVertices = atVertices;
+        }
+    }
+
+    private static final int BUFFER_CAPACITY = 128;
+    private static final int BUFFER_MAX = 256;
 
     private int maxOutstanding = 4096;
 
@@ -37,12 +48,26 @@ public class DrunkardCompanion extends UnicastRemoteObject implements RemoteDrun
     private ExecutorService parallelExecutor;
     private Double pruneFraction;
     private String workingDir;
+    private LinkedBlockingQueue<WalkSubmission> pendingQueue = new LinkedBlockingQueue<WalkSubmission>();
 
 
     public DrunkardCompanion(double pruneFraction, String workingDir) throws RemoteException {
         parallelExecutor = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
         this.pruneFraction = pruneFraction;
         this.workingDir = workingDir;
+
+        Thread processingThread = new Thread(new Runnable() {
+            @Override
+            public void run() {
+                while(true) {
+                    WalkSubmission subm = pendingQueue.poll();
+                    if (subm != null) {
+                        _processWalks(subm.walks, subm.atVertices);
+                    }
+                }
+            }
+        });
+        processingThread.start();
     }
 
     private void mergeWith(int sourceIdx, DiscreteDistribution distr) {
@@ -220,8 +245,9 @@ public class DrunkardCompanion extends UnicastRemoteObject implements RemoteDrun
     @Override
     public void processWalks(final int[] walks, final int[] atVertices) throws RemoteException {
         try {
-            synchronized (this) {
-                _processWalks(walks, atVertices);
+            pendingQueue.put(new WalkSubmission(walks, atVertices));
+            if (pendingQueue.size() > 50) {
+                System.out.println("Warning, pending queue size: " + pendingQueue.size());
             }
         } catch (Exception err) {
             err.printStackTrace();
@@ -275,6 +301,7 @@ public class DrunkardCompanion extends UnicastRemoteObject implements RemoteDrun
             err.printStackTrace();
         }
     }
+
 
     public static void main(String[] args) throws Exception {
         Double pruneFraction = Double.parseDouble(args[0]);

@@ -124,7 +124,7 @@ public class DrunkardMobWithCompanion implements GraphChiProgram<Integer, Boolea
 
 
         while(outStanding.get() >= maxOutstanding) {
-            System.out.print(".");
+            System.out.println("Outstanding...:" + outStanding);
             try {
                 Thread.sleep(500);
             } catch (InterruptedException e) {
@@ -149,15 +149,14 @@ public class DrunkardMobWithCompanion implements GraphChiProgram<Integer, Boolea
                                 idx++;
 
                                 if (idx >= walks.length) {
-                                    synchronized (companion) {
-                                        try {
-                                            companion.processWalks(walks, vertices);
-                                        } catch (Exception err) {
-                                            err.printStackTrace();
-                                        }
-                                        idx = 0;
+                                    try {
+                                        companion.processWalks(walks, vertices);
+                                    } catch (Exception err) {
+                                        err.printStackTrace();
                                     }
+                                    idx = 0;
                                 }
+
                             }
                         }
 
@@ -168,10 +167,7 @@ public class DrunkardMobWithCompanion implements GraphChiProgram<Integer, Boolea
                     int[] verticesRest = new int[idx];
                     System.arraycopy(walks, 0, walksRest, 0, idx);
                     System.arraycopy(vertices, 0, verticesRest, 0, idx);
-                    synchronized (companion) {
-                        companion.processWalks(walksRest, verticesRest);
-                    }
-
+                    companion.processWalks(walksRest, verticesRest);
 
                 } catch (Exception err) {
                     err.printStackTrace();

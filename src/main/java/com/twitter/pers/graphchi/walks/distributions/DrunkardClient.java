@@ -33,10 +33,12 @@ public class DrunkardClient {
                 IdCount[] top = companion.getTop(vertexId);
 
                 ArrayList<Integer> ids = new ArrayList<Integer>();
+                ids.add(vertexId);
                 for(IdCount ic : top) ids.add(ic.id);
                 ArrayList<String> names = vns.namify(ids);
 
-                int j = 0;
+                int j = 1;
+                System.out.println("Result for " + names.get(0));
                 for(IdCount ic : top) {
                     System.out.println(names.get(j++) + ":" + ic.id + ": " + ic.count);
                 }

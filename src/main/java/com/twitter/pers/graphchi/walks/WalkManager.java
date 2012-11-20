@@ -268,16 +268,6 @@ public class WalkManager {
 
                 if (vertex >= fromVertex && vertex <= toVertexInclusive) {
                     int snapshotOff = vertex - fromVertex;
-                    if (snapshots[snapshotOff] == null)
-                        throw new IllegalStateException();
-
-                    if (snapshotIdxs[snapshotOff] >= snapshots[snapshotOff].length) {
-                        throw new RuntimeException("Not possible!");
-                        /*   Duplicate array
-                        int[] tmp = new int[snapshots[snapshotOff].length * 2];
-                        System.arraycopy(snapshots[snapshotOff], 0, tmp, 0, snapshots[snapshotOff].length);
-                        snapshots[snapshotOff] = tmp;   */
-                    }
                     snapshots[snapshotOff][snapshotIdxs[snapshotOff]] = w;
                     snapshotIdxs[snapshotOff]++;
                 } else {
