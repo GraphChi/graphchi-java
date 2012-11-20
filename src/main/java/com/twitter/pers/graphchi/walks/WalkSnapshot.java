@@ -12,5 +12,7 @@ public interface WalkSnapshot {
 
     int getLastVertex();
 
+    void clear(int vertexId);
+
     public int numWalks();
 }

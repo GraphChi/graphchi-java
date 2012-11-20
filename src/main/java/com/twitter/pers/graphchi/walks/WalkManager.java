@@ -29,6 +29,7 @@ public class WalkManager {
     private int totalWalks = 0;
 
     private int[][] walks;
+    private Object[] bucketLocks;
     private int[] walkIndices;
     private BitSet sourceBitSet;
 
@@ -123,7 +124,7 @@ public class WalkManager {
     public void updateWalk(int sourceId, int toVertex, boolean hop) {
         int bucket = toVertex / bucketSize;
         int w = encode(sourceId, hop, toVertex % bucketSize);
-        synchronized (walks[bucket]) {
+        synchronized (bucketLocks[bucket]) {
             int idx = walkIndices[bucket];
             if (idx == walks[bucket].length) {
                 int[] newBucket = new int[walks[bucket].length * 3 / 2];
@@ -148,6 +149,8 @@ public class WalkManager {
     public void initializeWalks() {
         final TimerContext _timer = initTimer.time();
         walks = new int[1 + numVertices / bucketSize][];
+        bucketLocks = new Object[walks.length];
+        for(int i=0; i<bucketLocks.length; i++) bucketLocks[i] = new Object();
         walkIndices = new int[walks.length];
         for(int i = 0; i < walks.length; i++) {
             walks[i] = new int[initialSize];
@@ -209,97 +212,90 @@ public class WalkManager {
     }
 
     public WalkSnapshot grabSnapshot(final int fromVertex, final int toVertexInclusive) {
-        final TimerContext _timer = grabTimer.time();
-        int fromBucket = fromVertex / bucketSize;
-        int toBucket = toVertexInclusive / bucketSize;
-
-        long t1 = System.currentTimeMillis();
-
-        /* Replace the buckets in question with empty buckets */
-        ArrayList<int[]> tmpBuckets = new ArrayList<int[]>(toBucket - fromBucket + 1);
-        int[] tmpBucketLengths = new int[toBucket - fromBucket + 1];
+        final int fromBucket = fromVertex / bucketSize;
+        final int toBucket = toVertexInclusive / bucketSize;
+        final boolean[] snapshotInitBits = new boolean[toBucket - fromBucket + 1];
         for(int b=fromBucket; b <= toBucket; b++) {
-            tmpBuckets.add(walks[b]);
-            tmpBucketLengths[b - fromBucket] = walkIndices[b];
-            walks[b] = new int[initialSize];
-            walkIndices[b] = 0;
+            snapshotInitBits[b - fromBucket] = false;
         }
-
-        long t2 = System.currentTimeMillis();
 
         /* Now create data structure for fast retrieval */
         final int[][] snapshots = new int[toVertexInclusive - fromVertex + 1][];
-        final int[] snapshotIdxs = new int[snapshots.length];
 
-        for(int i=0; i < snapshots.length; i++) {
-            snapshots[i] = null;
-            snapshotIdxs[i] = 0;
-        }
-
-        long t3 = System.currentTimeMillis();
-        long addedBack = 0;
-
-        /* Add walks to snapshot arrays -- TODO: parallelize */
-        for(int b=0; b < tmpBuckets.size(); b++) {
-            int bucketFirstVertex = bucketSize * (fromBucket + b);
-            int[] arr = tmpBuckets.get(b);
-            int len = tmpBucketLengths[b];
-
-            final int[] snapshotSizes = new int[bucketSize];
-
-            /* Calculate vertex-walks sizes */
-            for(int i=0; i < len; i++) {
-                int w = arr[i];
-                snapshotSizes[off(w)]++;
-            }
-
-            int offt = bucketFirstVertex - fromVertex;
-
-            /* Precalculate the array sizes. offt is the
-               offset of the bucket's first vertex from the first
-               vertex of the snapshot
-             */
-
-            for(int i=0; i < snapshotSizes.length; i++) {
-                if (snapshotSizes[i] > 0 && i >= -offt && i + offt < snapshots.length)
-                    snapshots[i + offt] = new int[snapshotSizes[i]];
-            }
-
-            for(int i=0; i < len; i++) {
-                int w = arr[i];
-                int vertex = bucketFirstVertex + off(w);
-
-                if (vertex >= fromVertex && vertex <= toVertexInclusive) {
-                    int snapshotOff = vertex - fromVertex;
-                    snapshots[snapshotOff][snapshotIdxs[snapshotOff]] = w;
-                    snapshotIdxs[snapshotOff]++;
-                } else {
-                    // add back
-                    boolean hop = hop(w);
-                    int src = sourceIdx(w);
-                    updateWalk(src, vertex, hop);
-                    addedBack++;
-                }
-            }
-            tmpBuckets.set(b, null); // Save memory
-        }
-
-        long t4 = System.currentTimeMillis();
-        _timer.stop();
-        System.out.println("Timings: t2-t1:" + (t2 - t1) + " t3-t2:" + (t3 - t2) + " t4-t3:" + (t4 - t3) + " added back: " + addedBack);
-
-        /* Create the snapshot object */
+        /* Create the snapshot object. It creates the snapshot arrays on-demand
+         *  to save memory. */
         return new WalkSnapshot() {
 
+            @Override
+            public void clear(int vertexId) {
+                snapshots[vertexId - fromVertex] = null;
+            }
+
+            // Note: accurate number only before snapshot is being purged
             public int numWalks() {
                 int sum = 0;
-                for(int i=0; i<snapshots.length; i++) sum += (snapshots[i] != null ? snapshots[i].length : 0);
+                for(int b=fromBucket; b <= toBucket; b++) {
+                    sum += walks[b].length;
+                }
                 return sum;
             }
 
             @Override
             public int[] getWalksAtVertex(int vertexId) {
-                return snapshots[vertexId - fromVertex];
+                int bucketIdx = vertexId / bucketSize;
+                int localBucketIdx = bucketIdx - (fromVertex / bucketSize);
+
+                if (snapshotInitBits[localBucketIdx]) {
+                    return snapshots[vertexId - fromVertex];
+                } else {
+                    final TimerContext _timer = grabTimer.time();
+
+                    synchronized (bucketLocks[bucketIdx]) {
+                        if (!snapshotInitBits[localBucketIdx]) {
+
+                            int bucketFirstVertex = bucketSize * bucketIdx;
+                            int[] arr = walks[bucketIdx];
+                            int len = walkIndices[bucketIdx];
+                            walks[bucketIdx] = new int[initialSize];
+                            walkIndices[bucketIdx] = 0;
+                            final int[] snapshotSizes = new int[bucketSize];
+                            final int[] snapshotIdxs = new int[bucketSize];
+
+                            /* Calculate vertex-walks sizes */
+                            for(int i=0; i < len; i++) {
+                                int w = arr[i];
+                                snapshotSizes[off(w)]++;
+                            }
+
+                            int offt = bucketFirstVertex - fromVertex;
+
+                            for(int i=0; i < snapshotSizes.length; i++) {
+                                if (snapshotSizes[i] > 0 && i >= -offt && i + offt < snapshots.length)
+                                    snapshots[i + offt] = new int[snapshotSizes[i]];
+                            }
+
+                            for(int i=0; i < len; i++) {
+                                int w = arr[i];
+                                int vertex = bucketFirstVertex + off(w);
+
+                                if (vertex >= fromVertex && vertex <= toVertexInclusive) {
+                                    int snapshotOff = vertex - fromVertex;
+                                    int localOff = vertex - bucketFirstVertex;
+                                    snapshots[snapshotOff][snapshotIdxs[localOff]] = w;
+                                    snapshotIdxs[localOff]++;
+                                } else {
+                                    // add back
+                                    boolean hop = hop(w);
+                                    int src = sourceIdx(w);
+                                    updateWalk(src, vertex, hop);
+                                }
+                            }
+                            snapshotInitBits[localBucketIdx] = true;
+                        }
+                    }
+                    _timer.stop();
+                    return snapshots[vertexId - fromVertex];
+                }
             }
 
             @Override

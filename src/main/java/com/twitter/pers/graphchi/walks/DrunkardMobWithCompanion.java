@@ -55,6 +55,7 @@ public class DrunkardMobWithCompanion implements GraphChiProgram<Integer, Boolea
         try {
             boolean  firstIteration = (context.getIteration() == 0);
             int[] walksAtMe = curWalkSnapshot.getWalksAtVertex(vertex.getId());
+            curWalkSnapshot.clear(vertex.getId());
             if (firstIteration) {
                 if (walkManager.isSource(vertex.getId())) {
                     // If I am a source, tell the companion
@@ -130,6 +131,7 @@ public class DrunkardMobWithCompanion implements GraphChiProgram<Integer, Boolea
         Thread dumperThread = new Thread(new Runnable() {
             public void run() {
                 try {
+                    int numWalks = snapshot.numWalks();
                     long t = System.currentTimeMillis();
                     int[] walks = new int[256 * 1024];
                     int[] vertices = new int[256 * 1024];
@@ -168,7 +170,7 @@ public class DrunkardMobWithCompanion implements GraphChiProgram<Integer, Boolea
                     }
 
                     System.out.println("Sent walks to companion in " + (System.currentTimeMillis() - t) +
-                            " ms, ignored:" + ignoreCount + " / " + snapshot.numWalks());
+                            " ms, ignored:" + ignoreCount + " / " + numWalks);
 
                     // Process rests
                     int[] walksRest = new int[idx];
