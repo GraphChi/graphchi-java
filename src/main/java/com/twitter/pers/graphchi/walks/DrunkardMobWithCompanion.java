@@ -20,6 +20,7 @@ import java.util.TreeSet;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * Launch millions (?) of random walks and record the
@@ -37,6 +38,8 @@ public class DrunkardMobWithCompanion implements GraphChiProgram<Integer, Boolea
     private LinkedBlockingQueue<BucketsToSend> bucketQueue = new LinkedBlockingQueue<BucketsToSend>();
     private boolean finished = false;
     private Thread dumperThread;
+
+    private AtomicLong pendingWalksToSubmit = new AtomicLong(0);
 
     public DrunkardMobWithCompanion(String companionAddress) throws Exception {
         if (companionAddress.contains("localhost")) {
@@ -61,6 +64,7 @@ public class DrunkardMobWithCompanion implements GraphChiProgram<Integer, Boolea
                     } catch (InterruptedException e) {
                     }
                     if (bucket != null) {
+                        pendingWalksToSubmit.addAndGet(-bucket.walks.length);
                         for(int i=0; i<bucket.walks.length; i++) {
                             int w = bucket.walks[i];
                             int v = WalkManager.off(w) + bucket.firstVertex;
@@ -84,7 +88,7 @@ public class DrunkardMobWithCompanion implements GraphChiProgram<Integer, Boolea
 
                         }
                         if (counter++ % 1000 == 0)
-                            System.out.println("Ignore count:" + ignoreCount + "; pending=" + bucketQueue.size());
+                            System.out.println("Ignore count:" + ignoreCount + "; pending=" + pendingWalksToSubmit.get());
                     }
                 }
 
@@ -116,6 +120,7 @@ public class DrunkardMobWithCompanion implements GraphChiProgram<Integer, Boolea
     @Override
     public void consume(int firstVertexInBucket, int[] walkBucket) {
         try {
+            pendingWalksToSubmit.addAndGet(walkBucket.length);
             bucketQueue.put(new BucketsToSend(firstVertexInBucket, walkBucket));
         } catch (InterruptedException e) {
             e.printStackTrace();
@@ -131,8 +136,8 @@ public class DrunkardMobWithCompanion implements GraphChiProgram<Integer, Boolea
     public void update(ChiVertex<Integer, Boolean> vertex, GraphChiContext context) {
         try {
             // Flow control
-            while (bucketQueue.size() > 1000) {
-                System.out.println("Too many buckets waiting for delivery: " + bucketQueue.size());
+            while (pendingWalksToSubmit.get() > walkManager.getTotalWalks() / 40) {
+                System.out.println("Too many walks waiting for delivery: " + pendingWalksToSubmit.get());
                 try {
                     Thread.sleep(2000);
                 } catch (InterruptedException e) {
