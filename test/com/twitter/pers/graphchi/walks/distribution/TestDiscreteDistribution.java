@@ -166,10 +166,14 @@ public class TestDiscreteDistribution {
 
     @Test
     public void testTopWithOnes() {
-        DiscreteDistribution d1 = new DiscreteDistribution(new int[] {1,2,3,4,4,5,6,7,8,9,10,11,12,13,14,15,16});
+        DiscreteDistribution d1 = new DiscreteDistribution(new int[] {1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,20,21,22,23,200,298});
+        DiscreteDistribution avoidDist = DiscreteDistribution.createAvoidanceDistribution(new int[]{12, 15, 20});
         IdCount[] top = d1.getTop(10);
-
         assertEquals(10, top.length);
+
+        DiscreteDistribution mergedWithAvoid = DiscreteDistribution.merge(d1, avoidDist);
+        IdCount[] top2 = mergedWithAvoid.getTop(10);
+        assertEquals(10, top2.length);
     }
 
     @Test

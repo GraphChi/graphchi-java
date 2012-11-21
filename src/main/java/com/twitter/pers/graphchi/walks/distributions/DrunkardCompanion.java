@@ -203,7 +203,7 @@ public class DrunkardCompanion extends UnicastRemoteObject implements RemoteDrun
             int[] arr = buffers[sourceIdx].toIntArray();
             for(Integer x : arr) System.out.println("-> " + x);
             drainBuffer(sourceIdx);
-            distributions[sourceIdx].print();
+            System.out.println("Total count:" + distributions[sourceIdx].totalCount());
             return distributions[sourceIdx].getTop(10);
         } else {
             // Find index

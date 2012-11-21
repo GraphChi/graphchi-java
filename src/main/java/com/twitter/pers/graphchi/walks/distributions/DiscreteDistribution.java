@@ -35,6 +35,14 @@ public class DiscreteDistribution {
     }
 
 
+    public int totalCount() {
+        int tot = 0;
+        for(int c=0; c<counts.length; c++) {
+           if (counts[c] > 0) tot += counts[c];
+        }
+        return tot;
+    }
+
 
     public void print() {
         for(int i=0; i<ids.length; i++) {
@@ -45,7 +53,7 @@ public class DiscreteDistribution {
     public IdCount[] getTop(int topN) {
         final TreeSet<IdCount> topList = new TreeSet<IdCount>(new Comparator<IdCount>() {
             public int compare(IdCount a, IdCount b) {
-                return (a.count > b.count ? -1 : (a.count == b.count ? (a.id < b.id ? -1 : 1) : 1)); // Descending order
+                return (a.count > b.count ? -1 : (a.count == b.count ? (a.id < b.id ? -1 : (a.id == b.id ? 0 : 1)) : 1)); // Descending order
             }
         });
         IdCount least = null;
@@ -60,7 +68,10 @@ public class DiscreteDistribution {
                     least = topList.last();
                 }
             }
+            if (topList.size() > topN) throw new RuntimeException("Top list too big: " + topList.size());
+
         }
+
         IdCount[] topArr = new IdCount[topList.size()];
         topList.toArray(topArr);
         return topArr;

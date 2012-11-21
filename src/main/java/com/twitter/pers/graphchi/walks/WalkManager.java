@@ -298,6 +298,7 @@ public class WalkManager {
             public int[] getWalksAtVertex(int vertexId, boolean processed) {
                 int bucketIdx = vertexId / bucketSize;
                 int localBucketIdx = bucketIdx - (fromVertex / bucketSize);
+
                 processedBits[vertexId - fromVertex] = true;
 
                 if (snapshotInitBits[localBucketIdx]) {

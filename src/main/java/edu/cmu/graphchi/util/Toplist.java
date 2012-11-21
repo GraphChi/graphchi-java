@@ -17,6 +17,7 @@ public class Toplist {
     public static TreeSet<IdFloat> topListFloat(String baseFilename, final int topN) throws IOException{
         final TreeSet<IdFloat> topList = new TreeSet<IdFloat>(new Comparator<IdFloat>() {
             public int compare(IdFloat idFloat, IdFloat idFloat1) {
+                if (idFloat.vertexId == idFloat1.vertexId) return 0;
                 int comp = -Float.compare(idFloat.value, idFloat1.value); // Descending order
                 return (comp != 0 ? comp : (idFloat.vertexId < idFloat1.vertexId ? -1 : 1));
             }
@@ -44,6 +45,7 @@ public class Toplist {
     public static TreeSet<IdInt> topListInt(String baseFilename, final int topN) throws IOException{
         final TreeSet<IdInt> topList = new TreeSet<IdInt>(new Comparator<IdInt>() {
             public int compare(IdInt a, IdInt b) {
+                if (a.vertexId == b.vertexId) return 0;
                 return  (a.value > b.value ? -1 : (a.value == b.value ? (a.vertexId < b.vertexId ? -1 : 1) : 1)); // Descending order
             }
         });
@@ -70,7 +72,9 @@ public class Toplist {
     public static TreeSet<IdFloat> topList(final HugeFloatMatrix floatMatrix, final int column, final int topN) {
         final TreeSet<IdFloat> topList = new TreeSet<IdFloat>(new Comparator<IdFloat>() {
             public int compare(IdFloat idFloat, IdFloat idFloat1) {
-                return -Float.compare(idFloat.value, idFloat1.value); // Descending order
+                if (idFloat.vertexId == idFloat1.vertexId) return 0;
+                int comp =  -Float.compare(idFloat.value, idFloat1.value); // Descending order
+                return (comp != 0 ? comp : (idFloat.vertexId < idFloat1.vertexId ? 1 : -1));
             }
         });
         IdFloat least = null;
