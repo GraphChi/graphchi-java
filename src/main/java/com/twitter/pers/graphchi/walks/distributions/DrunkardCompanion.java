@@ -198,7 +198,12 @@ public class DrunkardCompanion extends UnicastRemoteObject implements RemoteDrun
     public IdCount[] getTop(int vertexId) throws RemoteException {
         int sourceIdx = (sourceVertexIds == null ? -1 : Arrays.binarySearch(sourceVertexIds, vertexId));
         if (sourceIdx >= 0) {
+            System.out.println("Found from memory: " + vertexId);
+            System.out.println("Buffer size:" + buffers[sourceIdx].size());
+            int[] arr = buffers[sourceIdx].toIntArray();
+            for(Integer x : arr) System.out.println("-> " + x);
             drainBuffer(sourceIdx);
+            distributions[sourceIdx].print();
             return distributions[sourceIdx].getTop(10);
         } else {
             // Find index

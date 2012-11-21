@@ -165,6 +165,14 @@ public class TestDiscreteDistribution {
     }
 
     @Test
+    public void testTopWithOnes() {
+        DiscreteDistribution d1 = new DiscreteDistribution(new int[] {1,2,3,4,4,5,6,7,8,9,10,11,12,13,14,15,16});
+        IdCount[] top = d1.getTop(10);
+
+        assertEquals(10, top.length);
+    }
+
+    @Test
     public void testFiltering() {
         DiscreteDistribution d1 = new DiscreteDistribution(new int[] {1,1,1,8,8,8,9,22,22,22,22,22,333,333,333,333,333,333,333,333});
         assertEquals(3, d1.getCount(1));

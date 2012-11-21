@@ -156,14 +156,15 @@ public class DrunkardMobWithCompanion implements GraphChiProgram<Integer, Boolea
             curWalkSnapshot.clear(vertex.getId());
 
             int mySourceIdx = -1;
-            if (firstIteration) {
-                if (walkManager.isSource(vertex.getId())) {
-                    // If I am a source, tell the companion
-                    mySourceIdx = walkManager.getVertexSourceIdx(vertex.getId());
-                    // Add my out-neighbors to the avoidlist. TODO: async
+            if (walkManager.isSource(vertex.getId())) {
+                // If I am a source, tell the companion
+                mySourceIdx = walkManager.getVertexSourceIdx(vertex.getId());
+                // Add my out-neighbors to the avoidlist. TODO: async
+                if (firstIteration) {
                     companion.setAvoidList(mySourceIdx, vertex.getOutNeighborArray());
                 }
             }
+
             if (walksAtMe == null) return;
 
             int walkLength = walksAtMe.length;
@@ -173,11 +174,11 @@ public class DrunkardMobWithCompanion implements GraphChiProgram<Integer, Boolea
                 boolean atleastSecondHop = WalkManager.hop(walk);
 
                 if (!atleastSecondHop) {
-                   if (WalkManager.sourceIdx(walk) == mySourceIdx) {
-                       atleastSecondHop = false;
-                   } else {
-                       atleastSecondHop = true;
-                   }
+                    if (WalkManager.sourceIdx(walk) == mySourceIdx) {
+                        atleastSecondHop = false;
+                    } else {
+                        atleastSecondHop = true;
+                    }
                 }
 
                 // Choose a random destination and move the walk forward, or

@@ -19,6 +19,23 @@ public class IdCount implements Comparable<IdCount>, Serializable {
         return (idCount.count > this.count ? 1 : (idCount.count != this.count ? -1 : 0));
     }
 
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+
+        IdCount idCount = (IdCount) o;
+
+        if (id != idCount.id) return false;
+
+        return true;
+    }
+
+    @Override
+    public int hashCode() {
+        return id;
+    }
+
     public String toString() {
         return id + ": " + count;
     }

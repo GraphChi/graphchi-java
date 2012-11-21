@@ -35,10 +35,17 @@ public class DiscreteDistribution {
     }
 
 
+
+    public void print() {
+        for(int i=0; i<ids.length; i++) {
+            System.out.println("D " + ids[i] + ", " + counts[i]);
+        }
+    }
+
     public IdCount[] getTop(int topN) {
         final TreeSet<IdCount> topList = new TreeSet<IdCount>(new Comparator<IdCount>() {
             public int compare(IdCount a, IdCount b) {
-                return (a.count > b.count ? -1 : (a.count == b.count ? 0 : 1)); // Descending order
+                return (a.count > b.count ? -1 : (a.count == b.count ? (a.id < b.id ? -1 : 1) : 1)); // Descending order
             }
         });
         IdCount least = null;
