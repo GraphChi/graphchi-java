@@ -41,6 +41,8 @@ public class DrunkardMobWithCompanion implements GraphChiProgram<Integer, Boolea
 
     private AtomicLong pendingWalksToSubmit = new AtomicLong(0);
 
+    private static int KYRPOV_SOURCE;
+
     public DrunkardMobWithCompanion(String companionAddress) throws Exception {
         if (companionAddress.contains("localhost")) {
             RMIHack.setupLocalHostTunneling();
@@ -136,6 +138,8 @@ public class DrunkardMobWithCompanion implements GraphChiProgram<Integer, Boolea
 
         /* Tell companion the sources */
         companion.setSources(walkManager.getSources());
+
+        KYRPOV_SOURCE = walkManager.getVertexSourceIdx(14583144);
     }
 
     public void update(ChiVertex<Integer, Boolean> vertex, GraphChiContext context) {
@@ -167,9 +171,19 @@ public class DrunkardMobWithCompanion implements GraphChiProgram<Integer, Boolea
 
             if (walksAtMe == null) return;
 
+            if (vertex.getId() == 18240039) {
+                System.out.println("BOBBABAR: " + vertex.numOutEdges());
+                if (vertex.numOutEdges() > 0) {
+                    for(int i=0; i<vertex.numOutEdges(); i++) {
+                        System.out.println("BOBBABAR --> " + vertex.outEdge(i).getVertexId());
+                    }
+                }
+            }
+
             int walkLength = walksAtMe.length;
             for(int i=0; i < walkLength; i++) {
                 int walk = walksAtMe[i];
+                int src = WalkManager.sourceIdx(walk);
 
                 boolean atleastSecondHop = WalkManager.hop(walk);
 
@@ -188,9 +202,16 @@ public class DrunkardMobWithCompanion implements GraphChiProgram<Integer, Boolea
                     dst = vertex.getRandomOutNeighbor();
                 } else {
                     // Dead end or reset
-                    dst = walkManager.getSourceVertex(WalkManager.sourceIdx(walk));
+                    dst = walkManager.getSourceVertex(walk);
                 }
-                walkManager.updateWalk(WalkManager.sourceIdx(walk), dst, atleastSecondHop);
+
+
+
+                if (src == KYRPOV_SOURCE) {
+                    System.out.println("Kyrpov walk --> " + i + ", " + vertex.getId() + " --> " + dst);
+                }
+
+                walkManager.updateWalk(src, dst, atleastSecondHop);
             }
         } catch (RemoteException re) {
             throw new RuntimeException(re);

@@ -51,7 +51,7 @@ public class DrunkardMob implements GraphChiProgram<Integer, Boolean> {
                 dst = vertex.getRandomOutNeighbor();
             } else {
                 // Dead end!
-                dst = walkManager.getSourceVertex(walkManager.sourceIdx(walk));
+                dst = walkManager.getSourceVertex(walk);
             }
             walkManager.updateWalk(walkManager.sourceIdx(walk), dst, !hop);
             context.getScheduler().addTask(dst);
