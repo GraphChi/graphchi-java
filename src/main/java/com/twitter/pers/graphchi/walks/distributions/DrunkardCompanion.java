@@ -72,8 +72,6 @@ public class DrunkardCompanion extends UnicastRemoteObject implements RemoteDrun
                             if (subm != null) {
                                 _processWalks(subm.walks, subm.atVertices);
                                 unpurgedWalks += subm.walks.length;
-
-
                             }
                             if (sourceVertexIds != null) {
                                 if (unpurgedWalks > sourceVertexIds.length * 10 || (subm == null && unpurgedWalks > 100000)) {
@@ -180,12 +178,15 @@ public class DrunkardCompanion extends UnicastRemoteObject implements RemoteDrun
             int w = walks[i];
             int atVertex = atVertices[i];
             int sourceIdx = WalkManager.sourceIdx(w);
+
+            if (atVertex == sourceVertexIds[sourceIdx]) {
+                continue;
+            }
+
             synchronized (buffers[sourceIdx]) {
                 buffers[sourceIdx].add(atVertex);
             }
         }
-
-
 
         long tt = (System.currentTimeMillis() - t1);
         if (tt > 1000) {

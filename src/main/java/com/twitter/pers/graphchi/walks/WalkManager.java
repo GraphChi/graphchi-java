@@ -148,10 +148,14 @@ public class WalkManager {
         int w = encode(sourceId, hop, toVertex % bucketSize);
         synchronized (bucketLocks[bucket]) {
             int idx = walkIndices[bucket];
-            if (idx == walks[bucket].length) {
-                int[] newBucket = new int[walks[bucket].length * 3 / 2];
-                System.arraycopy(walks[bucket], 0, newBucket, 0, walks[bucket].length);
-                walks[bucket] = newBucket;
+            if (idx == 0) {
+                walks[bucket] = new int[initialSize];
+            } else {
+                if (idx == walks[bucket].length) {
+                    int[] newBucket = new int[walks[bucket].length * 3 / 2];
+                    System.arraycopy(walks[bucket], 0, newBucket, 0, walks[bucket].length);
+                    walks[bucket] = newBucket;
+                }
             }
             walks[bucket][idx] = w;
             walkIndices[bucket]++;
@@ -162,12 +166,15 @@ public class WalkManager {
 
 
     public void expandCapacity(int bucket, int additional) {
-        int desiredLength = walks[bucket].length + additional;
-
-        if (walks[bucket].length < desiredLength) {
-            int[] newBucket = new int[desiredLength];
-            System.arraycopy(walks[bucket], 0, newBucket, 0, walks[bucket].length);
-            walks[bucket] = newBucket;
+        if (walks[bucket] != null) {
+            int desiredLength = walks[bucket].length + additional;
+            if (walks[bucket].length < desiredLength) {
+                int[] newBucket = new int[desiredLength];
+                System.arraycopy(walks[bucket], 0, newBucket, 0, walks[bucket].length);
+                walks[bucket] = newBucket;
+            }
+        } else {
+            walks[bucket] = new int[additional];
         }
     }
 
@@ -178,7 +185,7 @@ public class WalkManager {
         for(int i=0; i<bucketLocks.length; i++) bucketLocks[i] = new Object();
         walkIndices = new int[walks.length];
         for(int i = 0; i < walks.length; i++) {
-            walks[i] = new int[initialSize];
+            walks[i] = null;
             walkIndices[i] = 0;
         }
 
@@ -202,7 +209,7 @@ public class WalkManager {
 
         System.out.println("Expand capacities");
         for(int b=0; b < walks.length; b++) {
-            expandCapacity(b, tmpsizes[b] - initialSize);
+            expandCapacity(b, tmpsizes[b]);
         }
 
         System.out.println("Allocating walks");
@@ -305,40 +312,43 @@ public class WalkManager {
 
                             int bucketFirstVertex = bucketSize * bucketIdx;
                             len = walkIndices[bucketIdx];
+
                             bucketToConsume = walks[bucketIdx];
 
-                            walks[bucketIdx] = new int[initialSize];
-                            walkIndices[bucketIdx] = 0;
-                            final int[] snapshotSizes = new int[bucketSize];
-                            final int[] snapshotIdxs = new int[bucketSize];
+                            if (bucketToConsume != null) {
+                                walks[bucketIdx] = null;
+                                walkIndices[bucketIdx] = 0;
+                                final int[] snapshotSizes = new int[bucketSize];
+                                final int[] snapshotIdxs = new int[bucketSize];
 
-                            /* Calculate vertex-walks sizes */
-                            for(int i=0; i < len; i++) {
-                                int w = bucketToConsume[i];
-                                snapshotSizes[off(w)]++;
-                            }
+                                /* Calculate vertex-walks sizes */
+                                for(int i=0; i < len; i++) {
+                                    int w = bucketToConsume[i];
+                                    snapshotSizes[off(w)]++;
+                                }
 
-                            int offt = bucketFirstVertex - fromVertex;
+                                int offt = bucketFirstVertex - fromVertex;
 
-                            for(int i=0; i < snapshotSizes.length; i++) {
-                                if (snapshotSizes[i] > 0 && i >= -offt && i + offt < snapshots.length)
-                                    snapshots[i + offt] = new int[snapshotSizes[i]];
-                            }
+                                for(int i=0; i < snapshotSizes.length; i++) {
+                                    if (snapshotSizes[i] > 0 && i >= -offt && i + offt < snapshots.length)
+                                        snapshots[i + offt] = new int[snapshotSizes[i]];
+                                }
 
-                            for(int i=0; i < len; i++) {
-                                int w = bucketToConsume[i];
-                                int vertex = bucketFirstVertex + off(w);
+                                for(int i=0; i < len; i++) {
+                                    int w = bucketToConsume[i];
+                                    int vertex = bucketFirstVertex + off(w);
 
-                                if (vertex >= fromVertex && vertex <= toVertexInclusive) {
-                                    int snapshotOff = vertex - fromVertex;
-                                    int localOff = vertex - bucketFirstVertex;
-                                    snapshots[snapshotOff][snapshotIdxs[localOff]] = w;
-                                    snapshotIdxs[localOff]++;
-                                } else {
-                                    // add back
-                                    boolean hop = hop(w);
-                                    int src = sourceIdx(w);
-                                    updateWalk(src, vertex, hop);
+                                    if (vertex >= fromVertex && vertex <= toVertexInclusive) {
+                                        int snapshotOff = vertex - fromVertex;
+                                        int localOff = vertex - bucketFirstVertex;
+                                        snapshots[snapshotOff][snapshotIdxs[localOff]] = w;
+                                        snapshotIdxs[localOff]++;
+                                    } else {
+                                        // add back
+                                        boolean hop = hop(w);
+                                        int src = sourceIdx(w);
+                                        updateWalk(src, vertex, hop);
+                                    }
                                 }
                             }
                             snapshotInitBits[localBucketIdx] = true;
@@ -413,15 +423,18 @@ public class WalkManager {
         for(int bucketIdx=fromBucket; bucketIdx <= toBucket; bucketIdx++) {
             int vertexBase = bucketIdx * bucketSize;
             int[] bucket = walks[bucketIdx];
-            BitSet alreadySeen = new BitSet(bucketSize);
-            int counter = 0;
-            for(int j=0; j<bucket.length; j++) {
-                int off = off(bucket[j]);
-                if (!alreadySeen.get(off))  {
-                    alreadySeen.set(off, true);
-                    counter++;
-                    scheduler.addTask(vertexBase + off);
-                    if (counter == bucketSize) break;
+
+            if (bucket != null) {
+                BitSet alreadySeen = new BitSet(bucketSize);
+                int counter = 0;
+                for(int j=0; j<bucket.length; j++) {
+                    int off = off(bucket[j]);
+                    if (!alreadySeen.get(off))  {
+                        alreadySeen.set(off, true);
+                        counter++;
+                        scheduler.addTask(vertexBase + off);
+                        if (counter == bucketSize) break;
+                    }
                 }
             }
         }
