@@ -35,6 +35,23 @@ public class TestWalkManager {
         assertEquals(false, hop);
         assertEquals(126, off);
 
+
+        for(int v=0; v<15000000; v+=29) {
+            for (int o=0; o<128; o++) {
+                x = WalkManager.encode(v, true, o);
+                int y = WalkManager.encode(v, false, o);
+                assertEquals(v, WalkManager.sourceIdx(x));
+                assertEquals(v, WalkManager.sourceIdx(y));
+
+                assertEquals(o, WalkManager.off(x));
+                assertEquals(o, WalkManager.off(y));
+
+                assertEquals(true, WalkManager.hop(x));
+                assertEquals(false, WalkManager.hop(y));
+            }
+        }
+
+
         x = wmgr.encode(16367, true, 0);
         hop = wmgr.hop(x);
         src = wmgr.sourceIdx(x);

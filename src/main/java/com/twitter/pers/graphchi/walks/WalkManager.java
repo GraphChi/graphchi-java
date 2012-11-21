@@ -130,7 +130,7 @@ public class WalkManager {
     }
 
     public static boolean hop(int walk) {
-        return (walk % 2 == 1);
+        return ((walk & 1)  != 0);
     }
 
     public static int off(int walk) {

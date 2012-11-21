@@ -171,15 +171,6 @@ public class DrunkardMobWithCompanion implements GraphChiProgram<Integer, Boolea
 
             if (walksAtMe == null) return;
 
-            if (vertex.getId() == 18240039) {
-                System.out.println("BOBBABAR: " + vertex.numOutEdges());
-                if (vertex.numOutEdges() > 0) {
-                    for(int i=0; i<vertex.numOutEdges(); i++) {
-                        System.out.println("BOBBABAR --> " + vertex.outEdge(i).getVertexId());
-                    }
-                }
-            }
-
             int walkLength = walksAtMe.length;
             for(int i=0; i < walkLength; i++) {
                 int walk = walksAtMe[i];
@@ -188,7 +179,7 @@ public class DrunkardMobWithCompanion implements GraphChiProgram<Integer, Boolea
                 boolean atleastSecondHop = WalkManager.hop(walk);
 
                 if (!atleastSecondHop) {
-                    if (WalkManager.sourceIdx(walk) == mySourceIdx) {
+                    if (src == mySourceIdx) {
                         atleastSecondHop = false;
                     } else {
                         atleastSecondHop = true;
@@ -203,12 +194,11 @@ public class DrunkardMobWithCompanion implements GraphChiProgram<Integer, Boolea
                 } else {
                     // Dead end or reset
                     dst = walkManager.getSourceVertex(walk);
+                    atleastSecondHop = false;
                 }
 
-
-
                 if (src == KYRPOV_SOURCE) {
-                    System.out.println("Kyrpov walk --> " + i + ", " + vertex.getId() + " --> " + dst);
+                    System.out.println("Kyrpov walk --> " + i + ", " + vertex.getId() + " --> " + dst + " hopbit" + atleastSecondHop);
                 }
 
                 walkManager.updateWalk(src, dst, atleastSecondHop);
