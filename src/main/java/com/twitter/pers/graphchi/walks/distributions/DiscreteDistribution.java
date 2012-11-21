@@ -112,6 +112,9 @@ public class DiscreteDistribution {
      * minimumCount removed, and rest changed by - minimumCount. Does not remove avoids
      */
     public DiscreteDistribution filteredAndShift(int minimumCount) {
+        if (minimumCount <= 1) {
+            return this;
+        }
         int toRemove = 0;
         for(int i=0; i < uniqueCount; i++) {
             toRemove += (counts[i] < minimumCount &&  counts[i] > 0 ? 1 : 0);

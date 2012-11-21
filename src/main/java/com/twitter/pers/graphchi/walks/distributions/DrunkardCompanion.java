@@ -35,9 +35,8 @@ public class DrunkardCompanion extends UnicastRemoteObject implements RemoteDrun
     }
 
     private static final int BUFFER_CAPACITY = 128;
-    private static final int BUFFER_MAX = 256;
+    private static final int BUFFER_MAX = 128;
 
-    private int maxOutstanding = 4096;
 
     private int[] sourceVertexIds;
     private Object[] distrLocks;
@@ -69,12 +68,15 @@ public class DrunkardCompanion extends UnicastRemoteObject implements RemoteDrun
                         long unpurgedWalks = 0;
                         while(true) {
 
-                            WalkSubmission subm = pendingQueue.poll(1000, TimeUnit.MILLISECONDS);
+                            WalkSubmission subm = pendingQueue.poll(2000, TimeUnit.MILLISECONDS);
                             if (subm != null) {
                                 _processWalks(subm.walks, subm.atVertices);
                                 unpurgedWalks += subm.walks.length;
 
-                                if (unpurgedWalks > sourceVertexIds.length * 20) {
+
+                            }
+                            if (sourceVertexIds != null) {
+                                if (unpurgedWalks > sourceVertexIds.length * 10 || (subm == null && unpurgedWalks > 100000)) {
                                     System.out.println("Purge:" + unpurgedWalks);
                                     unpurgedWalks = 0;
 
@@ -125,15 +127,20 @@ public class DrunkardCompanion extends UnicastRemoteObject implements RemoteDrun
                 int sz = distributions[sourceIdx].sizeExcludingAvoids();
                 if (sz > 200) {
                     int mx = distributions[sourceIdx].max();
-                    int pruneLimit = (int) (mx * pruneFraction);
-                    if (pruneLimit > 0) {
-                        DiscreteDistribution filtered =  distributions[sourceIdx].filteredAndShift(pruneLimit);
+                    int pruneLimit = 2 + (int) (mx * pruneFraction);
+                    DiscreteDistribution filtered =  distributions[sourceIdx].filteredAndShift(pruneLimit);
+                    if (filtered.sizeExcludingAvoids() > 25) { // ad-hoc...
+                        distributions[sourceIdx] = filtered;
+                        int prunedSize = distributions[sourceIdx].sizeExcludingAvoids();
+                        if (sourceIdx % 10000 == 0) {
+                            System.out.println("Pruned: " + sz + " => " + prunedSize + " max: " + mx + ", limit=" + pruneLimit);
+                        }
+                    } else {
+                        //  System.out.println("Filtering would have deleted almost everything...");
+                        // Try pruning ones
+                        filtered = distributions[sourceIdx].filteredAndShift(2);
                         if (filtered.sizeExcludingAvoids() > 25) {
                             distributions[sourceIdx] = filtered;
-                            int prunedSize = distributions[sourceIdx].size();
-                            //  System.out.println("Pruned: " + sz + " => " + prunedSize + " max: " + mx + ", limit=" + pruneLimit);
-                        } else {
-                            //  System.out.println("Filtering would have deleted almost everything...");
                         }
                     }
                 }
@@ -190,6 +197,7 @@ public class DrunkardCompanion extends UnicastRemoteObject implements RemoteDrun
     public IdCount[] getTop(int vertexId) throws RemoteException {
         int sourceIdx = (sourceVertexIds == null ? -1 : Arrays.binarySearch(sourceVertexIds, vertexId));
         if (sourceIdx >= 0) {
+            drainBuffer(sourceIdx);
             return distributions[sourceIdx].getTop(10);
         } else {
             // Find index
@@ -254,11 +262,13 @@ public class DrunkardCompanion extends UnicastRemoteObject implements RemoteDrun
 
 
     private void drainBuffer(int sourceIdx) {
-        int[] arr = buffers[sourceIdx].toIntArray();
-        buffers[sourceIdx] = new IntegerBuffer(BUFFER_CAPACITY);
-        Arrays.sort(arr);
-        DiscreteDistribution dist = new DiscreteDistribution(arr);
-        mergeWith(sourceIdx, dist);
+        synchronized (buffers[sourceIdx]) {
+            int[] arr = buffers[sourceIdx].toIntArray();
+            buffers[sourceIdx] = new IntegerBuffer(BUFFER_CAPACITY);
+            Arrays.sort(arr);
+            DiscreteDistribution dist = new DiscreteDistribution(arr);
+            mergeWith(sourceIdx, dist);
+        }
     }
 
     @Override

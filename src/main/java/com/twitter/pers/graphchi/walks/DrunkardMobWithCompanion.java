@@ -64,8 +64,8 @@ public class DrunkardMobWithCompanion implements GraphChiProgram<Integer, Boolea
                     } catch (InterruptedException e) {
                     }
                     if (bucket != null) {
-                        pendingWalksToSubmit.addAndGet(-bucket.walks.length);
-                        for(int i=0; i<bucket.walks.length; i++) {
+                        pendingWalksToSubmit.addAndGet(-bucket.length);
+                        for(int i=0; i<bucket.length; i++) {
                             int w = bucket.walks[i];
                             int v = WalkManager.off(w) + bucket.firstVertex;
                             if (walkManager.getSourceVertex(w) == v) {
@@ -87,7 +87,7 @@ public class DrunkardMobWithCompanion implements GraphChiProgram<Integer, Boolea
                             }
 
                         }
-                        if (counter++ % 1000 == 0)
+                        if (counter++ % 100 == 0)
                             System.out.println("Ignore count:" + ignoreCount + "; pending=" + pendingWalksToSubmit.get());
                     }
                 }
@@ -110,18 +110,20 @@ public class DrunkardMobWithCompanion implements GraphChiProgram<Integer, Boolea
     private static class BucketsToSend {
         int firstVertex;
         int[] walks;
+        int length;
 
-        BucketsToSend(int firstVertex, int[] walks) {
+        BucketsToSend(int firstVertex, int[] walks, int length) {
             this.firstVertex = firstVertex;
             this.walks = walks;
+            this.length = length;
         }
     }
 
     @Override
-    public void consume(int firstVertexInBucket, int[] walkBucket) {
+    public void consume(int firstVertexInBucket, int[] walkBucket, int len) {
         try {
-            pendingWalksToSubmit.addAndGet(walkBucket.length);
-            bucketQueue.put(new BucketsToSend(firstVertexInBucket, walkBucket));
+            pendingWalksToSubmit.addAndGet(len);
+            bucketQueue.put(new BucketsToSend(firstVertexInBucket, walkBucket, len));
         } catch (InterruptedException e) {
             e.printStackTrace();
         }
@@ -256,7 +258,6 @@ public class DrunkardMobWithCompanion implements GraphChiProgram<Integer, Boolea
             /* Initialize GraphChi engine */
             GraphChiEngine<Integer, Boolean> engine = new GraphChiEngine<Integer, Boolean>(baseFilename, nShards);
             engine.setEdataConverter(null);
-            engine.setVertexDataConverter(new IntConverter());
             engine.setModifiesInedges(false);
             engine.setModifiesOutedges(false);
             engine.setEnableScheduler(true);

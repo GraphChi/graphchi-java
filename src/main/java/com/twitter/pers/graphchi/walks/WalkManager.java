@@ -26,7 +26,7 @@ public class WalkManager {
     private int[] sources;
 
     private int[] sourceWalkCounts = null;
-    private int totalWalks = 0;
+    private long totalWalks = 0;
 
     private int[][] walks;
     private Object[] bucketLocks;
@@ -41,6 +41,7 @@ public class WalkManager {
     private final Timer restore = Metrics.defaultRegistry().newTimer(WalkManager.class, "restore", TimeUnit.SECONDS, TimeUnit.MINUTES);
 
     private GrabbedBucketConsumer bucketConsumer;
+    private BufferedWriter log;
 
     public WalkManager(int numVertices, int numSources) {
         this.numVertices = numVertices;
@@ -49,6 +50,21 @@ public class WalkManager {
         sourceWalkCounts = new int[numSources];
         sourceBitSet = new BitSet(numVertices);
         System.out.println("Initial size for walk bucket: " + initialSize);
+        try {
+            log = new BufferedWriter(new FileWriter(new File("walkmanager.log")));
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+
+    private void log(String s) {
+        try {
+            log.write(s + "\n");
+            log.flush();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
     }
 
     public boolean isSource(int vertexId) {
@@ -216,7 +232,7 @@ public class WalkManager {
     }
 
 
-    public int getTotalWalks() {
+    public long getTotalWalks() {
         return totalWalks;
     }
 
@@ -283,13 +299,13 @@ public class WalkManager {
                     final TimerContext _timer = grabTimer.time();
 
                     int[] bucketToConsume = null;
+                    int len = 0;
                     synchronized (bucketLocks[bucketIdx]) {
                         if (!snapshotInitBits[localBucketIdx]) {
 
                             int bucketFirstVertex = bucketSize * bucketIdx;
-                            int len = walkIndices[bucketIdx];
-                            bucketToConsume = new int[len];
-                            System.arraycopy(walks[bucketIdx], 0, bucketToConsume, 0, len);
+                            len = walkIndices[bucketIdx];
+                            bucketToConsume = walks[bucketIdx];
 
                             walks[bucketIdx] = new int[initialSize];
                             walkIndices[bucketIdx] = 0;
@@ -328,8 +344,11 @@ public class WalkManager {
                             snapshotInitBits[localBucketIdx] = true;
                         }
                     }
-                    if (bucketConsumer != null && bucketToConsume != null && bucketToConsume.length > 0) {
-                        bucketConsumer.consume(bucketIdx * bucketSize, bucketToConsume);
+                    if (bucketConsumer != null && bucketToConsume != null && len > 0) {
+                        bucketConsumer.consume(bucketIdx * bucketSize, bucketToConsume, len);
+                        if (len > 1000000) {
+                            log((bucketIdx * bucketSize) + " - " + ((bucketIdx+1)) * bucketSize + ", " + len);
+                        }
                     }
                     _timer.stop();
                     return snapshots[vertexId - fromVertex];
