@@ -252,7 +252,7 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
 
                         if (!autoLoadNext || nextWindow == null) {
                             try {
-                               subIntervalEnd = determineNextWindow(subIntervalStart, Math.min(intervalEn, subIntervalStart + adjMaxWindow ));
+                                subIntervalEnd = determineNextWindow(subIntervalStart, Math.min(intervalEn, subIntervalStart + adjMaxWindow ));
                             } catch (NoEdgesInIntervalException nie) {
                                 System.out.println("No edges, skip: " + subIntervalStart + " -- " + subIntervalEnd);
                                 subIntervalEnd = subIntervalStart + adjMaxWindow;
@@ -415,78 +415,80 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
                 }
             }
 
-            synchronized (termlock) {
-                /* Parallel updates. One thread for non-parallel safe updates, others
-             updated in parallel. This guarantees deterministic execution. */
+            /* Parallel updates. One thread for non-parallel safe updates, others
+     updated in parallel. This guarantees deterministic execution. */
 
-                /* Non-safe updates */
+            /* Non-safe updates */
+            parallelExecutor.submit(new Runnable() {
+                public void run() {
+                    int thrupdates = 0;
+                    try {
+                        for(ChiVertex<VertexDataType, EdgeDataType> vertex : vertices) {
+                            if (vertex != null && !vertex.parallelSafe) {
+                                thrupdates++;
+                                program.update(vertex, chiContext);
+                            }
+                        }
+
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                    }  finally {
+                        int pending = countDown.decrementAndGet();
+                        synchronized (termlock) {
+                            nupdates += thrupdates;
+                            if (pending == 0) {
+                                termlock.notifyAll();;
+                            }
+                        }
+                    }
+                }
+            });
+
+
+            /* Parallel updates */
+            for(int thrId = 0; thrId < nWorkers; thrId++) {
+                final int myId = thrId;
+                final int chunkStart = myId * chunkSize;
+                final int chunkEnd = chunkStart + chunkSize;
+
                 parallelExecutor.submit(new Runnable() {
+
                     public void run() {
                         int thrupdates = 0;
                         try {
-                            for(ChiVertex<VertexDataType, EdgeDataType> vertex : vertices) {
-                                if (vertex != null && !vertex.parallelSafe) {
+                            int end = chunkEnd;
+                            if (end > vertices.length) end = vertices.length;
+                            for(int i = chunkStart; i < end; i++) {
+                                ChiVertex<VertexDataType, EdgeDataType> vertex = vertices[i];
+                                if (vertex != null && vertex.parallelSafe) {
                                     thrupdates++;
                                     program.update(vertex, chiContext);
                                 }
                             }
+
+                        } catch (Exception e) {
+                            e.printStackTrace();
+                        } finally {
                             int pending = countDown.decrementAndGet();
                             synchronized (termlock) {
                                 nupdates += thrupdates;
                                 if (pending == 0) {
-                                    termlock.notifyAll();;
+                                    termlock.notifyAll();
                                 }
                             }
-                        } catch (Exception e) {
-                            e.printStackTrace();
-                            throw new RuntimeException(e);
                         }
                     }
                 });
-
-
-                /* Parallel updates */
-                for(int thrId = 0; thrId < nWorkers; thrId++) {
-                    final int myId = thrId;
-                    final int chunkStart = myId * chunkSize;
-                    final int chunkEnd = chunkStart + chunkSize;
-
-                    parallelExecutor.submit(new Runnable() {
-
-                        public void run() {
-                            int thrupdates = 0;
-                            try {
-                                int end = chunkEnd;
-                                if (end > vertices.length) end = vertices.length;
-                                for(int i = chunkStart; i < end; i++) {
-                                    ChiVertex<VertexDataType, EdgeDataType> vertex = vertices[i];
-                                    if (vertex != null && vertex.parallelSafe) {
-                                        thrupdates++;
-                                        program.update(vertex, chiContext);
-                                    }
-                                }
-                                int pending = countDown.decrementAndGet();
-                                synchronized (termlock) {
-                                    nupdates += thrupdates;
-                                    if (pending == 0) {
-                                        termlock.notifyAll();;
-                                    }
-                                }
-                            } catch (Exception e) {
-                                e.printStackTrace();
-                                throw new RuntimeException(e);
-                            }
-                        }
-                    });
-                }
-
+            }
+            synchronized (termlock) {
                 while(countDown.get() > 0) {
                     try {
-                        termlock.wait(500);
+                        termlock.wait(1500);
                     } catch (InterruptedException e) {
                         // What to do?
                         e.printStackTrace();
                     }
+                    if (countDown.get() > 0) System.out.println("Waiting for execution to finish: countDown:" + countDown.get());
                 }
             }
 

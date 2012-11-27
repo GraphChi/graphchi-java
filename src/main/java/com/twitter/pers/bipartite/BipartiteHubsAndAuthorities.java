@@ -217,7 +217,6 @@ public class BipartiteHubsAndAuthorities implements GraphChiProgram<Float, Float
         GraphChiEngine<Float, Float> engine = new GraphChiEngine<Float, Float>(graph, nshards);
         engine.setEnableScheduler(true);
         engine.setOnlyAdjacency(true);
-        engine.setAutoLoadNext(true);
         engine.setModifiesInedges(false);
         engine.setModifiesOutedges(false);
         engine.run(new GraphChiProgram<Float, Float>() {
