@@ -15,13 +15,7 @@ import java.util.TreeSet;
 public class Toplist {
 
     public static TreeSet<IdFloat> topListFloat(String baseFilename, final int topN) throws IOException{
-        final TreeSet<IdFloat> topList = new TreeSet<IdFloat>(new Comparator<IdFloat>() {
-            public int compare(IdFloat idFloat, IdFloat idFloat1) {
-                if (idFloat.vertexId == idFloat1.vertexId) return 0;
-                int comp = -Float.compare(idFloat.value, idFloat1.value); // Descending order
-                return (comp != 0 ? comp : (idFloat.vertexId < idFloat1.vertexId ? -1 : 1));
-            }
-        });
+        final TreeSet<IdFloat> topList = new TreeSet<IdFloat>(new IdFloat.Comparator());
         VertexAggregator.foreach(baseFilename, new FloatConverter(), new ForeachCallback<Float>()  {
             IdFloat least;
             public void callback(int vertexId, Float vertexValue) {

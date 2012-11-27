@@ -18,6 +18,7 @@ public class ComputationInfo {
     private File inputFile;
     private String name;
 
+    private List<Integer> topList = new ArrayList<Integer>();
 
     public ComputationInfo(int id, File inputFile, String name) {
         this.id = id;
@@ -35,6 +36,10 @@ public class ComputationInfo {
 
     public String getName() {
         return name;
+    }
+
+    public List<Integer> getTopList() {
+        return topList;
     }
 
     public static List<ComputationInfo> loadComputations(String file) throws IOException {

@@ -1,5 +1,6 @@
 package com.twitter.pers.bipartite;
 
+import com.sun.tools.javac.util.Pair;
 import com.twitter.pers.Experiment;
 import com.twitter.pers.multicomp.ComputationInfo;
 import com.twitter.pers.multicomp.WeightUtil;
@@ -16,9 +17,7 @@ import edu.cmu.graphchi.util.IdFloat;
 import edu.cmu.graphchi.util.Toplist;
 
 import java.io.*;
-import java.util.HashMap;
-import java.util.List;
-import java.util.TreeSet;
+import java.util.*;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -34,7 +33,7 @@ public class BipartiteHubsAndAuthorities implements GraphChiProgram<Float, Float
     protected HugeFloatMatrix rightScoreMatrix;
     protected int numComputations;
     protected boolean initWeights;
-
+    protected List<ComputationInfo> computations;
 
     /**
      * HITS algorithms
@@ -50,6 +49,7 @@ public class BipartiteHubsAndAuthorities implements GraphChiProgram<Float, Float
                                           boolean weighted, boolean initWeights)
             throws IOException {
         numComputations = computations.size();
+        this.computations = computations;
         this.initWeights = initWeights;
         leftWeightMatrix = new HugeFloatMatrix(maxLeftVertex + 1, numComputations);
         rightScoreMatrix = new HugeFloatMatrix(maxRightVertex - RIGHTSIDE_MIN + 1, numComputations, 1.0f);
@@ -175,8 +175,181 @@ public class BipartiteHubsAndAuthorities implements GraphChiProgram<Float, Float
         engine.run(bhaa, niters);
         outputResults(experiment, bhaa, cutOff, computations, "hubsauth" + (weighted ? "_weighted" : "_unweighted"));
 
+        /* Run debug output */
+        debugRun(experiment, bhaa, computations, graph, nshards, "hubsauth" + (weighted ? "_weighted" : "_unweighted"));
+
         /* Report metrics */
         rep.run();
+    }
+
+    /**
+     * Special step to output special information of the neighbors of the top 50
+     * users for each computatoin.
+     * @param app
+     * @param computations
+     */
+    private static void debugRun(final Experiment experiment,
+                                 final BipartiteHubsAndAuthorities app, final  List<ComputationInfo> computations,
+                                 final String graph, final  int nshards, final String appName) throws IOException {
+
+        System.out.println("=================== DEBUG RUN ==================");
+
+        final ArrayList<BufferedWriter> debugWriters = new ArrayList<BufferedWriter>();
+        final ArrayList<BufferedWriter> debugEdgeWriters = new ArrayList<BufferedWriter>();
+
+
+
+        for(ComputationInfo computationInfo : computations) {
+            HashMap<String, String> placeholders = new HashMap<String, String>();
+            placeholders.put("topic", computationInfo.getName());
+            placeholders.put("algo", appName);
+
+            String outputfile = experiment.getOutputName(placeholders);
+
+            debugWriters.add(new BufferedWriter(new FileWriter(outputfile + ".debug_" + computationInfo.getName() + ".txt")));
+            debugEdgeWriters.add(new BufferedWriter(new FileWriter(outputfile + ".debugedge_" + computationInfo.getName() + ".txt")));
+
+        }
+
+        // Set of Lists to be added to debug (this set is populated by the top-users on first sweep)
+        final Set<Pair<Integer, Integer>> toDebuglists = Collections.synchronizedSet(new HashSet<Pair<Integer, Integer>>());
+
+        GraphChiEngine<Float, Float> engine = new GraphChiEngine<Float, Float>(graph, nshards);
+        engine.setEnableScheduler(true);
+        engine.setOnlyAdjacency(true);
+        engine.setAutoLoadNext(true);
+        engine.setModifiesInedges(false);
+        engine.setModifiesOutedges(false);
+        engine.run(new GraphChiProgram<Float, Float>() {
+
+
+            private void debugMessage(int compId, int vertexId, String message) {
+                try {
+                    BufferedWriter wr = debugWriters.get(compId);
+                    synchronized (wr) {
+                        wr.write(vertexId + "\t" + message + "\n");
+                    }
+                } catch (IOException ioe) {
+                    throw new RuntimeException(ioe);
+                }
+            }
+
+            private void debugEdge(int compId, int userVertex, int toListVertex, float weight, boolean authorityTop) {
+                try {
+                    BufferedWriter wr = debugEdgeWriters.get(compId);
+                    synchronized (wr) {
+                        wr.write(userVertex + "\t" + toListVertex + "\t" + weight + "\t" + (authorityTop ? 1 : 0) + "\n");
+                    }
+                } catch (IOException ioe) {
+                    throw new RuntimeException(ioe);
+                }
+            }
+
+            @Override
+            public void update(ChiVertex<Float, Float> vertex, GraphChiContext context) {
+                if (vertex.getId() < RIGHTSIDE_MIN) {
+                    // Authorities in top
+                    for(ComputationInfo computationInfo : computations) {
+                        if (computationInfo.getTopList().contains(vertex.getId())) {
+                            int compId = computationInfo.getId();
+                            System.out.println("Vertex " + vertex.getId()+ " in toplist " + computationInfo.getName());
+
+                            /* Take top 20 of lists */
+                            ArrayList<IdFloat> scores = new ArrayList<IdFloat>(vertex.numEdges());
+                            float sumScore = 0;
+                            float maxScore = 0;
+                            for(int e=0; e < vertex.numEdges(); e++) {
+                                float hubScore = app.rightScoreMatrix.getValue(vertex.edge(e).getVertexId() - RIGHTSIDE_MIN, compId);
+                                scores.add(new IdFloat(vertex.edge(e).getVertexId(), hubScore));
+                                sumScore += hubScore;
+                                maxScore = Math.max(hubScore, maxScore);
+                            }
+                            debugMessage(compId, vertex.getId(), "Neighbor sum: " + sumScore);
+                            debugMessage(compId, vertex.getId(), "Num neighbors: " + vertex.numEdges());
+                            debugMessage(compId, vertex.getId(), "Max neighbor: " + maxScore);
+
+                            Collections.sort(scores, new IdFloat.Comparator());
+                            for(int i=0; i < 20; i++) {
+                                if (i < scores.size()) {
+                                    context.getScheduler().addTask(scores.get(i).getVertexId());
+                                    debugEdge(compId, vertex.getId(),
+                                            scores.get(i).getVertexId() - RIGHTSIDE_MIN,
+                                                scores.get(i).getValue(), true);
+                                    toDebuglists.add(new Pair<Integer, Integer>(scores.get(i).getVertexId(), compId));
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    // Lists in top
+                    for(ComputationInfo computationInfo : computations) {
+                        int compId = computationInfo.getId();
+                        if (toDebuglists.contains(new Pair<Integer, Integer>(vertex.getId(), compId))) {
+                            System.out.println("List " + vertex.getId()+ " in toplist debug " + computationInfo.getName());
+
+                            /* Take top 20 of vertices */
+                            ArrayList<IdFloat> scores = new ArrayList<IdFloat>(vertex.numEdges());
+                            float sumScore = 0;
+                            float maxScore = 0;
+                            for(int e=0; e < vertex.numEdges(); e++) {
+                                float hubScore = app.leftScoreMatrix.getValue(vertex.edge(e).getVertexId(), compId);
+                                scores.add(new IdFloat(vertex.edge(e).getVertexId(), hubScore));
+                                sumScore += hubScore;
+                                maxScore = Math.max(hubScore, maxScore);
+                            }
+
+                            // Lot of code repetition!
+                            debugMessage(compId, vertex.getId(), "Neighbor sum: " + sumScore);
+                            debugMessage(compId, vertex.getId(), "Num neighbors: " + vertex.numEdges());
+                            debugMessage(compId, vertex.getId(), "Max neighbor: " + maxScore);
+
+                            Collections.sort(scores, new IdFloat.Comparator());
+                            for(int i=0; i < 20; i++) {
+                                if (i < scores.size()) {
+                                    debugEdge(compId, scores.get(i).getVertexId(),
+                                            vertex.getId() - RIGHTSIDE_MIN,
+                                            scores.get(i).getValue(), false);
+                                    toDebuglists.add(new Pair<Integer, Integer>(scores.get(i).getVertexId(), compId));
+                                }
+                            }
+                        }
+                    }
+
+                }
+            }
+
+            @Override
+            public void beginIteration(GraphChiContext ctx) {
+                // Schedule the top vertices
+                ctx.getScheduler().removeAllTasks();
+                for(ComputationInfo computationInfo : computations) {
+                    for (Integer vertexId : computationInfo.getTopList())  {
+                        ctx.getScheduler().addTask(vertexId);
+                    }
+                }
+            }
+
+            @Override
+            public void endIteration(GraphChiContext ctx) {
+            }
+
+            @Override
+            public void beginInterval(GraphChiContext ctx, VertexInterval interval) {
+            }
+
+            @Override
+            public void endInterval(GraphChiContext ctx, VertexInterval interval) {
+            }
+
+            @Override
+            public void beginSubInterval(GraphChiContext ctx, VertexInterval interval) {
+            }
+
+            @Override
+            public void endSubInterval(GraphChiContext ctx, VertexInterval interval) {
+            }
+        }, 1);
+
     }
 
     protected static void outputResults(Experiment exp, BipartiteHubsAndAuthorities app, float cutOff,
@@ -192,8 +365,11 @@ public class BipartiteHubsAndAuthorities implements GraphChiProgram<Float, Float
             String outputfile = exp.getOutputName(placeholders);
             BufferedWriter writer = new BufferedWriter(new FileWriter(new File(outputfile)));
 
+            int i = 0;
             for(IdFloat item : topList) {
                 writer.write(item.getVertexId() + "\t" + computations.get(icomp).getName() + "\t" + item.getValue() +"\n");
+                if (i < 50) computations.get(icomp).getTopList().add(item.getVertexId());
+                i++;
             }
             writer.close();
         }

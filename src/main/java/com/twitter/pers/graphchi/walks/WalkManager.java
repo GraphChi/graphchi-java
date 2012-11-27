@@ -243,6 +243,14 @@ public class WalkManager {
         return totalWalks;
     }
 
+    public long getNumOfActiveWalks() {
+        long s = 0;
+        for(int i=0; i<walkIndices.length; i++) {
+            s += walkIndices[i];
+        }
+        return s;
+    }
+
     public WalkSnapshot grabSnapshot(final int fromVertex, final int toVertexInclusive) {
         final int fromBucket = fromVertex / bucketSize;
         final int toBucket = toVertexInclusive / bucketSize;

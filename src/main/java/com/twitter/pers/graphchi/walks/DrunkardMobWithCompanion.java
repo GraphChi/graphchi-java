@@ -41,8 +41,6 @@ public class DrunkardMobWithCompanion implements GraphChiProgram<Integer, Boolea
 
     private AtomicLong pendingWalksToSubmit = new AtomicLong(0);
 
-    private static int KYRPOV_SOURCE;
-
     public DrunkardMobWithCompanion(String companionAddress) throws Exception {
         if (companionAddress.contains("localhost")) {
             RMIHack.setupLocalHostTunneling();
@@ -135,11 +133,8 @@ public class DrunkardMobWithCompanion implements GraphChiProgram<Integer, Boolea
     }
 
     private void initCompanion() throws Exception {
-
         /* Tell companion the sources */
         companion.setSources(walkManager.getSources());
-
-        KYRPOV_SOURCE = walkManager.getVertexSourceIdx(14583144);
     }
 
     public void update(ChiVertex<Integer, Boolean> vertex, GraphChiContext context) {
@@ -197,10 +192,6 @@ public class DrunkardMobWithCompanion implements GraphChiProgram<Integer, Boolea
                     atleastSecondHop = false;
                 }
 
-                if (src == KYRPOV_SOURCE) {
-                    System.out.println("Kyrpov walk --> " + i + ", " + vertex.getId() + " --> " + dst + " hopbit" + atleastSecondHop);
-                }
-
                 walkManager.updateWalk(src, dst, atleastSecondHop);
             }
         } catch (RemoteException re) {
@@ -250,6 +241,14 @@ public class DrunkardMobWithCompanion implements GraphChiProgram<Integer, Boolea
     }
 
     public void beginInterval(GraphChiContext ctx, VertexInterval interval) {
+        /* Count walks */
+        long initializedWalks = walkManager.getTotalWalks();
+        long activeWalks = walkManager.getNumOfActiveWalks();
+
+        System.out.println("=====================================");
+        System.out.println("Active walks: " + activeWalks + ", initialized=" + initializedWalks);
+        System.out.println("=====================================");
+
         walkManager.populateSchedulerForInterval(ctx.getScheduler(), interval);
         walkManager.setBucketConsumer(this);
     }
