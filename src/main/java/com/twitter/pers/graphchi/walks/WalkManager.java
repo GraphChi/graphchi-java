@@ -125,12 +125,17 @@ public class WalkManager {
         return ((sourceId & 0xffffff) << 8) | ((off & 0x7f) << 1) | hopbit;
     }
 
+    static int encodeV(int sourceId, boolean hop, int vertexId) {
+        return encode(sourceId, hop, vertexId % bucketSize);
+    }
+
+
     public static int sourceIdx(int walk) {
         return ((walk & 0xffffff00) >> 8) & 0xffffff;
     }
 
     public static boolean hop(int walk) {
-        return ((walk & 1)  != 0);
+        return ((walk & 1) != 0);
     }
 
     public static int off(int walk) {
@@ -145,21 +150,26 @@ public class WalkManager {
      */
     public void updateWalk(int sourceId, int toVertex, boolean hop) {
         int bucket = toVertex / bucketSize;
-        int w = encode(sourceId, hop, toVertex % bucketSize);
         synchronized (bucketLocks[bucket]) {
-            int idx = walkIndices[bucket];
-            if (idx == 0) {
-                walks[bucket] = new int[initialSize];
-            } else {
-                if (idx == walks[bucket].length) {
-                    int[] newBucket = new int[walks[bucket].length * 3 / 2];
-                    System.arraycopy(walks[bucket], 0, newBucket, 0, walks[bucket].length);
-                    walks[bucket] = newBucket;
-                }
-            }
-            walks[bucket][idx] = w;
-            walkIndices[bucket]++;
+            updateWalkUnsafe(sourceId, toVertex, hop);
         }
+    }
+
+    public void updateWalkUnsafe(int sourceId, int toVertex, boolean hop) {
+        int bucket = toVertex / bucketSize;
+        int w = encode(sourceId, hop, toVertex % bucketSize);
+        int idx = walkIndices[bucket];
+        if (idx == 0) {
+            walks[bucket] = new int[initialSize];
+        } else {
+            if (idx == walks[bucket].length) {
+                int[] newBucket = new int[walks[bucket].length * 3 / 2];
+                System.arraycopy(walks[bucket], 0, newBucket, 0, walks[bucket].length);
+                walks[bucket] = newBucket;
+            }
+        }
+        walks[bucket][idx] = w;
+        walkIndices[bucket]++;
     }
 
 

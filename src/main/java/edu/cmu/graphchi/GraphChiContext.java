@@ -19,8 +19,6 @@ import edu.cmu.graphchi.engine.VertexInterval;
  */
 public class GraphChiContext {
 
-    private Scheduler scheduler;
-    private VertexInterval curInterval;
 
     public GraphChiContext() {}
 
@@ -72,11 +70,39 @@ public class GraphChiContext {
         this.numVertices = numVertices;
     }
 
+    public int getThreadId() {
+        return threadId;
+    }
+
+
+    public Object getThreadLocal() {
+        return threadLocal;
+    }
+
+    public void setThreadLocal(Object threadLocal) {
+        this.threadLocal = threadLocal;
+    }
+
+    private Object threadLocal = null;
+
+    private int threadId;
     private int iteration;
     private int numIterations;
     private long numEdges;
     private long numVertices;
 
+    private Scheduler scheduler;
+    private VertexInterval curInterval;
 
-
+    public GraphChiContext clone(int _threadId) {
+        GraphChiContext ctx = new GraphChiContext();
+        ctx.threadId = _threadId;
+        ctx.iteration = iteration;
+        ctx.numIterations = numIterations;
+        ctx.numEdges = numEdges;
+        ctx.numVertices = numVertices;
+        ctx.scheduler = scheduler;
+        ctx.curInterval = curInterval;
+        return ctx;
+    }
 }

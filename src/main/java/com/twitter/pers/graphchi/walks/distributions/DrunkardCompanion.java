@@ -303,7 +303,8 @@ public class DrunkardCompanion extends UnicastRemoteObject implements RemoteDrun
         }
         System.out.println("Write output...");
         try {
-            DataOutputStream dos = new DataOutputStream(new BufferedOutputStream(new FileOutputStream(outputFile)));
+            DataOutputStream dos = new DataOutputStream(new BufferedOutputStream(new FileOutputStream(
+                    new File(workingDir, outputFile))));
 
             for(int i=0; i<sourceVertexIds.length; i++) {
                 int sourceVertex = sourceVertexIds[i];

@@ -81,9 +81,6 @@ public class ChiVertex<VertexValue, EdgeValue> {
 
 
     public int getRandomOutNeighbor() {
-        if (numOutEdges() == 0) {
-            return -1;
-        }
         int i = (int) (Math.random() * numOutEdges());
         if (edgeValueConverter != null) {
             int idx = i * 3;
@@ -93,6 +90,11 @@ public class ChiVertex<VertexValue, EdgeValue> {
         }
     }
 
+
+    // Do not use :)
+    public int[] getOutEdgeArray() {
+        return outEdgeDataArray;
+    }
 
     public int getRandomNeighbor() {
         if (numEdges() == 0) {

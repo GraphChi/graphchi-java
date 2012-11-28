@@ -422,11 +422,12 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
             parallelExecutor.submit(new Runnable() {
                 public void run() {
                     int thrupdates = 0;
+                    GraphChiContext threadContext = chiContext.clone(0);
                     try {
                         for(ChiVertex<VertexDataType, EdgeDataType> vertex : vertices) {
                             if (vertex != null && !vertex.parallelSafe) {
                                 thrupdates++;
-                                program.update(vertex, chiContext);
+                                program.update(vertex, threadContext);
                             }
                         }
 
@@ -455,6 +456,8 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
 
                     public void run() {
                         int thrupdates = 0;
+                        GraphChiContext threadContext = chiContext.clone(1 + myId);
+
                         try {
                             int end = chunkEnd;
                             if (end > vertices.length) end = vertices.length;
@@ -462,7 +465,7 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
                                 ChiVertex<VertexDataType, EdgeDataType> vertex = vertices[i];
                                 if (vertex != null && vertex.parallelSafe) {
                                     thrupdates++;
-                                    program.update(vertex, chiContext);
+                                    program.update(vertex, threadContext);
                                 }
                             }
 

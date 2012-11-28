@@ -1,6 +1,9 @@
 package com.twitter.pers.graphchi.walks;
 
 import com.twitter.pers.graphchi.walks.distributions.RemoteDrunkardCompanion;
+import com.yammer.metrics.Metrics;
+import com.yammer.metrics.core.Timer;
+import com.yammer.metrics.core.TimerContext;
 import edu.cmu.graphchi.ChiFilenames;
 import edu.cmu.graphchi.ChiVertex;
 import edu.cmu.graphchi.GraphChiContext;
@@ -16,6 +19,8 @@ import edu.cmu.graphchi.util.Toplist;
 import java.io.File;
 import java.rmi.Naming;
 import java.rmi.RemoteException;
+import java.util.ArrayList;
+import java.util.Random;
 import java.util.TreeSet;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
@@ -38,6 +43,9 @@ public class DrunkardMobWithCompanion implements GraphChiProgram<Integer, Boolea
     private LinkedBlockingQueue<BucketsToSend> bucketQueue = new LinkedBlockingQueue<BucketsToSend>();
     private boolean finished = false;
     private Thread dumperThread;
+    private final Timer purgeTimer =
+            Metrics.defaultRegistry().newTimer(DrunkardMobWithCompanion.class, "purge-localwalks", TimeUnit.SECONDS, TimeUnit.MINUTES);
+
 
     private AtomicLong pendingWalksToSubmit = new AtomicLong(0);
 
@@ -54,8 +62,6 @@ public class DrunkardMobWithCompanion implements GraphChiProgram<Integer, Boolea
                 int[] walks = new int[256 * 1024];
                 int[] vertices = new int[256 * 1024];
                 int idx = 0;
-                long ignoreCount = 0;
-                long counter = 0;
 
                 while(!finished || bucketQueue.size() > 0) {
                     BucketsToSend bucket = null;
@@ -72,7 +78,6 @@ public class DrunkardMobWithCompanion implements GraphChiProgram<Integer, Boolea
                             boolean atleastSecondHop = WalkManager.hop(w);
 
                             if (!atleastSecondHop) {
-                                ignoreCount++;
                                 continue;
                             }
 
@@ -90,8 +95,6 @@ public class DrunkardMobWithCompanion implements GraphChiProgram<Integer, Boolea
                             }
 
                         }
-                        if (counter++ % 100 == 0)
-                            System.out.println("Ignore count:" + ignoreCount + "; pending=" + pendingWalksToSubmit.get());
                     }
                 }
 
@@ -138,6 +141,17 @@ public class DrunkardMobWithCompanion implements GraphChiProgram<Integer, Boolea
     }
 
     public void update(ChiVertex<Integer, Boolean> vertex, GraphChiContext context) {
+
+        if (context.getThreadLocal() == null) {
+            LocalWalkBuffer buf = new LocalWalkBuffer();
+            context.setThreadLocal(buf);
+            synchronized (localBuffers) {
+                localBuffers.add(buf);
+            }
+        }
+
+        LocalWalkBuffer localBuf = (LocalWalkBuffer) context.getThreadLocal();
+
         try {
             // Flow control
             while (pendingWalksToSubmit.get() > walkManager.getTotalWalks() / 40) {
@@ -163,10 +177,13 @@ public class DrunkardMobWithCompanion implements GraphChiProgram<Integer, Boolea
                     companion.setAvoidList(mySourceIdx, vertex.getOutNeighborArray());
                 }
             }
-
             if (walksAtMe == null) return;
-
             int walkLength = walksAtMe.length;
+
+            int[] outEdges = vertex.getOutEdgeArray();
+            int numOutEdges = outEdges.length;
+            Random r = localBuf.random;
+
             for(int i=0; i < walkLength; i++) {
                 int walk = walksAtMe[i];
                 int src = WalkManager.sourceIdx(walk);
@@ -174,31 +191,67 @@ public class DrunkardMobWithCompanion implements GraphChiProgram<Integer, Boolea
                 boolean atleastSecondHop = WalkManager.hop(walk);
 
                 if (!atleastSecondHop) {
-                    if (src == mySourceIdx) {
-                        atleastSecondHop = false;
-                    } else {
-                        atleastSecondHop = true;
-                    }
+                    atleastSecondHop = (src != mySourceIdx);
                 }
 
                 // Choose a random destination and move the walk forward, or
                 // reset (not on first iteration).
                 int dst;
-                if (vertex.numOutEdges() > 0 && (Math.random() > RESETPROB || firstIteration)) {
-                    dst = vertex.getRandomOutNeighbor();
+                if (numOutEdges > 0 && (firstIteration || Math.random() > RESETPROB)) {
+                    dst = outEdges[r.nextInt(numOutEdges)];
                 } else {
                     // Dead end or reset
                     dst = walkManager.getSourceVertex(walk);
                     atleastSecondHop = false;
                 }
 
-                walkManager.updateWalk(src, dst, atleastSecondHop);
+                localBuf.add(src, dst, atleastSecondHop);
             }
         } catch (RemoteException re) {
             throw new RuntimeException(re);
         }
     }
 
+
+    private class LocalWalkBuffer {
+        int[] walkBufferDests;
+        int[] walkSourcesAndHops;
+        Random random = new Random();
+
+        int idx = 0;
+        LocalWalkBuffer() {
+            walkBufferDests = new int[65536];
+            walkSourcesAndHops = new int[65536];
+        }
+
+        private void add(int src, int dst, boolean hop) {
+            if (idx == walkSourcesAndHops.length) {
+                int[] tmp = walkSourcesAndHops;
+                walkSourcesAndHops = new int[tmp.length * 2];
+                System.arraycopy(tmp, 0, walkSourcesAndHops, 0, tmp.length);
+
+                tmp = walkBufferDests;
+                walkBufferDests = new int[tmp.length * 2];
+                System.arraycopy(tmp, 0, walkBufferDests, 0, tmp.length);
+            }
+            walkBufferDests[idx] = dst;
+            walkSourcesAndHops[idx] = (hop ? -1 : 1) * src;
+            idx++;
+        }
+
+        private void purge() {
+            for(int i=0; i<idx; i++) {
+                int dst = walkBufferDests[i];
+                int src = walkSourcesAndHops[i];
+                boolean hop = src < 0;
+                if (src < 0) src = -src;
+                walkManager.updateWalkUnsafe(src, dst, hop);
+            }
+            walkSourcesAndHops = null;
+            walkBufferDests = null;
+        }
+
+    }
 
     public void beginIteration(GraphChiContext ctx) {
         if (ctx.getIteration() == 0) {
@@ -226,6 +279,8 @@ public class DrunkardMobWithCompanion implements GraphChiProgram<Integer, Boolea
         }
     }
 
+    private ArrayList<LocalWalkBuffer> localBuffers = new ArrayList<LocalWalkBuffer>();
+
     /**
      * At the start of interval - grab the snapshot of walks
      */
@@ -233,11 +288,34 @@ public class DrunkardMobWithCompanion implements GraphChiProgram<Integer, Boolea
         long t = System.currentTimeMillis();
         curWalkSnapshot = walkManager.grabSnapshot(interval.getFirstVertex(), interval.getLastVertex());
         System.out.println("Grab snapshot took " + (System.currentTimeMillis() - t) + " ms.");
+
+        while(localBuffers.size() > 0) {
+            try {
+                Thread.sleep(100);
+            } catch (InterruptedException e) {
+            }
+            System.out.println("Waiting for purge to finish...");
+        }
     }
 
     public void endSubInterval(GraphChiContext ctx, final VertexInterval interval) {
         curWalkSnapshot.restoreUngrabbed();
         curWalkSnapshot = null; // Release memory
+
+        /* Purge local buffers */
+        /* TODO: do in separate thread */
+        Thread t = new Thread(new Runnable() {
+            public void run() {
+                synchronized (localBuffers) {
+                    final TimerContext _timer = purgeTimer.time();
+                    for (LocalWalkBuffer buf : localBuffers) {
+                        buf.purge();
+                    }
+                    localBuffers.clear();
+                    _timer.stop();
+                }
+            }});
+        t.start();
     }
 
     public void beginInterval(GraphChiContext ctx, VertexInterval interval) {
@@ -327,7 +405,7 @@ public class DrunkardMobWithCompanion implements GraphChiProgram<Integer, Boolea
 
             // TODO: ensure that we have sent all walks!
             mob.spinUntilFinish();
-            mob.companion.outputDistributions(baseFilename + "_" + firstSource);
+            mob.companion.outputDistributions(new File(baseFilename).getName() + "_" + firstSource);
         }
 
         rep.run();
