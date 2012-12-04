@@ -3,11 +3,14 @@ package com.twitter.pers.bipartite;
 import com.twitter.pers.Experiment;
 import com.twitter.pers.multicomp.ComputationInfo;
 import com.yammer.metrics.Metrics;
+import edu.cmu.graphchi.ChiFilenames;
 import edu.cmu.graphchi.ChiVertex;
 import edu.cmu.graphchi.GraphChiContext;
 import edu.cmu.graphchi.engine.GraphChiEngine;
 import edu.cmu.graphchi.metrics.SimpleMetricsReporter;
 
+import java.io.BufferedWriter;
+import java.io.FileWriter;
 import java.io.IOException;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
@@ -19,9 +22,57 @@ import java.util.concurrent.TimeUnit;
  */
 public class SALSA extends BipartiteHubsAndAuthorities {
 
-    protected SALSA(List<ComputationInfo> computations, int maxLeftVertex, int maxRightVertex, float cutOff, boolean weighted, boolean initWeights)
+    BufferedWriter debugWriter;
+
+    protected SALSA(List<ComputationInfo> computations, int maxLeftVertex, int maxRightVertex,
+                    float cutOff, boolean weighted, boolean initWeights)
             throws IOException {
         super(computations, maxLeftVertex, maxRightVertex, cutOff, weighted, initWeights);
+        debugWriter = new BufferedWriter(new FileWriter("salsadebug/salsadebuglog." +
+                    ChiFilenames.getPid() + ".txt"));
+    }
+
+
+    private void debug(ChiVertex<Float, Float> vertex, GraphChiContext context, float v1, float v2) {
+        try {
+            synchronized (debugWriter) {
+                System.out.println("**** Debug for " + vertex.getId());
+                debugWriter.write("Iteration " + context.getIteration() + ", vertex: " + vertex.getId() + "\n");
+
+                float score;
+                if (vertex.getId() >= 1000000000) {
+                    score = rightScoreMatrix.getValue(vertex.getId() - 1000000000, 0);
+                    debugWriter.write("List: ");
+
+                    for(int e=0; e < vertex.numEdges(); e++) {
+                        int nbId = vertex.edge(e).getVertexId();
+                        if (nbId < leftScoreMatrix.getNumRows()) {
+                            float nbweight = leftWeightMatrix.getValue(nbId, 0);
+                            float nbscore = leftScoreMatrix.getValue(nbId, 0);
+                            debugWriter.write(" :: neighbor " + nbId + ", w:" + nbweight + ", nbscore=" + nbscore + "\n");
+                        }
+
+                    }
+
+                } else {
+                    score = leftScoreMatrix.getValue(vertex.getId(), 0);
+                    debugWriter.write("User: ");
+                }
+                debugWriter.write("value now: " + score + "\n");
+                debugWriter.write("Values: " + v1 + ", " + v2 + "\n");
+
+                debugWriter.flush();
+            }
+        } catch (IOException ioe) {
+            ioe.printStackTrace();
+        }
+    }
+
+    boolean doDebug(int vertexId) {
+       /* int listId = vertexId - 1000000000;
+        return (vertexId == 784304 || listId == 11111628 || listId == 11367531
+                || listId == 13672664 || listId == 15453820); */
+        return false;
     }
 
     @Override
@@ -32,6 +83,7 @@ public class SALSA extends BipartiteHubsAndAuthorities {
         if (isLeft && initWeights && context.getIteration() == 0) {
             // If the left side has initial weights, then we need
             // to run right side (the hubs) first.
+            // But need to set my own score to the initial weight
             return;
         }
         if (context.getIteration() == context.getNumIterations() - 1) {
@@ -69,6 +121,8 @@ public class SALSA extends BipartiteHubsAndAuthorities {
                     sumRight *= myWeight;
                 }
                 leftScoreMatrix.setValue(vertex.getId(), compId, sumRight);
+                if (doDebug(vertex.getId())) debug(vertex, context, sumRight, myWeight);
+
             }  else {
                 if (vertex.getId() - RIGHTSIDE_MIN >= rightScoreMatrix.getNumRows()) {
                     continue;
@@ -80,19 +134,18 @@ public class SALSA extends BipartiteHubsAndAuthorities {
                     int nbId = vertex.edge(e).getVertexId();
                     if (nbId < maxLeft) {
                         float weight = leftWeightMatrix.getValue(nbId, compId);
-                        sumLeft += leftScoreMatrix.getValue(nbId, compId);
+                        sumLeft += (weight > 0 ? leftScoreMatrix.getValue(nbId, compId) : 0);
                         normalizer += weight;
                     }
 
                 }
                 if (normalizer > 0) sumLeft /= normalizer;
                 rightScoreMatrix.setValue(vertex.getId() - RIGHTSIDE_MIN, compId, sumLeft);
-
-                if (vertex.getId() % 1000 == 1 && sumLeft > 0) {
-                    System.out.println(vertex.getId() - RIGHTSIDE_MIN + " ***> " + sumLeft + " norm: " + normalizer);
-                }
+                if (doDebug(vertex.getId())) debug(vertex, context, sumLeft, normalizer);
             }
         }
+
+
     }
 
 
@@ -130,16 +183,20 @@ public class SALSA extends BipartiteHubsAndAuthorities {
         SALSA salsa = initializeApp(cutOff, computations, leftMax, engine, weighted, initWeights);
 
         engine.setOnlyAdjacency(true);
-        engine.setAutoLoadNext(true);
+        engine.setAutoLoadNext(false);
         engine.setModifiesInedges(false);
         engine.setModifiesOutedges(false);
         engine.setEnableDeterministicExecution(false);
         engine.setEdataConverter(null);
         engine.setVertexDataConverter(null);
+        engine.setEnableScheduler(true);
         engine.run(salsa, niters);
 
 
         outputResults(experiment, salsa, cutOff, computations, "salsa" + (weighted ? "_weighted" : "_unweighted"));
+
+        /* Run debug output */
+        debugRun(experiment, salsa, computations, graph, nshards, "salsa" + (weighted ? "_weighted" : "_unweighted"));
 
         /* Report metrics */
         rep.run();
