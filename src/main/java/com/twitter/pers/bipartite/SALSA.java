@@ -28,52 +28,9 @@ public class SALSA extends BipartiteHubsAndAuthorities {
                     float cutOff, boolean weighted, boolean initWeights)
             throws IOException {
         super(computations, maxLeftVertex, maxRightVertex, cutOff, weighted, initWeights);
-        debugWriter = new BufferedWriter(new FileWriter("salsadebug/salsadebuglog." +
-                    ChiFilenames.getPid() + ".txt"));
+        this.startLeft = false; // Starts from right
     }
 
-
-    private void debug(ChiVertex<Float, Float> vertex, GraphChiContext context, float v1, float v2) {
-        try {
-            synchronized (debugWriter) {
-                System.out.println("**** Debug for " + vertex.getId());
-                debugWriter.write("Iteration " + context.getIteration() + ", vertex: " + vertex.getId() + "\n");
-
-                float score;
-                if (vertex.getId() >= 1000000000) {
-                    score = rightScoreMatrix.getValue(vertex.getId() - 1000000000, 0);
-                    debugWriter.write("List: ");
-
-                    for(int e=0; e < vertex.numEdges(); e++) {
-                        int nbId = vertex.edge(e).getVertexId();
-                        if (nbId < leftScoreMatrix.getNumRows()) {
-                            float nbweight = leftWeightMatrix.getValue(nbId, 0);
-                            float nbscore = leftScoreMatrix.getValue(nbId, 0);
-                            debugWriter.write(" :: neighbor " + nbId + ", w:" + nbweight + ", nbscore=" + nbscore + "\n");
-                        }
-
-                    }
-
-                } else {
-                    score = leftScoreMatrix.getValue(vertex.getId(), 0);
-                    debugWriter.write("User: ");
-                }
-                debugWriter.write("value now: " + score + "\n");
-                debugWriter.write("Values: " + v1 + ", " + v2 + "\n");
-
-                debugWriter.flush();
-            }
-        } catch (IOException ioe) {
-            ioe.printStackTrace();
-        }
-    }
-
-    boolean doDebug(int vertexId) {
-       /* int listId = vertexId - 1000000000;
-        return (vertexId == 784304 || listId == 11111628 || listId == 11367531
-                || listId == 13672664 || listId == 15453820); */
-        return false;
-    }
 
     @Override
     public void update(ChiVertex<Float, Float> vertex, GraphChiContext context) {
@@ -121,7 +78,6 @@ public class SALSA extends BipartiteHubsAndAuthorities {
                     sumRight *= myWeight;
                 }
                 leftScoreMatrix.setValue(vertex.getId(), compId, sumRight);
-                if (doDebug(vertex.getId())) debug(vertex, context, sumRight, myWeight);
 
             }  else {
                 if (vertex.getId() - RIGHTSIDE_MIN >= rightScoreMatrix.getNumRows()) {
@@ -141,7 +97,6 @@ public class SALSA extends BipartiteHubsAndAuthorities {
                 }
                 if (normalizer > 0) sumLeft /= normalizer;
                 rightScoreMatrix.setValue(vertex.getId() - RIGHTSIDE_MIN, compId, sumLeft);
-                if (doDebug(vertex.getId())) debug(vertex, context, sumLeft, normalizer);
             }
         }
 
@@ -149,15 +104,14 @@ public class SALSA extends BipartiteHubsAndAuthorities {
     }
 
 
-
     @Override
     public void endIteration(GraphChiContext ctx) {
-        // No normalizing
-        System.out.println("SALSA: ended iteration " + ctx.getIteration());
+        // IMPORTANT TO OVERRIDE BECAUSE HUBS AND AUTHORITIES
+        // NORMALIZES.
     }
 
 
-    public static void main(String[] args) throws Exception {
+        public static void main(String[] args) throws Exception {
         SimpleMetricsReporter rep = SimpleMetricsReporter.enable(2, TimeUnit.MINUTES);
 
         String experimentDefinition = args[0];

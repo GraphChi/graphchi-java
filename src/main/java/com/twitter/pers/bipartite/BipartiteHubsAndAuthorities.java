@@ -32,6 +32,7 @@ public class BipartiteHubsAndAuthorities implements GraphChiProgram<Float, Float
     protected HugeFloatMatrix rightScoreMatrix;
     protected int numComputations;
     protected boolean initWeights;
+    protected boolean startLeft = true;
     protected List<ComputationInfo> computations;
 
     /**
@@ -114,19 +115,21 @@ public class BipartiteHubsAndAuthorities implements GraphChiProgram<Float, Float
         ctx.getScheduler().removeAllTasks();
 
         // Add all non-zero values to the scheduler
-        int nrows = (int) leftWeightMatrix.getNumRows();
-        for(int i=0; i<nrows; i++) {
-            boolean schedule = false;
-            for(int j=0; j<numComputations; j++) {
-                if (leftWeightMatrix.getValue(i, j) > 0.0) {
-                    schedule = true;
+        if (startLeft) {
+            int nrows = (int) leftWeightMatrix.getNumRows();
+            for(int i=0; i<nrows; i++) {
+                boolean schedule = false;
+                for(int j=0; j<numComputations; j++) {
+                    if (leftWeightMatrix.getValue(i, j) > 0.0) {
+                        schedule = true;
+                    }
                 }
+                if (schedule) ctx.getScheduler().addTask(i);
             }
-            if (schedule) ctx.getScheduler().addTask(i);
         }
 
         // Schedule all lists on first iteration
-        nrows = (int) rightScoreMatrix.getNumRows();
+        int nrows = (int) rightScoreMatrix.getNumRows();
         if (ctx.getIteration() == 0) {
             for(int i=0; i<nrows; i++) {
                 ctx.getScheduler().addTask(i + RIGHTSIDE_MIN);
@@ -336,10 +339,10 @@ public class BipartiteHubsAndAuthorities implements GraphChiProgram<Float, Float
                                 for(int e=0; e < vertex.numEdges(); e++) {
                                     int nbId = vertex.edge(e).getVertexId();
                                     if (nbId < app.leftScoreMatrix.getNumRows()) {
-                                    float hubScore = app.leftScoreMatrix.getValue(nbId, compId);
-                                    scores.add(new IdFloat(nbId, hubScore));
-                                    sumScore += hubScore;
-                                    maxScore = Math.max(hubScore, maxScore);
+                                        float hubScore = app.leftScoreMatrix.getValue(nbId, compId);
+                                        scores.add(new IdFloat(nbId, hubScore));
+                                        sumScore += hubScore;
+                                        maxScore = Math.max(hubScore, maxScore);
                                     }
                                 }
 
