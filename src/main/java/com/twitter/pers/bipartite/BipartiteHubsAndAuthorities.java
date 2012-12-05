@@ -115,7 +115,7 @@ public class BipartiteHubsAndAuthorities implements GraphChiProgram<Float, Float
         ctx.getScheduler().removeAllTasks();
 
         // Add all non-zero values to the scheduler
-        if (startLeft) {
+        if (startLeft || ctx.getIteration() > 0) {
             int nrows = (int) leftWeightMatrix.getNumRows();
             for(int i=0; i<nrows; i++) {
                 boolean schedule = false;

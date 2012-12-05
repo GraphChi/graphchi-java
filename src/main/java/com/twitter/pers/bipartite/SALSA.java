@@ -111,7 +111,7 @@ public class SALSA extends BipartiteHubsAndAuthorities {
     }
 
 
-        public static void main(String[] args) throws Exception {
+    public static void main(String[] args) throws Exception {
         SimpleMetricsReporter rep = SimpleMetricsReporter.enable(2, TimeUnit.MINUTES);
 
         String experimentDefinition = args[0];
