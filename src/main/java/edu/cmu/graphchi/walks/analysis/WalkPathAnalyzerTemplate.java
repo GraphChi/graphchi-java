@@ -11,9 +11,11 @@ import java.util.*;
  *    [directory-containing the walks] [min-walk-id to process] [max-walk-id to process] [maxHops]
  *
  * The idea is to process the walks in such chunks that they can be processed in memory.
- * For example, if you did 14 million walks of 10 hops, perhaps analyzing 2 million walks a time
- * makes sense, and first run with min-walk-id 0 and max-walkid 2000000, then with
- * min-walkid 2000001 etc...
+ * For example, if you did 1 billion walks of 10 hops, perhaps analyzing 200 million walks a time
+ * makes sense, and first run with min-walk-id 0 and max-walkid 200,000,000, then with
+ * min-walkid 200,000,001 etc...  (On a machine with ~ 100 gig of memory).
+ * CAUTION: Java's memory allocation is a bit hard to estimate, so you need to try out
+ * good chunk sizes.
  *
  * Process:
  * 1. compute the path for each walk id
