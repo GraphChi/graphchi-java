@@ -23,7 +23,8 @@ public class WalkPathAnalyzer {
      * Currently very dummy implementation. TODO: Make memory efficient and smarter in general.
      * Just for demonstration purposes.
      */
-    public void analyze(int numberOfWalks, int maxHops) throws IOException {
+    public void analyze(int minWalkId, int maxWalkId, int maxHops) throws IOException {
+        int numberOfWalks = maxWalkId - minWalkId + 1;
         Walk[] paths = new Walk[numberOfWalks];
         for(int i=0; i < paths.length; i++) {
             paths[i] = new Walk(maxHops);
@@ -51,8 +52,8 @@ public class WalkPathAnalyzer {
 
                     short hop = dis.readShort();
                     int atVertex = dis.readInt();
-                    if (walkId < numberOfWalks) {
-                        paths[walkId].addWalk(hop, atVertex);
+                    if (walkId >= minWalkId && walkId <= maxWalkId) {
+                        paths[walkId - minWalkId].addWalk(hop, atVertex);
                     }
                 }
             } catch (EOFException ioe) {
@@ -94,6 +95,10 @@ public class WalkPathAnalyzer {
 
     public static void main(String[] args) throws Exception {
         WalkPathAnalyzer analyzer = new WalkPathAnalyzer(new File("."));
-        analyzer.analyze(Integer.parseInt(args[0]), Integer.parseInt(args[1]));
+        int minWalkId = Integer.parseInt(args[0]);
+        int maxWalkId = Integer.parseInt(args[1]);
+        int maxHops = Integer.parseInt(args[2]);
+
+        analyzer.analyze(minWalkId, maxWalkId, maxHops);
     }
 }
