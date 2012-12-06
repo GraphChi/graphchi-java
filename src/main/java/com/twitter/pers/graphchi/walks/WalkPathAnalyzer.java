@@ -37,15 +37,22 @@ public class WalkPathAnalyzer {
 
         for(String walkFile : walkFiles) {
             System.out.println("Analyze: " + walkFile);
-            DataInputStream dis = new DataInputStream(new BufferedInputStream(new FileInputStream(new File(directory, walkFile))));
+            long walksInFile = new File(directory, walkFile).length() / 10;
+            DataInputStream dis = new DataInputStream(new BufferedInputStream(new FileInputStream(
+                    new File(directory, walkFile)), 1024 * 1024 * 50));
             try {
-                while(dis.available() > 0) {
+                long i = 0;
+                while(i < walksInFile) {
+                    if (i % 1000000 == 0) System.out.println(i + " / " + walksInFile);
+                    i++;
+
                     int walkId = dis.readInt();
+
                     short hop = dis.readShort();
                     int atVertex = dis.readInt();
-
                     if (walkId < numberOfWalks) {
                         paths[walkId].addWalk(hop, atVertex);
+                        System.out.println(walkId + ", " + hop + ", " + atVertex);
                     }
                 }
             } catch (EOFException ioe) {
