@@ -16,6 +16,8 @@ import java.io.*;
 import java.util.ArrayList;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.logging.LogManager;
+import java.util.logging.Logger;
 
 /**
  * Copyright [2012] [Aapo Kyrola, Guy Blelloch, Carlos Guestrin / Carnegie Mellon University]
@@ -59,6 +61,9 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
     protected boolean enableDeterministicExecution = true;
     private boolean useStaticWindowSize = false;
     protected long memBudget;
+
+
+    private static final Logger logger = LoggingInitializer.getLogger("engine");
 
     /* Automatic loading of next window */
     private boolean autoLoadNext = false; // Only for only-adjacency cases!
@@ -108,7 +113,7 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
 
         assert(intervals.size() == nShards);
 
-        System.out.println("Loaded: " + intervals);
+        logger.info("Loaded: " + intervals);
     }
 
 
@@ -169,7 +174,7 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
         if (System.getProperty("num_threads") != null)
             nprocs = Integer.parseInt(System.getProperty("num_threads"));
 
-        System.out.println(":::::::: Using " + nprocs + " execution threads :::::::::");
+        logger.info(":::::::: Using " + nprocs + " execution threads :::::::::");
 
         parallelExecutor = Executors.newFixedThreadPool(nprocs);
         loadingExecutor = Executors.newFixedThreadPool(4);
@@ -183,7 +188,7 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
             initializeScheduler();
             chiContext.setScheduler(scheduler);
             scheduler.addAllTasks();
-            System.out.println("Using scheduler!");
+            logger.info("Using scheduler!");
         }  else {
             chiContext.setScheduler(new MockScheduler());
         }
@@ -216,7 +221,7 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
 
             if (scheduler != null) {
                 if (iter > 0 && !scheduler.hasTasks()) {
-                    System.out.println("No new tasks to run. Terminating.");
+                    logger.info("No new tasks to run. Terminating.");
                     break;
                 }
                 scheduler.reset();
@@ -226,7 +231,7 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
                 int intervalSt = intervals.get(execInterval).getFirstVertex();
                 int intervalEn = intervals.get(execInterval).getLastVertex();
 
-                System.out.println((System.currentTimeMillis() - startTime) * 0.001 + "s: iteration: " + iter + ", interval: " + intervalSt + " -- " + intervalEn);
+                logger.info((System.currentTimeMillis() - startTime) * 0.001 + "s: iteration: " + iter + ", interval: " + intervalSt + " -- " + intervalEn);
 
                 program.beginInterval(chiContext, intervals.get(execInterval));
 
@@ -254,24 +259,24 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
                             try {
                                 subIntervalEnd = determineNextWindow(subIntervalStart, Math.min(intervalEn, subIntervalStart + adjMaxWindow ));
                             } catch (NoEdgesInIntervalException nie) {
-                                System.out.println("No edges, skip: " + subIntervalStart + " -- " + subIntervalEnd);
+                                logger.info("No edges, skip: " + subIntervalStart + " -- " + subIntervalEnd);
                                 subIntervalEnd = subIntervalStart + adjMaxWindow;
                                 subIntervalStart = subIntervalEnd + 1;
                                 continue;
                             }
                             int nvertices = subIntervalEnd - subIntervalStart + 1;
 
-                            System.out.println("Subinterval:: " + subIntervalStart + " -- " + subIntervalEnd + " (iteration " + iter + ")");
+                            logger.info("Subinterval:: " + subIntervalStart + " -- " + subIntervalEnd + " (iteration " + iter + ")");
 
                             vertices = new ChiVertex[nvertices];
 
-                            System.out.println("Init vertices...");
+                            logger.info("Init vertices...");
                             vertexBlockId = initVertices(nvertices, subIntervalStart, vertices);
 
-                            System.out.println("Loading...");
+                            logger.info("Loading...");
                             long t0 = System.currentTimeMillis();
                             loadBeforeUpdates(execInterval, vertices, memoryShard, subIntervalStart, subIntervalEnd);
-                            System.out.println("Load took: " + (System.currentTimeMillis() - t0) + "ms");
+                            logger.info("Load took: " + (System.currentTimeMillis() - t0) + "ms");
                         } else {
                             /* This is a mess! */
                             try {
@@ -281,7 +286,7 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
 
                                 memoryShard = next.getMemShard();
                                 _timer.stop();
-                                System.out.println("Waiting for future task loading took " + (System.currentTimeMillis() - tf) + " ms");
+                                logger.info("Waiting for future task loading took " + (System.currentTimeMillis() - tf) + " ms");
                                 if (subIntervalStart != next.getSubInterval().getFirstVertex())
                                     throw new IllegalStateException("Future loaders interval does not match the expected one! " +
                                             subIntervalStart + " != " + next.getSubInterval().getFirstVertex());
@@ -325,7 +330,7 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
 
                         long t1 = System.currentTimeMillis();
                         execUpdates(program, vertices);
-                        System.out.println("Update exec: " + (System.currentTimeMillis() - t1) + " ms.");
+                        logger.info("Update exec: " + (System.currentTimeMillis() - t1) + " ms.");
 
                         // Write vertices (async)
                         final int _firstVertex = subIntervalStart;
@@ -347,7 +352,7 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
 
                     }  else {
                         subIntervalEnd = subIntervalStart + adjMaxWindow;
-                        System.out.println("Skipped interval - no vertices scheduled. " + subIntervalStart + " -- " + subIntervalEnd);
+                        logger.info("Skipped interval - no vertices scheduled. " + subIntervalStart + " -- " + subIntervalEnd);
 
                         subIntervalStart = subIntervalEnd + 1;
                     }
@@ -373,8 +378,8 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
 
         parallelExecutor.shutdown();
         loadingExecutor.shutdown();
-        System.out.println("Engine finished in: " + (System.currentTimeMillis() - startTime) * 0.001 + " secs.");
-        System.out.println("Updates: " + nupdates);
+        logger.info("Engine finished in: " + (System.currentTimeMillis() - startTime) * 0.001 + " secs.");
+        logger.info("Updates: " + nupdates);
     }
 
     private boolean anyVertexScheduled(int subIntervalStart, int lastVertex) {
@@ -491,7 +496,7 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
                         // What to do?
                         e.printStackTrace();
                     }
-                    if (countDown.get() > 0) System.out.println("Waiting for execution to finish: countDown:" + countDown.get());
+                    if (countDown.get() > 0) logger.info("Waiting for execution to finish: countDown:" + countDown.get());
                 }
             }
 
@@ -539,20 +544,19 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
 
                     public void run() {
                         try {
-                            System.out.println("Loading memshard started. " + Thread.currentThread().getName() + " id=" +
+                            logger.info("Loading memshard started. " + Thread.currentThread().getName() + " id=" +
                                     Thread.currentThread().getId());
-                            System.out.println(Thread.currentThread());
-                            System.out.println("Memshard:  " + memShard + " ... st: " + startVertex + " -- " + endVertex);
-                            System.out.println("Vertices length: " + vertices.length + "; disableOut=" + disableOutEdges);
+                            logger.info("Memshard:  " + memShard + " ... st: " + startVertex + " -- " + endVertex);
+                            logger.info("Vertices length: " + vertices.length + "; disableOut=" + disableOutEdges);
                             memShard.loadVertices(startVertex, endVertex, vertices, disableOutEdges);
-                            System.out.println("Loading memshard finished." + Thread.currentThread().getName());
+                            logger.info("Loading memshard finished." + Thread.currentThread().getName());
 
                             if (countDown.decrementAndGet() == 0) {
                                 synchronized (terminationLock) {
                                     terminationLock.notifyAll();
                                 }
                             }
-                            System.out.println("Finishing memshard task: " + Thread.currentThread().getName());
+                            logger.info("Finishing memshard task: " + Thread.currentThread().getName());
 
                         } catch (IOException ioe) {
                             ioe.printStackTrace();
@@ -598,7 +602,7 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
                 while(countDown.get() > 0) {
                     terminationLock.wait(5000);
                     if (countDown.get() > 0) {
-                        System.out.println("Still waiting for loading, counter is: " + countDown.get());
+                        logger.info("Still waiting for loading, counter is: " + countDown.get());
                     }
                 }
             } catch (InterruptedException e) {

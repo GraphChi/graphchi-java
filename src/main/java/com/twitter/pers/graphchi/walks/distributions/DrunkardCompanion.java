@@ -2,6 +2,7 @@ package com.twitter.pers.graphchi.walks.distributions;
 
 import com.sun.xml.internal.messaging.saaj.util.ByteInputStream;
 import com.twitter.pers.graphchi.walks.WalkManager;
+import edu.cmu.graphchi.LoggingInitializer;
 import edu.cmu.graphchi.util.IdCount;
 import edu.cmu.graphchi.util.IntegerBuffer;
 
@@ -11,12 +12,15 @@ import java.rmi.RemoteException;
 import java.rmi.registry.LocateRegistry;
 import java.rmi.server.UnicastRemoteObject;
 import java.util.Arrays;
+import java.util.Timer;
+import java.util.TimerTask;
 import java.util.TreeSet;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.logging.Logger;
 
 /**
  * DrunkardCompanion is a remote service that receives walks from the walker
@@ -37,7 +41,6 @@ public class DrunkardCompanion extends UnicastRemoteObject implements RemoteDrun
     private static final int BUFFER_CAPACITY = 128;
     private static final int BUFFER_MAX = 128;
 
-
     private int[] sourceVertexIds;
     private Object[] distrLocks;
 
@@ -49,6 +52,51 @@ public class DrunkardCompanion extends UnicastRemoteObject implements RemoteDrun
     private Double pruneFraction;
     private String workingDir;
     private LinkedBlockingQueue<WalkSubmission> pendingQueue = new LinkedBlockingQueue<WalkSubmission>();
+
+    private static Logger logger = LoggingInitializer.getLogger("drunnkarcompanion");
+    private Timer timer  = new Timer(true);
+
+    /**
+     * Prints estimate of memory usage
+     */
+    private long memoryAuditReport() {
+        long companionOverHeads = 0;
+        companionOverHeads += sourceVertexIds.length * 4;
+        companionOverHeads += distrLocks.length * 4;
+
+
+        long bufferMem = 0;
+        long maxMem = 0;
+        for(IntegerBuffer buf : buffers) {
+            long est = buf.memorySizeEst();
+            bufferMem += est;
+            maxMem = Math.max(maxMem, est);
+        }
+
+        long distributionMem = 0;
+        long maxDistMem = 0;
+        for(DiscreteDistribution dist : distributions) {
+            long est = dist.memorySizeEst();
+            distributionMem += est;
+            maxDistMem = Math.max(est, maxDistMem);
+        }
+
+        logger.info("======= MEMORY REPORT ======");
+        logger.info("Companion internal: " + companionOverHeads / 1024. / 1024. + " mb");
+
+        logger.info("Buffer mem: " + bufferMem / 1024. / 1024. + " mb");
+        logger.info("Avg bytes per buffer: " + bufferMem * 1.0 / buffers.length / 1024. + " kb");
+        logger.info("Max buffer was: " + maxMem / 1024. + "kb");
+
+        logger.info("Distribution mem: " + distributionMem / 1024. / 1024. + " mb");
+        logger.info("Avg bytes per distribution: " + (distributionMem * 1.0 / distributions.length / 1024.) + " kb");
+        logger.info("Max distribution: " + maxDistMem / 1024. + " kb");
+
+        long totalMem = companionOverHeads + bufferMem + distributionMem;
+        logger.info("** Total:  " + totalMem);
+        return totalMem;
+    }
+
 
 
     public DrunkardCompanion(double pruneFraction, String workingDir) throws RemoteException {
@@ -75,7 +123,7 @@ public class DrunkardCompanion extends UnicastRemoteObject implements RemoteDrun
                             }
                             if (sourceVertexIds != null) {
                                 if (unpurgedWalks > sourceVertexIds.length * 10 || (subm == null && unpurgedWalks > 100000)) {
-                                    System.out.println("Purge:" + unpurgedWalks);
+                                    logger.fine("Purge:" + unpurgedWalks);
                                     unpurgedWalks = 0;
 
                                     // Loop to see what to drain. Every thread looks for
@@ -126,17 +174,17 @@ public class DrunkardCompanion extends UnicastRemoteObject implements RemoteDrun
                 if (sz > 200) {
                     int mx = distributions[sourceIdx].max();
                     int pruneLimit = 2 + (int) (mx * pruneFraction);
-                    DiscreteDistribution filtered =  distributions[sourceIdx].filteredAndShift(pruneLimit);
+                    DiscreteDistribution filtered =  distributions[sourceIdx].filteredAndShift((short)pruneLimit);
                     if (filtered.sizeExcludingAvoids() > 25) { // ad-hoc...
                         distributions[sourceIdx] = filtered;
                         int prunedSize = distributions[sourceIdx].sizeExcludingAvoids();
                         if (sourceIdx % 10000 == 0) {
-                            System.out.println("Pruned: " + sz + " => " + prunedSize + " max: " + mx + ", limit=" + pruneLimit);
+                            logger.info("Pruned: " + sz + " => " + prunedSize + " max: " + mx + ", limit=" + pruneLimit);
                         }
                     } else {
-                        //  System.out.println("Filtering would have deleted almost everything...");
+                        //  logger.info("Filtering would have deleted almost everything...");
                         // Try pruning ones
-                        filtered = distributions[sourceIdx].filteredAndShift(2);
+                        filtered = distributions[sourceIdx].filteredAndShift((short)2);
                         if (filtered.sizeExcludingAvoids() > 25) {
                             distributions[sourceIdx] = filtered;
                         }
@@ -155,7 +203,11 @@ public class DrunkardCompanion extends UnicastRemoteObject implements RemoteDrun
 
     @Override
     public void setSources(int[] sources) throws RemoteException {
-        System.out.println("Initializing sources...");
+        // Restart timer
+        timer.cancel();
+        timer = new Timer(true);
+
+        logger.info("Initializing sources...");
         buffers = new IntegerBuffer[sources.length];
         sourceVertexIds = new int[sources.length];
         distrLocks = new Object[sources.length];
@@ -166,8 +218,16 @@ public class DrunkardCompanion extends UnicastRemoteObject implements RemoteDrun
             buffers[i] = new IntegerBuffer(BUFFER_CAPACITY);
             distributions[i] = DiscreteDistribution.createAvoidanceDistribution(new int[]{sources[i]}); // Add the vertex itself to avoids
         }
-        System.out.println("Done...");
+        logger.info("Done...");
+
+        timer.schedule(new TimerTask() {
+            @Override
+            public void run() {
+                memoryAuditReport();
+            }
+        }, 5000, 60000);
     }
+
 
 
 
@@ -190,7 +250,7 @@ public class DrunkardCompanion extends UnicastRemoteObject implements RemoteDrun
 
         long tt = (System.currentTimeMillis() - t1);
         if (tt > 1000) {
-            System.out.println("Processing " + walks.length + " took " + tt + " ms.");
+            logger.info("Processing " + walks.length + " took " + tt + " ms.");
         }
     }
 
@@ -198,12 +258,12 @@ public class DrunkardCompanion extends UnicastRemoteObject implements RemoteDrun
     public IdCount[] getTop(int vertexId) throws RemoteException {
         int sourceIdx = (sourceVertexIds == null ? -1 : Arrays.binarySearch(sourceVertexIds, vertexId));
         if (sourceIdx >= 0) {
-            System.out.println("Found from memory: " + vertexId);
-            System.out.println("Buffer size:" + buffers[sourceIdx].size());
+            logger.info("Found from memory: " + vertexId);
+            logger.info("Buffer size:" + buffers[sourceIdx].size());
             int[] arr = buffers[sourceIdx].toIntArray();
-            for(Integer x : arr) System.out.println("-> " + x);
+            for(Integer x : arr) logger.info("-> " + x);
             drainBuffer(sourceIdx);
-            System.out.println("Total count:" + distributions[sourceIdx].totalCount());
+            logger.info("Total count:" + distributions[sourceIdx].totalCount());
             return distributions[sourceIdx].getTop(10);
         } else {
             // Find index
@@ -218,7 +278,7 @@ public class DrunkardCompanion extends UnicastRemoteObject implements RemoteDrun
             String curFile = null;
             int curIndex = 0;
             for(String indexFile : indexFiles) {
-                System.out.println("i: " + indexFile);
+                logger.info("i: " + indexFile);
                 int indexStart = Integer.parseInt(indexFile.substring(indexFile.lastIndexOf(".") + 1));
                 if (indexStart <= vertexId) {
 
@@ -230,14 +290,14 @@ public class DrunkardCompanion extends UnicastRemoteObject implements RemoteDrun
             }
             if (curFile == null) throw new RuntimeException("Vertex not found in database!");
             else {
-                System.out.println("Reading: " + curFile);
+                logger.info("Reading: " + curFile);
                 try {
                     File ifile = new File(workingDir, curFile);
                     // TODO: document
                     byte[] fnamebytes = new byte[(int)ifile.length()];
                     new FileInputStream(ifile).read(fnamebytes);
                     String fileName = new String(fnamebytes);
-                    System.out.println("Data file:" + fileName);
+                    logger.info("Data file:" + fileName);
                     RandomAccessFile raf = new RandomAccessFile(fileName, "r");
                     int rowLength = 4 + 8 * 10;
                     int idx = (vertexId - curIndex) * rowLength;
@@ -245,7 +305,7 @@ public class DrunkardCompanion extends UnicastRemoteObject implements RemoteDrun
                     raf.seek(idx);
                     raf.read(data);
 
-                    System.out.println("Seek: " + idx);
+                    logger.info("Seek: " + idx);
 
                     DataInputStream dis = new DataInputStream(new ByteArrayInputStream(data));
                     int vid = dis.readInt();
@@ -253,7 +313,7 @@ public class DrunkardCompanion extends UnicastRemoteObject implements RemoteDrun
                     IdCount[] result = new IdCount[10];
                     for(int j=0; j<result.length; j++) {
                         result[j] = new IdCount(dis.readInt(), dis.readInt());
-                        System.out.println(result[j]);
+                        logger.info(result[j] + "");
                     }
                     if (vid != vertexId) throw new RemoteException("Mismatch: " + vid + " != " + vertexId);
 
@@ -283,7 +343,7 @@ public class DrunkardCompanion extends UnicastRemoteObject implements RemoteDrun
             pendingQueue.put(new WalkSubmission(walks, atVertices));
             int pending = pendingQueue.size();
             if (pending > 50 && pending % 20 == 0) {
-                System.out.println("Warning, pending queue size: " + pending);
+                logger.info("Warning, pending queue size: " + pending);
             }
         } catch (Exception err) {
             err.printStackTrace();
@@ -292,16 +352,16 @@ public class DrunkardCompanion extends UnicastRemoteObject implements RemoteDrun
 
     @Override
     public void outputDistributions(String outputFile) throws RemoteException {
-        System.out.println("Waiting for processing to finish");
+        logger.info("Waiting for processing to finish");
         while(outstanding.get() > 0) {
-            System.out.println("...");
+            logger.info("...");
             try {
                 Thread.sleep(500);
             } catch (InterruptedException e) {
                 e.printStackTrace();
             }
         }
-        System.out.println("Write output...");
+        logger.info("Write output...");
         try {
             DataOutputStream dos = new DataOutputStream(new BufferedOutputStream(new FileOutputStream(
                     new File(workingDir, outputFile))));
@@ -332,7 +392,7 @@ public class DrunkardCompanion extends UnicastRemoteObject implements RemoteDrun
             BufferedWriter wr = new BufferedWriter(new FileWriter(indexFile));
             wr.write(outputFile);
             wr.close();
-            System.out.println("Done...");
+            logger.info("Done...");
 
         } catch (Exception err) {
             err.printStackTrace();
@@ -347,10 +407,10 @@ public class DrunkardCompanion extends UnicastRemoteObject implements RemoteDrun
         try {
             LocateRegistry.createRegistry(1099);
         } catch (Exception err) {
-            System.out.println("Registry already created?");
+            logger.info("Registry already created?");
         }
         Naming.rebind(bindAddress, new DrunkardCompanion(pruneFraction, workingDir));
-        System.out.println("Prune fraction: " + pruneFraction);
+        logger.info("Prune fraction: " + pruneFraction);
     }
 
 }

@@ -5,6 +5,7 @@ import com.yammer.metrics.core.Timer;
 import com.yammer.metrics.core.TimerContext;
 import edu.cmu.graphchi.ChiFilenames;
 import edu.cmu.graphchi.ChiVertex;
+import edu.cmu.graphchi.LoggingInitializer;
 import edu.cmu.graphchi.datablocks.BytesToValueConverter;
 import edu.cmu.graphchi.datablocks.DataBlockManager;
 import edu.cmu.graphchi.io.CompressedIO;
@@ -12,6 +13,7 @@ import nom.tam.util.BufferedDataInputStream;
 
 import java.io.*;
 import java.util.concurrent.TimeUnit;
+import java.util.logging.Logger;
 import java.util.zip.GZIPInputStream;
 
 /**
@@ -55,6 +57,8 @@ public class MemoryShard <EdgeDataType> {
     private final Timer loadAdjTimer = Metrics.defaultRegistry().newTimer(MemoryShard.class, "load-adj", TimeUnit.SECONDS, TimeUnit.MINUTES);
     private final Timer loadVerticesTimers = Metrics.defaultRegistry().newTimer(MemoryShard.class, "load-vertices", TimeUnit.SECONDS, TimeUnit.MINUTES);
 
+    private static final Logger logger = LoggingInitializer.getLogger("memoryshard");
+    
 
     private MemoryShard() {}
 
@@ -115,14 +119,11 @@ public class MemoryShard <EdgeDataType> {
             adjInput = loadAdj(windowEnd == rangeEnd && windowStart == rangeStart);
 
             if (!onlyAdjacency) loadEdata();
-            if (adjInput != null) {
-                System.out.println("No intermediate loading into byte array");
-            }
         }
 
         TimerContext _timer = loadVerticesTimers.time();
 
-        System.out.println("Load memory shard: " + windowStart + " --- " + windowEnd);
+        logger.info("Load memory shard: " + windowStart + " --- " + windowEnd);
         int vid = 0;
         int edataPtr = 0;
         int adjOffset = 0;
@@ -212,7 +213,7 @@ public class MemoryShard <EdgeDataType> {
         InputStream adjStreamRaw;
         long fileSizeEstimate = 0;
         if (compressedFile.exists()) {
-            System.out.println("Note: using compressed: " + compressedFile.getAbsolutePath());
+            logger.info("Note: using compressed: " + compressedFile.getAbsolutePath());
             adjStreamRaw = new GZIPInputStream(new FileInputStream(compressedFile));
             fileSizeEstimate = compressedFile.length() * 3 / 2;
         } else {
@@ -238,7 +239,7 @@ public class MemoryShard <EdgeDataType> {
             while (true) {
                 int read =  adjStream.read(buf);
                 tot += read;
-                System.out.println(tot + " " + read + " " + fileSizeEstimate + " " + buf.length);
+                logger.info(tot + " " + read + " " + fileSizeEstimate + " " + buf.length);
 
                 if (read > 0) {
                     adjDataStream.write(buf, 0, read);

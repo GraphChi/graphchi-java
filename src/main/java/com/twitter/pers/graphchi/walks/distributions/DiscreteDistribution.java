@@ -17,13 +17,13 @@ import java.util.*;
 public class DiscreteDistribution {
 
     private int[] ids;
-    private int[] counts;
+    private short[] counts;
     private int uniqueCount;
 
 
     private DiscreteDistribution(int initialCapacity) {
         ids = new int[initialCapacity];
-        counts = new int[initialCapacity];
+        counts = new short[initialCapacity];
         uniqueCount = initialCapacity;
     }
 
@@ -84,12 +84,12 @@ public class DiscreteDistribution {
     public DiscreteDistribution(int[] sortedIdList) {
         if (sortedIdList.length == 0) {
             ids = new int[0];
-            counts = new int[0];
+            counts = new short[0];
             return;
         }
         if (sortedIdList.length == 1) {
             ids = new int[] {sortedIdList[0]};
-            counts = new int[] {1};
+            counts = new short[] {1};
             return;
         }
 
@@ -105,11 +105,11 @@ public class DiscreteDistribution {
         }
 
         ids = new int[uniqueCount];
-        counts = new int[uniqueCount];
+        counts = new short[uniqueCount];
 
         /* Create counts */
         int idx = 0;
-        int curCount = 1;
+        short curCount = 1;
 
         for(int i=1; i < sortedIdList.length; i++) {
             if (sortedIdList[i] != sortedIdList[i - 1]) {
@@ -129,7 +129,7 @@ public class DiscreteDistribution {
      * Creates a new distribution with all entries with count less than
      * minimumCount removed, and rest changed by - minimumCount. Does not remove avoids
      */
-    public DiscreteDistribution filteredAndShift(int minimumCount) {
+    public DiscreteDistribution filteredAndShift(short minimumCount) {
         if (minimumCount <= 1) {
             return this;
         }
@@ -148,7 +148,7 @@ public class DiscreteDistribution {
             if (counts[i] >= minimumCount || counts[i] == (-1)) {
                 filteredDist.ids[idx] = ids[i];
                 if ( counts[i] != (-1)) {
-                    filteredDist.counts[idx] = counts[i] - minimumCount;
+                    filteredDist.counts[idx] = (short) (counts[i] - minimumCount);
                 } else {
                     filteredDist.counts[idx] = -1;
                 }
@@ -165,7 +165,7 @@ public class DiscreteDistribution {
      */
     public static DiscreteDistribution createAvoidanceDistribution(int[] avoids) {
         DiscreteDistribution avoidDistr = new DiscreteDistribution(avoids);
-        Arrays.fill(avoidDistr.counts, -1);
+        Arrays.fill(avoidDistr.counts, (short) -1);
         return avoidDistr;
     }
 
@@ -179,9 +179,19 @@ public class DiscreteDistribution {
         }
     }
 
-
     public int size() {
         return uniqueCount;
+    }
+
+    public int avoidCount() {
+        int a = 0;
+        for(int i=0; i < counts.length; i++) a += counts[i] >= 0 ? 0 : 1;
+        return a;
+    }
+
+    public int memorySizeEst() {
+        int OVERHEAD = 64; // Estimate of the java memory overhead
+        return 6 * counts.length + 4 + OVERHEAD;
     }
 
 
@@ -238,7 +248,7 @@ public class DiscreteDistribution {
         while(leftIdx < leftCount && rightIdx < rightCount) {
             if (d1.ids[leftIdx] == d2.ids[rightIdx]) {
                 merged.ids[idx] = d1.ids[leftIdx];
-                merged.counts[idx] = d1.counts[leftIdx] + d2.counts[rightIdx];
+                merged.counts[idx] = (short) (d1.counts[leftIdx] + d2.counts[rightIdx]);
 
                 // Force to retain negativity
                 if (d1.counts[leftIdx] < 0 || d2.counts[rightIdx] < 0) {

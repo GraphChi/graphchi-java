@@ -2,6 +2,7 @@ package edu.cmu.graphchi.shards;
 
 import edu.cmu.graphchi.ChiFilenames;
 import edu.cmu.graphchi.ChiVertex;
+import edu.cmu.graphchi.LoggingInitializer;
 import edu.cmu.graphchi.datablocks.BytesToValueConverter;
 import edu.cmu.graphchi.datablocks.ChiPointer;
 import edu.cmu.graphchi.datablocks.DataBlockManager;
@@ -10,6 +11,7 @@ import nom.tam.util.BufferedDataInputStream;
 
 import java.io.*;
 import java.util.ArrayList;
+import java.util.logging.Logger;
 import java.util.zip.GZIPInputStream;
 
 /**
@@ -51,6 +53,8 @@ public class SlidingShard <EdgeDataType> {
     private BytesToValueConverter<EdgeDataType> converter;
     private BufferedDataInputStream adjFile;
     private boolean modifiesOutedges = true;
+    
+    private static final Logger logger = LoggingInitializer.getLogger("slidingshard");
 
 
     public SlidingShard(String edgeDataFilename, String adjDataFilename,
@@ -127,7 +131,7 @@ public class SlidingShard <EdgeDataType> {
 
             File compressedFile = new File(adjDataFilename + ".gz");
             if (compressedFile.exists()) {
-                System.out.println("Note: using compressed");
+                logger.info("Note: using compressed: " + compressedFile.getName());
                 adjFile = new BufferedDataInputStream(new GZIPInputStream(new FileInputStream(compressedFile)), 1024 * 1024);
 
             } else {

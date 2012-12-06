@@ -35,4 +35,9 @@ public class IntegerBuffer {
         }
     }
 
+    public int memorySizeEst() {
+        int OVERHEAD = 64;  // estimate of the java overhead
+        return buffer.length * 4 + 4 + OVERHEAD;
+    }
+
 }
