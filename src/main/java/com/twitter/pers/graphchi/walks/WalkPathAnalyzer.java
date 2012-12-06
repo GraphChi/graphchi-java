@@ -44,8 +44,8 @@ public class WalkPathAnalyzer {
                     short hop = dis.readShort();
                     int atVertex = dis.readInt();
 
-                    if (walkId == 0) {
-                    paths[walkId].addWalk(hop, atVertex);
+                    if (walkId < numberOfWalks) {
+                        paths[walkId].addWalk(hop, atVertex);
                     }
                 }
             } catch (EOFException ioe) {
