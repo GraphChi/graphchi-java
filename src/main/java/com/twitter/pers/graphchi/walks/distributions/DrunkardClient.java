@@ -1,6 +1,5 @@
 package com.twitter.pers.graphchi.walks.distributions;
 
-import com.twitter.pers.graphchi.walks.RMIHack;
 import com.twitter.pers.util.RemoteVertexNameService;
 import edu.cmu.graphchi.util.IdCount;
 
@@ -19,9 +18,7 @@ public class DrunkardClient {
     public static void main(String[] args) throws Exception {
         String hostAddress = args[0];
         String namingAddress = args[1];
-        if (hostAddress.contains("localhost")) {
-            RMIHack.setupLocalHostTunneling();
-        }
+
         RemoteDrunkardCompanion companion = (RemoteDrunkardCompanion) Naming.lookup(hostAddress);
         RemoteVertexNameService vns = null;
 
