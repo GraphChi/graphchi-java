@@ -407,20 +407,22 @@ public class WalkManager {
     /** Dump to file all walks with more than 0 hop */
     public void dumpToFile(WalkSnapshot snapshot, String filename) throws IOException {
         final TimerContext _timer = dumpTimer.time();
-        DataOutputStream dos = new DataOutputStream(new BufferedOutputStream(new FileOutputStream(new File(filename), true)));
-        for(int i=snapshot.getFirstVertex(); i <= snapshot.getLastVertex(); i++) {
-            int[] ws = snapshot.getWalksAtVertex(i, false);
-            if (ws != null) {
-                for(int j=0; j < ws.length; j++) {
-                    int w = ws[j];
-                    int source = sources[sourceIdx(w)];
-                    dos.writeInt(source);
-                    dos.writeInt(i);
+        synchronized (filename.intern()) {
+            DataOutputStream dos = new DataOutputStream(new BufferedOutputStream(new FileOutputStream(new File(filename), true)));
+            for(int i=snapshot.getFirstVertex(); i <= snapshot.getLastVertex(); i++) {
+                int[] ws = snapshot.getWalksAtVertex(i, false);
+                if (ws != null) {
+                    for(int j=0; j < ws.length; j++) {
+                        int w = ws[j];
+                        int source = sources[sourceIdx(w)];
+                        dos.writeInt(source);
+                        dos.writeInt(i);
+                    }
                 }
             }
+            dos.flush();
+            dos.close();
         }
-        dos.flush();
-        dos.close();
         _timer.stop();
     }
 

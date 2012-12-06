@@ -105,7 +105,7 @@ public class TestDiscreteDistribution {
             for(int j=0; j<e.getValue(); j++) rightArray.add(e.getKey());
         }
 
-        // Create and Merge (both ways)
+
         DiscreteDistribution leftDist = new DiscreteDistribution(toIntArray(leftArray));
         DiscreteDistribution rightDist = new DiscreteDistribution(toIntArray(rightArray));
         DiscreteDistribution mergedDist1 = DiscreteDistribution.merge(leftDist, rightDist);
