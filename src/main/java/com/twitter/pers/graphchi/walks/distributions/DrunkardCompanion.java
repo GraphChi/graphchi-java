@@ -11,10 +11,8 @@ import java.rmi.Naming;
 import java.rmi.RemoteException;
 import java.rmi.registry.LocateRegistry;
 import java.rmi.server.UnicastRemoteObject;
-import java.util.Arrays;
-import java.util.Timer;
-import java.util.TimerTask;
-import java.util.TreeSet;
+import java.text.NumberFormat;
+import java.util.*;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.LinkedBlockingQueue;
@@ -53,7 +51,7 @@ public class DrunkardCompanion extends UnicastRemoteObject implements RemoteDrun
     private String workingDir;
     private LinkedBlockingQueue<WalkSubmission> pendingQueue = new LinkedBlockingQueue<WalkSubmission>();
 
-    private static Logger logger = LoggingInitializer.getLogger("drunnkarcompanion");
+    private static Logger logger = LoggingInitializer.getLogger("drunkardcompanion");
     private Timer timer  = new Timer(true);
 
     /**
@@ -75,25 +73,31 @@ public class DrunkardCompanion extends UnicastRemoteObject implements RemoteDrun
 
         long distributionMem = 0;
         long maxDistMem = 0;
+        long avoidMem = 0;
         for(DiscreteDistribution dist : distributions) {
             long est = dist.memorySizeEst();
             distributionMem += est;
             maxDistMem = Math.max(est, maxDistMem);
+            avoidMem += dist.avoidCount() * 6;
         }
 
+        NumberFormat nf = NumberFormat.getInstance(Locale.US);
+
         logger.info("======= MEMORY REPORT ======");
-        logger.info("Companion internal: " + companionOverHeads / 1024. / 1024. + " mb");
+        logger.info("Companion internal: " + nf.format(companionOverHeads / 1024. / 1024.) + " mb");
 
-        logger.info("Buffer mem: " + bufferMem / 1024. / 1024. + " mb");
-        logger.info("Avg bytes per buffer: " + bufferMem * 1.0 / buffers.length / 1024. + " kb");
-        logger.info("Max buffer was: " + maxMem / 1024. + "kb");
+        logger.info("Buffer mem: " + nf.format(bufferMem / 1024. / 1024.) + " mb");
+        logger.info("Avg bytes per buffer: " + nf.format(bufferMem * 1.0 / buffers.length / 1024.) + " kb");
+        logger.info("Max buffer was: " + nf.format(maxMem / 1024.) + "kb");
 
-        logger.info("Distribution mem: " + distributionMem / 1024. / 1024. + " mb");
-        logger.info("Avg bytes per distribution: " + (distributionMem * 1.0 / distributions.length / 1024.) + " kb");
-        logger.info("Max distribution: " + maxDistMem / 1024. + " kb");
+        logger.info("Distribution mem: " + nf.format(distributionMem / 1024. / 1024.) + " mb");
+        logger.info("- of which avoids: " + nf.format(avoidMem / 1024. / 1024.) + " mb");
+
+        logger.info("Avg bytes per distribution: " + nf.format((distributionMem * 1.0 / distributions.length / 1024.)) + " kb");
+        logger.info("Max distribution: " + nf.format(maxDistMem / 1024.) + " kb");
 
         long totalMem = companionOverHeads + bufferMem + distributionMem;
-        logger.info("** Total:  " + totalMem);
+        logger.info("** Total:  " + nf.format(totalMem / 1024. / 1024. / 1024.) + " gigs");
         return totalMem;
     }
 
