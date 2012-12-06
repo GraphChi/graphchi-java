@@ -2,6 +2,7 @@ package com.twitter.pers.graphchi.walks;
 
 import java.io.*;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 
 /**
@@ -22,16 +23,16 @@ public class WalkPathAnalyzer {
      * Currently very dummy implementation. TODO: Make memory efficient and smarter in general.
      * Just for demonstration purposes.
      */
-    public void analyze(int numberOfWalks) throws IOException {
+    public void analyze(int numberOfWalks, int maxHops) throws IOException {
         Walk[] paths = new Walk[numberOfWalks];
         for(int i=0; i < paths.length; i++) {
-            paths[i] = new Walk();
+            paths[i] = new Walk(maxHops);
         }
 
         String[] walkFiles = directory.list(new FilenameFilter() {
             @Override
             public boolean accept(File file, String s) {
-                return s.startsWith("walks_");
+            return s.startsWith("walks_");
             }
         });
 
@@ -52,7 +53,6 @@ public class WalkPathAnalyzer {
                     int atVertex = dis.readInt();
                     if (walkId < numberOfWalks) {
                         paths[walkId].addWalk(hop, atVertex);
-                        System.out.println(walkId + ", " + hop + ", " + atVertex);
                     }
                 }
             } catch (EOFException ioe) {
@@ -68,16 +68,22 @@ public class WalkPathAnalyzer {
 
     private static class Walk {
 
-        private ArrayList<Long> path = new ArrayList<Long>(5);
+        private long[] path;
+        int idx;
+
+        private Walk(int maxHops) {
+            idx = 0;
+            path = new long[maxHops];
+        }
 
         void addWalk(short hop, int atVertex) {
             long w = atVertex | ((long)hop << 32);
-            path.add(w);
+            if (idx < path.length) path[idx++] = w;
         }
 
         String getPathDescription() {
             /* Super-slow */
-            Collections.sort(path);  // Hop is the highest order bit so sorts by hop
+            Arrays.sort(path);  // Hop is the highest order bit so sorts by hop
             StringBuffer sb = new StringBuffer();
             for(long w : path) {
                 sb.append((w & 0xffffffffl) + "-");
@@ -88,6 +94,6 @@ public class WalkPathAnalyzer {
 
     public static void main(String[] args) throws Exception {
         WalkPathAnalyzer analyzer = new WalkPathAnalyzer(new File("."));
-        analyzer.analyze(Integer.parseInt(args[0]));
+        analyzer.analyze(Integer.parseInt(args[0]), Integer.parseInt(args[1]));
     }
 }
