@@ -90,12 +90,6 @@ public class ChiVertex<VertexValue, EdgeValue> {
         }
     }
 
-
-    // Do not use :)
-    public int[] getOutEdgeArray() {
-        return outEdgeDataArray;
-    }
-
     public int getRandomNeighbor() {
         if (numEdges() == 0) {
             return -1;

@@ -189,8 +189,10 @@ public class DrunkardCompanion extends UnicastRemoteObject implements RemoteDrun
                         //  logger.info("Filtering would have deleted almost everything...");
                         // Try pruning ones
                         filtered = distributions[sourceIdx].filteredAndShift((short)2);
-                        if (filtered.sizeExcludingAvoids() > 25 || distributions[sourceIdx].size() > 500) {
+                        if (filtered.sizeExcludingAvoids() > 25) {
                             distributions[sourceIdx] = filtered;
+                        }  else {
+                            distributions[sourceIdx] = distributions[sourceIdx].filteredAndShift((short)2);
                         }
                     }
                 }

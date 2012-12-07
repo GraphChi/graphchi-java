@@ -34,6 +34,7 @@ public class BipartiteHubsAndAuthorities implements GraphChiProgram<Float, Float
     protected boolean initWeights;
     protected boolean startLeft = true;
     protected List<ComputationInfo> computations;
+    protected boolean discountZeroWeights = true;
 
     /**
      * HITS algorithms
@@ -99,12 +100,22 @@ public class BipartiteHubsAndAuthorities implements GraphChiProgram<Float, Float
                 }
                 float sumLeft = 0.0f;
                 int maxLeft = (int) leftWeightMatrix.getNumRows();
+                int nonzero = 0;
+                int totalEdges = 0;
                 for(int e=0; e < vertex.numEdges(); e++) {
                     int nbId = vertex.edge(e).getVertexId();
                     if (nbId < maxLeft) {
-                        sumLeft += leftWeightMatrix.getValue(nbId, compId) * leftScoreMatrix.getValue(nbId, compId);
+                        float w = leftWeightMatrix.getValue(nbId, compId);
+                        sumLeft += w * leftScoreMatrix.getValue(nbId, compId);
+                        nonzero += (w > 0 ? 1 : 0);
+                        totalEdges++;
                     }
                 }
+
+                if (discountZeroWeights && totalEdges > 0) {
+                    sumLeft *= nonzero * 1.0 / totalEdges;
+                }
+
                 rightScoreMatrix.setValue(vertex.getId() - RIGHTSIDE_MIN, compId, sumLeft);
             }
         }
@@ -176,6 +187,13 @@ public class BipartiteHubsAndAuthorities implements GraphChiProgram<Float, Float
     }
 
 
+    public void setDiscountZeroWeights(boolean discountZeroWeights) {
+        this.discountZeroWeights = discountZeroWeights;
+    }
+
+    public boolean isDiscountZeroWeights() {
+        return discountZeroWeights;
+    }
 
     public static void main(String[] args) throws Exception {
         SimpleMetricsReporter rep = SimpleMetricsReporter.enable(2, TimeUnit.MINUTES);
@@ -190,6 +208,8 @@ public class BipartiteHubsAndAuthorities implements GraphChiProgram<Float, Float
         int niters = experiment.getNumIterations();
         boolean weighted = Integer.parseInt(experiment.getProperty("weighted")) == 1;
         boolean initWeights = Integer.parseInt(experiment.getProperty("weighted")) == 2;
+        boolean discountZeroWeights = "1".equals(experiment.getProperty("discountzeroweights"));
+
         BipartiteHubsAndAuthorities.RIGHTSIDE_MIN = Integer.parseInt(experiment.getProperty("list_id_offset"));
 
         List<ComputationInfo> computations = ComputationInfo.loadComputations(experiment.getFilenameProperty("inputlist"));
@@ -199,6 +219,7 @@ public class BipartiteHubsAndAuthorities implements GraphChiProgram<Float, Float
 
         GraphChiEngine<Float, Float> engine = new GraphChiEngine<Float, Float>(graph, nshards);
         BipartiteHubsAndAuthorities bhaa = initializeApp(cutOff, computations, leftMax, engine, weighted, initWeights);
+        bhaa.setDiscountZeroWeights(discountZeroWeights);
 
         engine.setOnlyAdjacency(true);
         engine.setAutoLoadNext(false);
@@ -238,6 +259,7 @@ public class BipartiteHubsAndAuthorities implements GraphChiProgram<Float, Float
             HashMap<String, String> placeholders = new HashMap<String, String>();
             placeholders.put("topic", computationInfo.getName());
             placeholders.put("algo", appName);
+            placeholders.put("normalizing", (app.isDiscountZeroWeights() ? "new-norm" : "no-norm"));
 
             String outputfile = experiment.getOutputName(placeholders);
 
@@ -429,6 +451,7 @@ public class BipartiteHubsAndAuthorities implements GraphChiProgram<Float, Float
             HashMap<String, String> placeholders = new HashMap<String, String>();
             placeholders.put("topic", computations.get(icomp).getName());
             placeholders.put("algo", appName);
+            placeholders.put("normalizing", (app.isDiscountZeroWeights() ? "new-norm" : "no-norm"));
 
             String outputfile = exp.getOutputName(placeholders);
             BufferedWriter writer = new BufferedWriter(new FileWriter(new File(outputfile)));

@@ -36,6 +36,8 @@ import java.util.concurrent.atomic.AtomicLong;
  */
 public class DrunkardMobWithCompanion implements GraphChiProgram<Integer, Float>, GrabbedBucketConsumer {
 
+    private static final int[] DEBUGIDS = new int[] {12, 14583144, 989};
+
     private WalkManager walkManager;
     private WalkSnapshot curWalkSnapshot;
     private final RemoteDrunkardCompanion companion;
@@ -165,6 +167,15 @@ public class DrunkardMobWithCompanion implements GraphChiProgram<Integer, Float>
             boolean  firstIteration = (context.getIteration() == 0);
             int[] walksAtMe = curWalkSnapshot.getWalksAtVertex(vertex.getId(), true);
 
+            for(int j=0; j < DEBUGIDS.length; j++) {
+                if (vertex.getId() == DEBUGIDS[j]) {
+                    for(int i=0; i<vertex.numOutEdges(); i++) {
+                        System.out.println(vertex.getId() + " " + vertex.outEdge(i).getVertexId() + " " + vertex.outEdge(i).getValue());
+                    }
+                    break;
+                }
+            }
+
             // Very dirty memory managenet
             curWalkSnapshot.clear(vertex.getId());
 
@@ -187,19 +198,18 @@ public class DrunkardMobWithCompanion implements GraphChiProgram<Integer, Float>
 
             /* Randomize next hops (resets applied later) */
             if (numOutEdges > 0) {
-                int[] outEdges = vertex.getOutEdgeArray();
 
                 if (weighted) {
                     hops = (numOutEdges < 16 || walkLength < 8 ? WeightedHopper.generateRandomHopsOut(r, vertex, walkLength) :
                             WeightedHopper.generateRandomHopsAliasMethodOut(r, vertex, walkLength));
                     for(int j=0; j<hops.length; j++) {
-                        hops[j] = outEdges[hops[j]];
+                        hops[j] = vertex.getOutEdgeId(hops[j]);
                     }
                 }  else {
 
                     hops = new int[walkLength];
                     for(int i=0; i< walkLength; i++) {
-                        hops[i] = outEdges[r.nextInt(numOutEdges)];
+                        hops[i] = vertex.getOutEdgeId(r.nextInt(numOutEdges));
                     }
                 }
             } else {
