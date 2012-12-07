@@ -125,6 +125,10 @@ public class DiscreteDistribution {
     }
 
 
+    public DiscreteDistribution filteredAndShift(int minimumCount) {
+         return filteredAndShift((short)minimumCount);
+    }
+
     /**
      * Creates a new distribution with all entries with count less than
      * minimumCount removed, and rest changed by - minimumCount. Does not remove avoids

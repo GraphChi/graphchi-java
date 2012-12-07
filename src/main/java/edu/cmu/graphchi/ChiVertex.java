@@ -161,6 +161,15 @@ public class ChiVertex<VertexValue, EdgeValue> {
         }
     }
 
+    public int getOutEdgeId(int i) {
+        if (edgeValueConverter != null) {
+            int idx = i * 3;
+            return outEdgeDataArray[idx + 2];
+        } else {
+            return outEdgeDataArray[i];
+        }
+    }
+
     public ChiEdge<EdgeValue> edge(int i) {
         if (i < nInedges) return inEdge(i);
         else return outEdge(i - nInedges);
@@ -181,6 +190,14 @@ public class ChiVertex<VertexValue, EdgeValue> {
             return outEdgeDataArray.clone();
         }
     }
+
+    public EdgeValue getOutEdgeValue(int i) {
+        int idx = i * 3;
+        return blockManager.dereference(new ChiPointer(outEdgeDataArray[idx], outEdgeDataArray[idx + 1]),
+                    (BytesToValueConverter<EdgeValue>) edgeValueConverter);
+    }
+
+
 
 
     class Edge implements ChiEdge<EdgeValue> {
