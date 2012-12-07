@@ -24,7 +24,7 @@ import java.util.concurrent.TimeUnit;
  * paths, use DrunkardMobForPaths
  * @author Aapo Kyrola, akyrola@twitter.com, akyrola@cs.cmu.edu
  */
-public class DrunkardMob implements GraphChiProgram<Integer, Boolean> {
+public class DrunkardMob implements GraphChiProgram<Integer, Float> {
 
     private WalkManager walkManager;
     private WalkSnapshot curWalkSnapshot;
@@ -32,12 +32,13 @@ public class DrunkardMob implements GraphChiProgram<Integer, Boolean> {
     public DrunkardMob() {
     }
 
-    public void update(ChiVertex<Integer, Boolean> vertex, GraphChiContext context) {
+    public void update(ChiVertex<Integer, Float> vertex, GraphChiContext context) {
         int[] walksAtMe = curWalkSnapshot.getWalksAtVertex(vertex.getId(), true);
         if (context.getIteration() == 0) vertex.setValue(0);
         if (walksAtMe == null) return;
 
         int walkLength = walksAtMe.length;
+
         int numWalks = 0;
         for(int i=0; i < walkLength; i++) {
             int walk = walksAtMe[i];
@@ -130,7 +131,7 @@ public class DrunkardMob implements GraphChiProgram<Integer, Boolean> {
             }
 
             /* Initialize GraphChi engine */
-            GraphChiEngine<Integer, Boolean> engine = new GraphChiEngine<Integer, Boolean>(baseFilename, nShards);
+            GraphChiEngine<Integer, Float> engine = new GraphChiEngine<Integer, Float>(baseFilename, nShards);
             engine.setEdataConverter(null);
             engine.setVertexDataConverter(new IntConverter());
             engine.setModifiesInedges(false);

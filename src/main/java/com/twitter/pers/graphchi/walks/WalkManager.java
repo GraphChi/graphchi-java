@@ -3,13 +3,14 @@ package com.twitter.pers.graphchi.walks;
 import com.yammer.metrics.Metrics;
 import com.yammer.metrics.core.Timer;
 import com.yammer.metrics.core.TimerContext;
+import edu.cmu.graphchi.LoggingInitializer;
 import edu.cmu.graphchi.Scheduler;
 import edu.cmu.graphchi.engine.VertexInterval;
 
 import java.io.*;
-import java.lang.management.MemoryManagerMXBean;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
+import java.util.logging.Logger;
 
 /**
  * Manager for random walks
@@ -40,6 +41,8 @@ public class WalkManager {
     private final Timer schedulePopulate = Metrics.defaultRegistry().newTimer(WalkManager.class, "populate-scheduler", TimeUnit.SECONDS, TimeUnit.MINUTES);
     private final Timer restore = Metrics.defaultRegistry().newTimer(WalkManager.class, "restore", TimeUnit.SECONDS, TimeUnit.MINUTES);
 
+    private static final Logger logger = LoggingInitializer.getLogger("walk-manager");
+    
     private GrabbedBucketConsumer bucketConsumer;
     private BufferedWriter log;
 
@@ -49,7 +52,7 @@ public class WalkManager {
         sources = new int[numSources];
         sourceWalkCounts = new int[numSources];
         sourceBitSet = new BitSet(numVertices);
-        System.out.println("Initial size for walk bucket: " + initialSize);
+        logger.info("Initial size for walk bucket: " + initialSize);
         try {
             log = new BufferedWriter(new FileWriter(new File("walkmanager.log")));
         } catch (IOException e) {
@@ -201,14 +204,14 @@ public class WalkManager {
 
         /* Truncate sources */
         if (sourceSeqIdx < sources.length) {
-            System.out.println("Truncating...");
+            logger.info("Truncating...");
             int[] tmpsrcs = new int[sourceSeqIdx];
             System.arraycopy(sources, 0, tmpsrcs, 0, sourceSeqIdx);
             sources = tmpsrcs;
         }
 
 
-        System.out.println("Calculate sizes. Walks length:" + walks.length);
+        logger.info("Calculate sizes. Walks length:" + walks.length);
         /* Precalculate bucket sizes for performance */
         int[] tmpsizes = new int[walks.length];
         for(int j=0; j < sourceSeqIdx; j++) {
@@ -217,12 +220,12 @@ public class WalkManager {
         }
 
 
-        System.out.println("Expand capacities");
+        logger.info("Expand capacities");
         for(int b=0; b < walks.length; b++) {
             expandCapacity(b, tmpsizes[b]);
         }
 
-        System.out.println("Allocating walks");
+        logger.info("Allocating walks");
         for(int i=0; i < sourceSeqIdx; i++) {
             int source = sources[i];
             int count = sourceWalkCounts[i];
@@ -235,12 +238,12 @@ public class WalkManager {
             }
             walkIndices[bucket] += count;
 
-            if (i % 100000 == 0) System.out.println(i + " / " + sourceSeqIdx);
+            if (i % 100000 == 0) logger.info(i + " / " + sourceSeqIdx);
         }
 
         sourceWalkCounts = null;
 
-        System.out.println("Set bitset...");
+        logger.info("Set bitset...");
         // Create source-bitset
         for(int i=0; i < sourceSeqIdx; i++) {
             sourceBitSet.set(sources[i], true);
@@ -299,7 +302,7 @@ public class WalkManager {
                     }
                     v++;
                 }
-                System.out.println("Restored " + restoreCount);
+                logger.info("Restored " + restoreCount);
                 _timer.stop();
             }
 

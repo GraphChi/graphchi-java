@@ -9,6 +9,7 @@ import edu.cmu.graphchi.ChiVertex;
 import edu.cmu.graphchi.GraphChiContext;
 import edu.cmu.graphchi.GraphChiProgram;
 import edu.cmu.graphchi.aggregators.VertexAggregator;
+import edu.cmu.graphchi.datablocks.FloatConverter;
 import edu.cmu.graphchi.datablocks.IntConverter;
 import edu.cmu.graphchi.engine.GraphChiEngine;
 import edu.cmu.graphchi.engine.VertexInterval;
@@ -33,7 +34,7 @@ import java.util.concurrent.atomic.AtomicLong;
  * keep track of the distribution.
  * @author Aapo Kyrola, akyrola@twitter.com, akyrola@cs.cmu.edu
  */
-public class DrunkardMobWithCompanion implements GraphChiProgram<Integer, Boolean>, GrabbedBucketConsumer {
+public class DrunkardMobWithCompanion implements GraphChiProgram<Integer, Float>, GrabbedBucketConsumer {
 
     private WalkManager walkManager;
     private WalkSnapshot curWalkSnapshot;
@@ -46,10 +47,12 @@ public class DrunkardMobWithCompanion implements GraphChiProgram<Integer, Boolea
     private final Timer purgeTimer =
             Metrics.defaultRegistry().newTimer(DrunkardMobWithCompanion.class, "purge-localwalks", TimeUnit.SECONDS, TimeUnit.MINUTES);
 
+    private boolean weighted;
 
     private AtomicLong pendingWalksToSubmit = new AtomicLong(0);
 
-    public DrunkardMobWithCompanion(String companionAddress) throws Exception {
+    public DrunkardMobWithCompanion(String companionAddress, boolean weighted) throws Exception {
+        this.weighted = weighted;
         companion = (RemoteDrunkardCompanion) Naming.lookup(companionAddress);
         System.out.println("Found companion: " + companion);
 
@@ -137,7 +140,7 @@ public class DrunkardMobWithCompanion implements GraphChiProgram<Integer, Boolea
         companion.setSources(walkManager.getSources());
     }
 
-    public void update(ChiVertex<Integer, Boolean> vertex, GraphChiContext context) {
+    public void update(ChiVertex<Integer, Float> vertex, GraphChiContext context) {
 
         if (context.getThreadLocal() == null) {
             LocalWalkBuffer buf = new LocalWalkBuffer();
@@ -177,14 +180,33 @@ public class DrunkardMobWithCompanion implements GraphChiProgram<Integer, Boolea
             if (walksAtMe == null) return;
             int walkLength = walksAtMe.length;
 
-            int[] outEdges = vertex.getOutEdgeArray();
-            int numOutEdges = outEdges.length;
+            int[] hops;
+            int numOutEdges = vertex.numOutEdges();
+
             Random r = localBuf.random;
 
+            /* Randomize next hops (resets applied later) */
+            if (numOutEdges > 0) {
+                if (weighted) {
+                    hops = (numOutEdges < 16 || walkLength < 8 ? WeightedHopper.generateRandomHopsOut(r, vertex, walkLength) :
+                            WeightedHopper.generateRandomHopsAliasMethodOut(r, vertex, walkLength));
+                }  else {
+                    int[] outEdges = vertex.getOutEdgeArray();
+
+                    hops = new int[walkLength];
+                    for(int i=0; i< walkLength; i++) {
+                        hops[i] = outEdges[r.nextInt(numOutEdges)];
+                    }
+                }
+            } else {
+                hops = new int[walkLength];
+            }
+
+            /* Advance walks */
             for(int i=0; i < walkLength; i++) {
                 int walk = walksAtMe[i];
                 int src = WalkManager.sourceIdx(walk);
-
+                int nextHop = hops[i];
                 boolean atleastSecondHop = WalkManager.hop(walk);
 
                 if (!atleastSecondHop) {
@@ -195,7 +217,7 @@ public class DrunkardMobWithCompanion implements GraphChiProgram<Integer, Boolea
                 // reset (not on first iteration).
                 int dst;
                 if (numOutEdges > 0 && (firstIteration || Math.random() > RESETPROB)) {
-                    dst = outEdges[r.nextInt(numOutEdges)];
+                    dst = nextHop;
                 } else {
                     // Dead end or reset
                     dst = walkManager.getSourceVertex(walk);
@@ -343,11 +365,14 @@ public class DrunkardMobWithCompanion implements GraphChiProgram<Integer, Boolea
             int maxHops = Integer.parseInt(args[4]);
             int firstSource = Integer.parseInt(args[5]);
             String companionAddress = args[6];
+            boolean weightedGraph = (1 == Integer.parseInt(args[7]));
+
 
             System.out.println("Walks will start from vertices " + firstSource + " -- " + (firstSource + nSources - 1) );
             System.out.println("Going to start " + walksPerSource + " walks per source.");
             System.out.println("Max hops: " + maxHops);
             System.out.println("Companion: " + companionAddress);
+            System.out.println("Weighted: " + weightedGraph);
 
             /* Delete vertex data */
             File vertexDataFile = new File(ChiFilenames.getFilenameOfVertexData(baseFilename, new IntConverter()));
@@ -356,12 +381,12 @@ public class DrunkardMobWithCompanion implements GraphChiProgram<Integer, Boolea
             }
 
             /* Initialize GraphChi engine */
-            GraphChiEngine<Integer, Boolean> engine = new GraphChiEngine<Integer, Boolean>(baseFilename, nShards);
-            engine.setEdataConverter(null);
+            GraphChiEngine<Integer, Float> engine = new GraphChiEngine<Integer, Float>(baseFilename, nShards);
+            engine.setEdataConverter(weightedGraph ? new FloatConverter() : null);
             engine.setModifiesInedges(false);
             engine.setModifiesOutedges(false);
             engine.setEnableScheduler(true);
-            engine.setOnlyAdjacency(true);
+            engine.setOnlyAdjacency(!weightedGraph);
             engine.setDisableInedges(true);
 
             int memoryBudget = 1200;
@@ -377,7 +402,7 @@ public class DrunkardMobWithCompanion implements GraphChiProgram<Integer, Boolea
             long t1 = System.currentTimeMillis();
 
             /* Initialize application object */
-            DrunkardMobWithCompanion mob = new DrunkardMobWithCompanion(companionAddress);
+            DrunkardMobWithCompanion mob = new DrunkardMobWithCompanion(companionAddress, weightedGraph);
 
             /* Initialize Random walks */
             int nVertices = engine.numVertices();
