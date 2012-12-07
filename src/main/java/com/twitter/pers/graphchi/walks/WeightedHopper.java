@@ -27,7 +27,7 @@ public class WeightedHopper {
         for(int i=0; i < n; i++) {
             float x = prefix * r.nextFloat();
             if (l > 32)  {
-                int h = vertex.getOutEdgeId(Arrays.binarySearch(cumDist, x));
+                int h = Arrays.binarySearch(cumDist, x);
                 if (h < 0) h = -(h + 1);
                 hops[i] = h;
             } else {
