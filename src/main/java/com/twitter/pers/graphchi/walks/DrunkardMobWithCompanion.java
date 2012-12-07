@@ -187,11 +187,15 @@ public class DrunkardMobWithCompanion implements GraphChiProgram<Integer, Float>
 
             /* Randomize next hops (resets applied later) */
             if (numOutEdges > 0) {
+                int[] outEdges = vertex.getOutEdgeArray();
+
                 if (weighted) {
                     hops = (numOutEdges < 16 || walkLength < 8 ? WeightedHopper.generateRandomHopsOut(r, vertex, walkLength) :
                             WeightedHopper.generateRandomHopsAliasMethodOut(r, vertex, walkLength));
+                    for(int j=0; j<hops.length; j++) {
+                        hops[j] = outEdges[hops[j]];
+                    }
                 }  else {
-                    int[] outEdges = vertex.getOutEdgeArray();
 
                     hops = new int[walkLength];
                     for(int i=0; i< walkLength; i++) {

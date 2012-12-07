@@ -7,7 +7,8 @@ import java.util.Random;
 
 /**
  * This class takes a vertex with <b>weighted</b> edges and
- * generates an array of random hops.
+ * generates an array of random hops. Note: the hops are edge-indices,
+ * not the edges themselves.
  */
 public class WeightedHopper {
 
@@ -46,7 +47,6 @@ public class WeightedHopper {
         int l = vertex.numOutEdges();
         float[] values = new float[l];
         int[] aliases = new int[l];
-        float[] aliasWeight = new float[l];
 
         // Compute average
         float sum = 0;
