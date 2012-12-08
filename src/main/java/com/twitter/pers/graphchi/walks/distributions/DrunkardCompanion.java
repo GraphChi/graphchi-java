@@ -41,6 +41,7 @@ public class DrunkardCompanion extends UnicastRemoteObject implements RemoteDrun
 
     private int[] sourceVertexIds;
     private Object[] distrLocks;
+    boolean isLowInMemory = false;
 
     private DiscreteDistribution[] distributions;
     private IntegerBuffer[] buffers;
@@ -97,7 +98,10 @@ public class DrunkardCompanion extends UnicastRemoteObject implements RemoteDrun
         logger.info("Max distribution: " + nf.format(maxDistMem / 1024.) + " kb");
 
         long totalMem = companionOverHeads + bufferMem + distributionMem;
-        logger.info("** Total:  " + nf.format(totalMem / 1024. / 1024. / 1024.) + " gigs");
+        logger.info("** Total:  " + nf.format(totalMem / 1024. / 1024. / 1024.) + " GB (low-mem limit " + Runtime.getRuntime().maxMemory() * 0.75 / 1024. / 1024. / 1024. + "GB)" );
+        isLowInMemory = totalMem > Runtime.getRuntime().maxMemory() * 0.75;
+
+
         return totalMem;
     }
 
@@ -173,7 +177,7 @@ public class DrunkardCompanion extends UnicastRemoteObject implements RemoteDrun
         synchronized (distrLocks[sourceIdx]) {
             distributions[sourceIdx] = DiscreteDistribution.merge(distributions[sourceIdx], distr);
 
-            if (pruneFraction > 0.0) {
+            if (pruneFraction > 0.0 && isLowInMemory) {
                 int sz = distributions[sourceIdx].sizeExcludingAvoids();
                 if (sz > 200) {
                     int mx = distributions[sourceIdx].max();
@@ -192,7 +196,7 @@ public class DrunkardCompanion extends UnicastRemoteObject implements RemoteDrun
                         if (filtered.sizeExcludingAvoids() > 25) {
                             distributions[sourceIdx] = filtered;
                         }  else {
-                            distributions[sourceIdx] = distributions[sourceIdx].filteredAndShift((short)2);
+                            distributions[sourceIdx] = distributions[sourceIdx].filteredAndShift((short)1);
                         }
                     }
                 }
@@ -216,7 +220,7 @@ public class DrunkardCompanion extends UnicastRemoteObject implements RemoteDrun
         logger.info("Initializing sources...");
         buffers = new IntegerBuffer[sources.length];
         sourceVertexIds = new int[sources.length];
-        distrLocks = new Object[sources.length];
+            distrLocks = new Object[sources.length];
         distributions = new DiscreteDistribution[sources.length];
         for(int i=0; i < sources.length; i++) {
             distrLocks[i] = new Object();
