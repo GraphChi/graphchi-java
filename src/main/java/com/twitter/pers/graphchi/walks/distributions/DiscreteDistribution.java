@@ -152,7 +152,7 @@ public class DiscreteDistribution {
             if (counts[i] >= minimumCount || counts[i] == (-1)) {
                 filteredDist.ids[idx] = ids[i];
                 if ( counts[i] != (-1)) {
-                    filteredDist.counts[idx] = (short) (counts[i] - minimumCount);
+                    filteredDist.counts[idx] = (short) (counts[i] - minimumCount + 1);
                 } else {
                     filteredDist.counts[idx] = -1;
                 }

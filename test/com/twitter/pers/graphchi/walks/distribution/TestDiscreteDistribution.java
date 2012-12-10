@@ -192,8 +192,8 @@ public class TestDiscreteDistribution {
         assertEquals(0, filtered.getCount(1));
         assertEquals(0, filtered.getCount(8));
         assertEquals(0, filtered.getCount(9));
-        assertEquals(5 - 4, filtered.getCount(22));
-        assertEquals(8 - 4, filtered.getCount(333));
+        assertEquals(5 - 3, filtered.getCount(22));
+        assertEquals(8 - 3, filtered.getCount(333));
         assertEquals(2, filtered.size());
 
         // Check that avoided ones are not filtered
@@ -203,8 +203,8 @@ public class TestDiscreteDistribution {
         assertEquals(0, filteredWithAnAvoid.getCount(1));
         assertEquals(0, filteredWithAnAvoid.getCount(8));
         assertEquals(0, filteredWithAnAvoid.getCount(9));
-        assertEquals(5 - 4, filteredWithAnAvoid.getCount(22));
-        assertEquals(8 - 4, filteredWithAnAvoid.getCount(333));
+        assertEquals(5 - 3, filteredWithAnAvoid.getCount(22));
+        assertEquals(8 - 3, filteredWithAnAvoid.getCount(333));
         assertEquals(-1, filteredWithAnAvoid.getCount(99));
         assertEquals(-1, filteredWithAnAvoid.getCount(108));
 

@@ -101,10 +101,34 @@ public class DrunkardCompanion extends UnicastRemoteObject implements RemoteDrun
         logger.info("** Total:  " + nf.format(totalMem / 1024. / 1024. / 1024.) + " GB (low-mem limit " + Runtime.getRuntime().maxMemory() * 0.75 / 1024. / 1024. / 1024. + "GB)" );
         isLowInMemory = totalMem > Runtime.getRuntime().maxMemory() * 0.75;
 
+        if (isLowInMemory) {
+            compactMemoryUsage();
+        }
 
         return totalMem;
     }
 
+    /**
+     * Removes tails from distributions to save memory
+     */
+    private void compactMemoryUsage() {
+        long before=0;
+        long after=0;
+
+        for(int i=0; i < distributions.length; i++) {
+            DiscreteDistribution prevDist, newDist;
+            synchronized (distrLocks[i]) {
+
+                prevDist = distributions[i];
+                newDist =  prevDist.filteredAndShift(2);
+                distributions[i] = newDist;
+            }
+            before += prevDist.memorySizeEst();
+            after += newDist.memorySizeEst();
+        }
+
+        logger.info("** Compacted: " + (before / 1024. / 1024. / 1024.) + " GB --> " + (after / 1024. / 1024. / 1024.) + " GB");
+    }
 
 
     public DrunkardCompanion(double pruneFraction, String workingDir) throws RemoteException {
@@ -177,7 +201,7 @@ public class DrunkardCompanion extends UnicastRemoteObject implements RemoteDrun
         synchronized (distrLocks[sourceIdx]) {
             distributions[sourceIdx] = DiscreteDistribution.merge(distributions[sourceIdx], distr);
 
-            if (pruneFraction > 0.0 && isLowInMemory) {
+    /*        if (pruneFraction > 0.0 && isLowInMemory) {
                 int sz = distributions[sourceIdx].sizeExcludingAvoids();
                 if (sz > 200) {
                     int mx = distributions[sourceIdx].max();
@@ -200,7 +224,7 @@ public class DrunkardCompanion extends UnicastRemoteObject implements RemoteDrun
                         }
                     }
                 }
-            }
+            }               */
         }
     }
 
@@ -220,7 +244,7 @@ public class DrunkardCompanion extends UnicastRemoteObject implements RemoteDrun
         logger.info("Initializing sources...");
         buffers = new IntegerBuffer[sources.length];
         sourceVertexIds = new int[sources.length];
-            distrLocks = new Object[sources.length];
+        distrLocks = new Object[sources.length];
         distributions = new DiscreteDistribution[sources.length];
         for(int i=0; i < sources.length; i++) {
             distrLocks[i] = new Object();
