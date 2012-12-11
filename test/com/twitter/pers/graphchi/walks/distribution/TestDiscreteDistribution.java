@@ -208,7 +208,6 @@ public class TestDiscreteDistribution {
         assertEquals(-1, filteredWithAnAvoid.getCount(99));
         assertEquals(-1, filteredWithAnAvoid.getCount(108));
 
-
         DiscreteDistribution filteredAll = d1.filteredAndShift(100);
         DiscreteDistribution filteredAll2 = filtered.filteredAndShift(100);
 
