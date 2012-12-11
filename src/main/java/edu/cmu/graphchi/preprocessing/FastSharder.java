@@ -2,11 +2,13 @@ package edu.cmu.graphchi.preprocessing;
 
 import edu.cmu.graphchi.ChiFilenames;
 import edu.cmu.graphchi.LoggingInitializer;
+import edu.cmu.graphchi.datablocks.BytesToValueConverter;
 import nom.tam.util.BufferedDataInputStream;
 
 import java.io.*;
 import java.util.Arrays;
 import java.util.logging.Logger;
+import java.util.zip.GZIPOutputStream;
 
 /**
  * New version of sharder that requires predefined number of shards
@@ -26,11 +28,12 @@ public class FastSharder {
 
     private int[] inDegrees;
     private int[] outDegrees;
+    private final int edgeDataSize;
 
     private static final Logger logger = LoggingInitializer.getLogger("fast-sharder");
 
 
-    public FastSharder(String baseFilename, int numShards) throws IOException {
+    public FastSharder(String baseFilename, int numShards, int edgeDataSize) throws IOException {
         this.baseFilename = baseFilename;
         this.numShards = numShards;
         this.initialIntervalLength = Integer.MAX_VALUE / numShards;
@@ -40,6 +43,7 @@ public class FastSharder {
         for(int i=0; i < numShards; i++) {
             shovelStreams[i] = new DataOutputStream(new BufferedOutputStream(new FileOutputStream(shovelFilename(i))));
         }
+        this.edgeDataSize = edgeDataSize;
     }
 
     private String shovelFilename(int i) {
@@ -48,6 +52,7 @@ public class FastSharder {
 
 
     public void addEdge(int from, int to) throws IOException {
+        if (from == to) return;
         int preTranslatedIdFrom = preIdTranslate.forward(from);
         int preTranslatedTo = preIdTranslate.forward(to);
 
@@ -76,8 +81,8 @@ public class FastSharder {
 
 
     public void process() throws  IOException {
-        inDegrees = new int[maxVertexId + 1];
-        outDegrees = new int[maxVertexId + 1];
+        inDegrees = new int[maxVertexId + numShards];
+        outDegrees = new int[maxVertexId + numShards];
         finalIdTranslate = new VertexIdTranslate((1 + maxVertexId) / numShards + 1, numShards);
 
         for(int i=0; i < numShards; i++) {
@@ -124,7 +129,7 @@ public class FastSharder {
             int from = getFirst(l);
             int to = getSecond(l);
             int newFrom = finalIdTranslate.forward(preIdTranslate.backward(from));
-            int newTo = finalIdTranslate.backward(preIdTranslate.backward(to));
+            int newTo = finalIdTranslate.forward(preIdTranslate.backward(to));
             shoveled[i] = packEdges(newFrom, newTo);
 
             inDegrees[newTo]++;
@@ -180,6 +185,45 @@ public class FastSharder {
             }
         }
         adjOut.close();
+
+        /* Create compressed edge data directories */
+        int blockSize = ChiFilenames.getBlocksize(edgeDataSize);
+        File edgeDataDir = new File(ChiFilenames.getDirnameShardEdataBlock(baseFilename, blockSize));
+        if (edgeDataDir.exists() == false) edgeDataDir.mkdir();
+
+        String edataFileName = ChiFilenames.getFilenameShardEdata(baseFilename, new BytesToValueConverter() {
+            @Override
+            public int sizeOf() {
+                return edgeDataSize;
+            }
+
+            @Override
+            public Object getValue(byte[] array) {
+                return null;  //To change body of implemented methods use File | Settings | File Templates.
+            }
+
+            @Override
+            public void setValue(byte[] array, Object val) {
+                //To change body of implemented methods use File | Settings | File Templates.
+            }
+        }, shardNum, numShards);
+        File edgeDataSizeFile = new File(edataFileName + ".size");
+
+        long edatasize = shoveled.length * edgeDataSize;
+        FileWriter sizeWr = new FileWriter(edgeDataSizeFile);
+        sizeWr.write(edatasize + "");
+
+        /* Create blocks */
+        int blockIdx = 0;
+        for(long idx=0; idx < edatasize; idx += blockSize) {
+            File blockFile = new File(ChiFilenames.getFilenameShardEdataBlock(edataFileName, blockIdx, blockSize));
+            GZIPOutputStream blockOs = new GZIPOutputStream(new BufferedOutputStream(new FileOutputStream(blockFile)));
+            long len = Math.min(blockSize, edatasize - idx);
+            byte[] block = new byte[(int)len];
+            blockOs.write(block);
+            blockOs.close();
+            blockIdx++;
+        }
     }
 
 
