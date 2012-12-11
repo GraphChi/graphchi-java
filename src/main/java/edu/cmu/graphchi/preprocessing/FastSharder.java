@@ -8,6 +8,7 @@ import nom.tam.util.BufferedDataInputStream;
 import java.io.*;
 import java.util.Arrays;
 import java.util.logging.Logger;
+import java.util.zip.DeflaterOutputStream;
 import java.util.zip.GZIPOutputStream;
 
 /**
@@ -59,11 +60,11 @@ public class FastSharder {
         if (maxVertexId < from) maxVertexId = from;
         if (maxVertexId < to)  maxVertexId = to;
 
-        addToShovel(preTranslatedIdFrom, preTranslatedTo);
+        addToShovel(to % numShards, preTranslatedIdFrom, preTranslatedTo);
     }
 
-    private void addToShovel(int preTranslatedIdFrom, int preTranslatedTo) throws IOException {
-        DataOutputStream strm = shovelStreams[preTranslatedTo % numShards];
+    private void addToShovel(int shard, int preTranslatedIdFrom, int preTranslatedTo) throws IOException {
+        DataOutputStream strm = shovelStreams[shard];
         strm.writeLong(packEdges(preTranslatedIdFrom, preTranslatedTo));
     }
 
@@ -111,8 +112,8 @@ public class FastSharder {
 
     private void writeIntervals() throws IOException{
         FileWriter wr = new FileWriter(ChiFilenames.getFilenameIntervals(baseFilename, numShards));
-        for(int j=0; j<numShards; j++) {
-            wr.write((j * finalIdTranslate.getVertexIntervalLength()) + "\n");
+        for(int j=1; j<=numShards; j++) {
+            wr.write((j * finalIdTranslate.getVertexIntervalLength() -1) + "\n");
         }
         wr.close();
     }
@@ -152,7 +153,8 @@ public class FastSharder {
         int istart = 0;
         for(int i=0; i < shoveled.length; i++) {
             int from = getFirst(shoveled[i]);
-            int to = getSecond(shoveled[i]);
+
+
             if (from != curvid || i == shoveled.length - 1) {
                 int count = i - istart;
                 if (count > 0) {
@@ -164,7 +166,7 @@ public class FastSharder {
                     }
                 }
                 for(int j=istart; j<i; j++) {
-                    adjOut.write(Integer.reverseBytes(to));
+                    adjOut.writeInt(Integer.reverseBytes(getSecond(shoveled[j])));
                 }
 
                 istart = i;
@@ -188,8 +190,7 @@ public class FastSharder {
 
         /* Create compressed edge data directories */
         int blockSize = ChiFilenames.getBlocksize(edgeDataSize);
-        File edgeDataDir = new File(ChiFilenames.getDirnameShardEdataBlock(baseFilename, blockSize));
-        if (edgeDataDir.exists() == false) edgeDataDir.mkdir();
+
 
         String edataFileName = ChiFilenames.getFilenameShardEdata(baseFilename, new BytesToValueConverter() {
             @Override
@@ -199,25 +200,27 @@ public class FastSharder {
 
             @Override
             public Object getValue(byte[] array) {
-                return null;  //To change body of implemented methods use File | Settings | File Templates.
+                return null;
             }
 
             @Override
             public void setValue(byte[] array, Object val) {
-                //To change body of implemented methods use File | Settings | File Templates.
             }
         }, shardNum, numShards);
         File edgeDataSizeFile = new File(edataFileName + ".size");
+        File edgeDataDir = new File(ChiFilenames.getDirnameShardEdataBlock(edataFileName, blockSize));
+        if (!edgeDataDir.exists()) edgeDataDir.mkdir();
 
         long edatasize = shoveled.length * edgeDataSize;
         FileWriter sizeWr = new FileWriter(edgeDataSizeFile);
         sizeWr.write(edatasize + "");
+        sizeWr.close();
 
         /* Create blocks */
         int blockIdx = 0;
         for(long idx=0; idx < edatasize; idx += blockSize) {
             File blockFile = new File(ChiFilenames.getFilenameShardEdataBlock(edataFileName, blockIdx, blockSize));
-            GZIPOutputStream blockOs = new GZIPOutputStream(new BufferedOutputStream(new FileOutputStream(blockFile)));
+            DeflaterOutputStream blockOs = new DeflaterOutputStream(new BufferedOutputStream(new FileOutputStream(blockFile)));
             long len = Math.min(blockSize, edatasize - idx);
             byte[] block = new byte[(int)len];
             blockOs.write(block);
