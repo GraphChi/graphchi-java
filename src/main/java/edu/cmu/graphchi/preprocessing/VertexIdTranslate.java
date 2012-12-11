@@ -19,6 +19,10 @@ public class VertexIdTranslate {
         return (origId % numShards) * vertexIntervalLength + origId / numShards;
     }
 
+    public int getVertexIntervalLength() {
+        return vertexIntervalLength;
+    }
+
     public int backward(int transId) {
         final int shard = transId / vertexIntervalLength;
         final int off = transId % vertexIntervalLength;

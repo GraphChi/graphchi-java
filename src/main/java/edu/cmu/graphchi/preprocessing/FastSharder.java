@@ -38,7 +38,7 @@ public class FastSharder {
 
         shovelStreams = new DataOutputStream[numShards];
         for(int i=0; i < numShards; i++) {
-           shovelStreams[i] = new DataOutputStream(new BufferedOutputStream(new FileOutputStream(shovelFilename(i))));
+            shovelStreams[i] = new DataOutputStream(new BufferedOutputStream(new FileOutputStream(shovelFilename(i))));
         }
     }
 
@@ -67,7 +67,7 @@ public class FastSharder {
     }
 
     public static int getFirst(long l) {
-       return  (int)  (l >> 32);
+        return  (int)  (l >> 32);
     }
 
     public static int getSecond(long l) {
@@ -85,9 +85,31 @@ public class FastSharder {
         }
         shovelStreams = null;
 
+        writeIntervals();
+
         for(int i=0; i<numShards; i++) {
             processShovel(i);
         }
+
+        writeDegrees();
+    }
+
+    private void writeDegrees() throws IOException {
+        DataOutputStream degreeOut = new DataOutputStream(new BufferedOutputStream(
+                new FileOutputStream(ChiFilenames.getFilenameOfDegreeData(baseFilename))));
+        for(int i=0; i<inDegrees.length; i++) {
+            degreeOut.writeInt(Integer.reverseBytes(inDegrees[i]));
+            degreeOut.writeInt(Integer.reverseBytes(outDegrees[i]));
+       }
+        degreeOut.close();
+    }
+
+    private void writeIntervals() throws IOException{
+        FileWriter wr = new FileWriter(ChiFilenames.getFilenameIntervals(baseFilename, numShards));
+        for(int j=0; j<numShards; j++) {
+            wr.write((j * finalIdTranslate.getVertexIntervalLength()) + "\n");
+        }
+        wr.close();
     }
 
     private void processShovel(int shardNum) throws IOException {
@@ -104,14 +126,60 @@ public class FastSharder {
             int newFrom = finalIdTranslate.forward(preIdTranslate.backward(from));
             int newTo = finalIdTranslate.backward(preIdTranslate.backward(to));
             shoveled[i] = packEdges(newFrom, newTo);
+
+            inDegrees[newTo]++;
+            outDegrees[newFrom]++;
         }
         in.close();
 
         shovelFile.delete();
+
+        logger.info("Processing shovel " + shardNum + " ... sorting");
+
         Arrays.sort(shoveled);  // The source id is  higher order, so sorting the longs will produce right result
 
-        File adjFile = new File(ChiFilenames.getFilenameShardsAdj(baseFilename, shardNum, numShards));
+        logger.info("Processing shovel " + shardNum + " ... writing shard");
 
+
+        File adjFile = new File(ChiFilenames.getFilenameShardsAdj(baseFilename, shardNum, numShards));
+        DataOutputStream adjOut = new DataOutputStream(new BufferedOutputStream(new FileOutputStream(adjFile)));
+        int curvid = 0;
+        int istart = 0;
+        for(int i=0; i < shoveled.length; i++) {
+            int from = getFirst(shoveled[i]);
+            int to = getSecond(shoveled[i]);
+            if (from != curvid || i == shoveled.length - 1) {
+                int count = i - istart;
+                if (count > 0) {
+                    if (count < 255) {
+                        adjOut.writeByte(count);
+                    } else {
+                        adjOut.writeByte(0xff);
+                        adjOut.writeInt(Integer.reverseBytes(count));
+                    }
+                }
+                for(int j=istart; j<i; j++) {
+                    adjOut.write(Integer.reverseBytes(to));
+                }
+
+                istart = i;
+
+                // Handle zeros
+                if (from - curvid > 1 || (i == 0 && from > 0)) {
+                    int nz = from - curvid - 1;
+                    if (i ==0 && from >0) nz = from;
+                    do {
+                        adjOut.writeByte(0);
+                        nz--;
+                        int tnz = Math.min(254, nz);
+                        adjOut.writeByte(tnz);
+                        nz -= tnz;
+                    } while (nz > 0);
+                }
+                curvid = from;
+            }
+        }
+        adjOut.close();
     }
 
 
