@@ -1,6 +1,7 @@
 package edu.cmu.graphchi;
 
 import edu.cmu.graphchi.engine.VertexInterval;
+import edu.cmu.graphchi.preprocessing.VertexIdTranslate;
 
 /**
  * Copyright [2012] [Aapo Kyrola, Guy Blelloch, Carlos Guestrin / Carnegie Mellon University]
@@ -83,6 +84,14 @@ public class GraphChiContext {
         this.threadLocal = threadLocal;
     }
 
+    public VertexIdTranslate getVertexIdTranslate() {
+        return vertexIdTranslate;
+    }
+
+    public void setVertexIdTranslate(VertexIdTranslate vertexIdTranslate) {
+        this.vertexIdTranslate = vertexIdTranslate;
+    }
+
     private Object threadLocal = null;
 
     private int threadId;
@@ -93,6 +102,7 @@ public class GraphChiContext {
 
     private Scheduler scheduler;
     private VertexInterval curInterval;
+    private VertexIdTranslate vertexIdTranslate;
 
     public GraphChiContext clone(int _threadId) {
         GraphChiContext ctx = new GraphChiContext();
@@ -103,6 +113,7 @@ public class GraphChiContext {
         ctx.numVertices = numVertices;
         ctx.scheduler = scheduler;
         ctx.curInterval = curInterval;
+        ctx.vertexIdTranslate = vertexIdTranslate;
         return ctx;
     }
 }

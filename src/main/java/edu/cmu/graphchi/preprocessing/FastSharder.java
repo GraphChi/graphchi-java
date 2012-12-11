@@ -85,6 +85,7 @@ public class FastSharder {
         inDegrees = new int[maxVertexId + numShards];
         outDegrees = new int[maxVertexId + numShards];
         finalIdTranslate = new VertexIdTranslate((1 + maxVertexId) / numShards + 1, numShards);
+        saveVertexTranslate();
 
         for(int i=0; i < numShards; i++) {
             shovelStreams[i].close();
@@ -115,6 +116,12 @@ public class FastSharder {
         for(int j=1; j<=numShards; j++) {
             wr.write((j * finalIdTranslate.getVertexIntervalLength() -1) + "\n");
         }
+        wr.close();
+    }
+
+    private void saveVertexTranslate() throws IOException {
+        FileWriter wr = new FileWriter(ChiFilenames.getVertexTranslateDefFile(baseFilename, numShards));
+        wr.write(finalIdTranslate.stringRepresentation());
         wr.close();
     }
 
@@ -230,4 +237,20 @@ public class FastSharder {
     }
 
 
+    public void shard(InputStream inputStream) throws IOException {
+        BufferedReader ins = new BufferedReader(new InputStreamReader(inputStream));
+        String ln;
+        long lineNum = 0;
+        while ((ln = ins.readLine()) != null) {
+            if (ln.length() > 2 && !ln.startsWith("#")) {
+                lineNum++;
+                if (lineNum % 2000000 == 0) System.out.println(lineNum);
+                String[] tok = ln.split("\t");
+                if (tok.length == 2) {
+                    this.addEdge(Integer.parseInt(tok[0]), Integer.parseInt(tok[1]));
+                }
+            }
+        }
+        this.process();
+    }
 }

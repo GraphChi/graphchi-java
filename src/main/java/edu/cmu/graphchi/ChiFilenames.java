@@ -66,6 +66,10 @@ public class ChiFilenames {
         return baseFilename + "." + nShards + ".intervals";
     }
 
+    public static String getVertexTranslateDefFile(String baseFilename, int nshards) {
+        return baseFilename + "." + nshards + ".vtranslate";
+    }
+
     public static int getBlocksize(int sizeOf) {
         int blocksize = 4096 * 1024;
         while (blocksize % sizeOf != 0) blocksize++;

@@ -27,4 +27,21 @@ public class TestVertexIdTranslate {
             }
         }
     }
+
+    @Test
+    public void testConstructFromString() {
+        VertexIdTranslate tr = new VertexIdTranslate(99999, 44);
+        String str = tr.stringRepresentation();
+
+        VertexIdTranslate trReconstr = VertexIdTranslate.fromString(str);
+
+        assertEquals(tr.getNumShards(), trReconstr.getNumShards());
+        assertEquals(tr.getVertexIntervalLength(), trReconstr.getVertexIntervalLength());
+
+        for(int j=0; j < 10000000; j+=(1+j)) {
+            int v1 = tr.forward(j);
+            int v2 = trReconstr.forward(j);
+            assertEquals(v1, v2);
+        }
+    }
 }

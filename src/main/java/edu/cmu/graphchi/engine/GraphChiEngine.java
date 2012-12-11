@@ -9,6 +9,7 @@ import edu.cmu.graphchi.datablocks.DataBlockManager;
 import edu.cmu.graphchi.engine.auxdata.DegreeData;
 import edu.cmu.graphchi.engine.auxdata.VertexData;
 import edu.cmu.graphchi.engine.auxdata.VertexDegree;
+import edu.cmu.graphchi.preprocessing.VertexIdTranslate;
 import edu.cmu.graphchi.shards.MemoryShard;
 import edu.cmu.graphchi.shards.SlidingShard;
 
@@ -61,6 +62,7 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
     protected boolean enableDeterministicExecution = true;
     private boolean useStaticWindowSize = false;
     protected long memBudget;
+    protected VertexIdTranslate vertexIdTranslate;
 
 
     private static final Logger logger = LoggingInitializer.getLogger("engine");
@@ -86,6 +88,14 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
         loadIntervals();
         blockManager = new DataBlockManager();
         degreeHandler = new DegreeData(baseFilename);
+
+        File vertexIdTranslateFile = new File(ChiFilenames.getVertexTranslateDefFile(baseFilename, nShards));
+        if (vertexIdTranslateFile.exists()) {
+            vertexIdTranslate = VertexIdTranslate.fromFile(vertexIdTranslateFile);
+        } else {
+            vertexIdTranslate = VertexIdTranslate.identity();
+        }
+        chiContext.setVertexIdTranslate(vertexIdTranslate);
 
         memBudget = Runtime.getRuntime().maxMemory() / 4;
         if (Runtime.getRuntime().maxMemory() < 256 * 1024 * 1024)
@@ -849,7 +859,13 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
         }
     }
 
+    public VertexIdTranslate getVertexIdTranslate() {
+        return vertexIdTranslate;
+    }
 
+    public void setVertexIdTranslate(VertexIdTranslate vertexIdTranslate) {
+        this.vertexIdTranslate = vertexIdTranslate;
+    }
 }
 
 class NoEdgesInIntervalException extends Exception {

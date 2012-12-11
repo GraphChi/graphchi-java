@@ -86,16 +86,23 @@ public class SALSA extends BipartiteHubsAndAuthorities {
                 float sumLeft = 0.0f;
                 int maxLeft = (int) leftWeightMatrix.getNumRows();
                 float normalizer = 0f;
+                int nonzero = 0;
+                int totalEdges = 0;
                 for(int e=0; e < vertex.numEdges(); e++) {
                     int nbId = vertex.edge(e).getVertexId();
                     if (nbId < maxLeft) {
                         float weight = leftWeightMatrix.getValue(nbId, compId);
                         sumLeft += (weight > 0 ? leftScoreMatrix.getValue(nbId, compId) : 0);
                         normalizer += weight;
+                        totalEdges++;
+                        if (weight > 0) nonzero++;
                     }
 
                 }
                 if (normalizer > 0) sumLeft /= normalizer;
+                if (discountZeroWeights && totalEdges > 0) {
+                    sumLeft *= nonzero * 1.0 / totalEdges;
+                }
                 rightScoreMatrix.setValue(vertex.getId() - RIGHTSIDE_MIN, compId, sumLeft);
             }
         }
@@ -124,6 +131,7 @@ public class SALSA extends BipartiteHubsAndAuthorities {
         int niters = experiment.getNumIterations();
         boolean weighted = Integer.parseInt(experiment.getProperty("weighted")) == 1;
         boolean initWeights = Integer.parseInt(experiment.getProperty("weighted")) == 2;
+        boolean discountZeroWeights = "1".equals(experiment.getProperty("discountzeroweights"));
 
         SALSA.RIGHTSIDE_MIN = Integer.parseInt(experiment.getProperty("list_id_offset"));
 
@@ -135,6 +143,7 @@ public class SALSA extends BipartiteHubsAndAuthorities {
 
         GraphChiEngine<Float, Float> engine = new GraphChiEngine<Float, Float>(graph, nshards);
         SALSA salsa = initializeApp(cutOff, computations, leftMax, engine, weighted, initWeights);
+        salsa.setDiscountZeroWeights(discountZeroWeights);
 
         engine.setOnlyAdjacency(true);
         engine.setAutoLoadNext(false);

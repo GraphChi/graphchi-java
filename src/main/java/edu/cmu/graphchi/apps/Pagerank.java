@@ -6,6 +6,8 @@ import edu.cmu.graphchi.GraphChiProgram;
 import edu.cmu.graphchi.datablocks.FloatConverter;
 import edu.cmu.graphchi.engine.GraphChiEngine;
 import edu.cmu.graphchi.engine.VertexInterval;
+import edu.cmu.graphchi.preprocessing.FastSharder;
+import edu.cmu.graphchi.preprocessing.VertexIdTranslate;
 import edu.cmu.graphchi.util.IdFloat;
 import edu.cmu.graphchi.util.Toplist;
 
@@ -56,6 +58,11 @@ public class Pagerank implements GraphChiProgram<Float, Float> {
         String baseFilename = args[0];
         int nShards = Integer.parseInt(args[1]);
 
+        if (baseFilename.equals("pipein")) {
+            FastSharder sharder = new FastSharder("pipein", nShards, 4);
+            sharder.shard(System.in);
+        }
+
         GraphChiEngine<Float, Float> engine = new GraphChiEngine<Float, Float>(baseFilename, nShards);
         engine.setEdataConverter(new FloatConverter());
         engine.setVertexDataConverter(new FloatConverter());
@@ -66,8 +73,9 @@ public class Pagerank implements GraphChiProgram<Float, Float> {
 
         TreeSet<IdFloat> top20 = Toplist.topListFloat(baseFilename, 20);
         int i = 0;
+        VertexIdTranslate trans = engine.getVertexIdTranslate();
         for(IdFloat vertexRank : top20) {
-            System.out.println(++i + ": " + vertexRank.getVertexId() + " = " + vertexRank.getValue());
+            System.out.println(++i + ": " + trans.backward(vertexRank.getVertexId()) + " = " + vertexRank.getValue());
         }
     }
 }
