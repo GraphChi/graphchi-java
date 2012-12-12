@@ -35,10 +35,6 @@ public class Pagerank implements GraphChiProgram<Float, Float> {
         for(int i=0; i<vertex.numOutEdges(); i++) {
             vertex.outEdge(i).setValue(outValue);
         }
-
-        if (vertex.getId() % 100000 == 0 || vertex.getId() == 8737 || vertex.getId() == 2914) {
-            System.out.println(vertex.getId() + " => " + vertex.getValue());
-        }
     }
 
 
@@ -53,6 +49,17 @@ public class Pagerank implements GraphChiProgram<Float, Float> {
     public void beginSubInterval(GraphChiContext ctx, VertexInterval interval) {}
 
     public void endSubInterval(GraphChiContext ctx, VertexInterval interval) {}
+
+        // Temp
+    public static VertexIdTranslate runForPig(String filename, int numShards) throws Exception {
+        GraphChiEngine<Float, Float> engine = new GraphChiEngine<Float, Float>(filename, numShards);
+
+        engine.setEdataConverter(new FloatConverter());
+        engine.setVertexDataConverter(new FloatConverter());
+        engine.setModifiesInedges(false); // Important optimization
+        engine.run(new Pagerank(), 5);
+        return engine.getVertexIdTranslate();
+    }
 
     public static void main(String[] args) throws  Exception {
         String baseFilename = args[0];

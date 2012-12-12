@@ -44,6 +44,18 @@
 	      <scope>test</scope>
 	      <optional>true</optional>
 	    </dependency>
+ <dependency>
+	<groupId>org.apache.pig</groupId>
+	<artifactId>pig</artifactId>
+	<scope>compile</scope>
+	<version>0.10.0</version>
+</dependency>
+        <dependency>
+            <groupId>org.apache.hadoop</groupId>
+            <artifactId>hadoop-core</artifactId>
+            <version>0.20.2</version>
+        </dependency>
+
     </dependencies>
  
   	<build>
@@ -75,6 +87,7 @@
 	                </execution>
 	                        </executions>
 	                </plugin>
+
 	                <plugin>
 	                        <artifactId>maven-compiler-plugin</artifactId>
 	                        <configuration>
@@ -95,7 +108,7 @@
                     </descriptors>
                 </configuration>
             </plugin>
-            
+
 	        </plugins>      
 	</build>
 
