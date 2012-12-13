@@ -53,27 +53,37 @@ public class HITSSmallMem implements GraphChiProgram<FloatPair, Float> {
                 if (side == LEFTSIDE) {
                     for(int i=0; i < vertex.numOutEdges(); i++) {
                         nbrSum += vertex.outEdge(i).getValue();
-                        context.getScheduler().addTask(vertex.outEdge(i).getVertexId());
                     }
                 } else {
                     for(int i=0; i < vertex.numInEdges(); i++) {
                         nbrSum += vertex.inEdge(i).getValue();
-                        context.getScheduler().addTask(vertex.inEdge(i).getVertexId());
                     }
                 }
             }
 
+            float newValue = nbrSum;
+
             FloatPair curValue = vertex.getValue();
-            if (side == LEFTSIDE) {
-                curValue.first = nbrSum;
+            if (side == LEFTSIDE && vertex.numOutEdges() > 0) {
+                curValue.first = newValue;
                 synchronized (this) {
-                    leftSideSqrSum += nbrSum * nbrSum;
+                    leftSideSqrSum += newValue * newValue;
+                }
+
+                // Write value to outedges
+                for(int i=0; i < vertex.numOutEdges(); i++) {
+                     vertex.outEdge(i).setValue(newValue);
                 }
             }
-            else {
-                curValue.second = nbrSum;
+            else if (side == RIGHTSIDE && vertex.numInEdges() > 0) {
+                curValue.second = newValue;
                 synchronized (this) {
-                    rightSideSqrSum += nbrSum * nbrSum;
+                    rightSideSqrSum += newValue * newValue;
+                }
+
+                // Write value to in-edges
+                for(int i=0; i < vertex.numInEdges(); i++) {
+                    vertex.inEdge(i).setValue(newValue);
                 }
             }
             vertex.setValue(curValue);
@@ -134,10 +144,11 @@ public class HITSSmallMem implements GraphChiProgram<FloatPair, Float> {
     public void run(String graphName, int numShards) throws Exception {
         this.graphName = graphName;
         GraphChiEngine<FloatPair, Float> engine = new GraphChiEngine<FloatPair, Float>(graphName, numShards);
-        engine.setEnableScheduler(true);
+        engine.setEnableScheduler(false);
         engine.setSkipZeroDegreeVertices(true);
         engine.setEdataConverter(new FloatConverter());
         engine.setVertexDataConverter(new FloatPairConverter());
+        engine.setMaxWindow(20000000);
         engine.run(this, 8);
 
     }

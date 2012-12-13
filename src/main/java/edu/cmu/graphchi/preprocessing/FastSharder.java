@@ -34,6 +34,7 @@ public class FastSharder <EdgeValueType> {
     private int[] inDegrees;
     private int[] outDegrees;
     private boolean memoryEfficientDegreeCount = false;
+    private long numEdges = 0;
 
     private BytesToValueConverter<EdgeValueType> edgeValueTypeBytesToValueConverter;
 
@@ -140,11 +141,21 @@ public class FastSharder <EdgeValueType> {
     }
 
     private void writeDegrees() throws IOException {
+        boolean useSparseDegrees = (maxVertexId > numEdges) || "1".equals(System.getProperty("sparsedeg"));
+
         DataOutputStream degreeOut = new DataOutputStream(new BufferedOutputStream(
-                new FileOutputStream(ChiFilenames.getFilenameOfDegreeData(baseFilename))));
+                new FileOutputStream(ChiFilenames.getFilenameOfDegreeData(baseFilename, useSparseDegrees))));
         for(int i=0; i<inDegrees.length; i++) {
-            degreeOut.writeInt(Integer.reverseBytes(inDegrees[i]));
-            degreeOut.writeInt(Integer.reverseBytes(outDegrees[i]));
+            if (!useSparseDegrees)   {
+                degreeOut.writeInt(Integer.reverseBytes(inDegrees[i]));
+                degreeOut.writeInt(Integer.reverseBytes(outDegrees[i]));
+            } else {
+                if (inDegrees[i] + outDegrees[i] > 0) {
+                    degreeOut.writeInt(Integer.reverseBytes(i));
+                    degreeOut.writeInt(Integer.reverseBytes(inDegrees[i]));
+                    degreeOut.writeInt(Integer.reverseBytes(outDegrees[i]));
+                }
+            }
         }
         degreeOut.close();
     }
@@ -196,6 +207,8 @@ public class FastSharder <EdgeValueType> {
                 outDegrees[newFrom]++;
             }
         }
+        numEdges += shoveled.length;
+
         in.close();
 
         shovelFile.delete();
@@ -368,8 +381,13 @@ public class FastSharder <EdgeValueType> {
      */
     public void computeVertexDegrees() {
         try {
+
+            boolean useSparseDegrees = (maxVertexId > numEdges) || "1".equals(System.getProperty("sparsedeg"));
+
+            logger.info("Use sparse degrees: " + useSparseDegrees);
+
             DataOutputStream degreeOut = new DataOutputStream(new BufferedOutputStream(
-                    new FileOutputStream(ChiFilenames.getFilenameOfDegreeData(baseFilename))));
+                    new FileOutputStream(ChiFilenames.getFilenameOfDegreeData(baseFilename, useSparseDegrees))));
 
 
             SlidingShard[] slidingShards = new SlidingShard[numShards];
@@ -410,8 +428,16 @@ public class FastSharder <EdgeValueType> {
                     }
 
                     for(int i=0; i < verts.length; i++) {
-                        degreeOut.writeInt(Integer.reverseBytes(verts[i].numInEdges()));
-                        degreeOut.writeInt(Integer.reverseBytes(verts[i].numOutEdges()));
+                        if (!useSparseDegrees) {
+                            degreeOut.writeInt(Integer.reverseBytes(verts[i].numInEdges()));
+                            degreeOut.writeInt(Integer.reverseBytes(verts[i].numOutEdges()));
+                        } else {
+                            if (verts[i].numEdges() > 0 ){
+                                degreeOut.writeInt(Integer.reverseBytes(subIntervalSt + i));
+                                degreeOut.writeInt(Integer.reverseBytes(verts[i].numInEdges()));
+                                degreeOut.writeInt(Integer.reverseBytes(verts[i].numOutEdges()));
+                            }
+                        }
                     }
                 }
             }

@@ -24,4 +24,8 @@ public class VertexDegree {
         this.inDegree = inDegree;
         this.outDegree = outDegree;
     }
+
+    public String toString() {
+        return inDegree + "," + outDegree;
+    }
 }

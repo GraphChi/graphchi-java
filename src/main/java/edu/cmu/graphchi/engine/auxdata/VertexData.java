@@ -60,11 +60,8 @@ public class VertexData <VertexDataType> {
             fos.close();
         }
 
-
         vertexDataFile = new RandomAccessFile(ChiFilenames.getFilenameOfVertexData(baseFilename, converter), "rwd");
         vertexEn = vertexSt = 0;
-
-
     }
 
     public void releaseAndCommit(int firstVertex, int blockId) throws IOException {

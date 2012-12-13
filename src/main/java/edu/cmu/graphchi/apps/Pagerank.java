@@ -12,6 +12,7 @@ import edu.cmu.graphchi.preprocessing.VertexIdTranslate;
 import edu.cmu.graphchi.util.IdFloat;
 import edu.cmu.graphchi.util.Toplist;
 
+import java.io.File;
 import java.util.TreeSet;
 
 /**
@@ -66,7 +67,7 @@ public class Pagerank implements GraphChiProgram<Float, Float> {
         String baseFilename = args[0];
         int nShards = Integer.parseInt(args[1]);
 
-        if (baseFilename.equals("pipein")) {
+        if (baseFilename.equals("pipein") && ! (new File("pipein_degs.bin.sparse").exists())) {
             FastSharder sharder = new FastSharder<Float>("pipein", nShards, new EdgeProcessor<Float>() {
                 @Override
                 public void receiveVertexValue(int vertexId, String token) {

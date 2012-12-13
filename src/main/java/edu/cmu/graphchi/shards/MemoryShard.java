@@ -198,7 +198,8 @@ public class MemoryShard <EdgeDataType> {
                 }
                 vid++;
             }
-        } catch (EOFException eof) {}
+        } catch (EOFException eof) {
+        }
 
         // Ugly
         if (adjInput instanceof  InputStream) {

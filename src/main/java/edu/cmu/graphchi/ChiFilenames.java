@@ -30,8 +30,8 @@ public class ChiFilenames {
         return baseFilename + "." + valueConv.sizeOf() + "B.vout" + vertexDataSuffix;
     }
 
-    public static String getFilenameOfDegreeData(String baseFilename) {
-        return baseFilename + "_degs.bin";
+    public static String getFilenameOfDegreeData(String baseFilename, boolean sparse) {
+        return baseFilename + "_degs.bin" + (sparse ? ".sparse" : "");
     }
 
     public static String getPartStr(int p, int nShards) {
