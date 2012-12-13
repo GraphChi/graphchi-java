@@ -10,6 +10,7 @@ import ucar.unidata.io.RandomAccessFile;
 
 import java.io.*;
 import java.util.Arrays;
+import java.util.Iterator;
 import java.util.logging.Logger;
 
 /**
@@ -119,7 +120,7 @@ public class VertexData <VertexDataType> {
                 vertexDataFile.seek(lastOffset);
                 int sizeOf = converter.sizeOf();
                 for(int i=0; i < index.length; i++) {
-                    vertexDataFile.writeInt(index[i]);
+                    vertexDataFile.writeInt(Integer.reverseBytes(index[i]));  // Note: when writing, the random access file does not take byte order into account!
                     vertexDataFile.write(data, i * sizeOf, sizeOf);
                 }
                 blockManager.release(blockId);
@@ -156,6 +157,7 @@ public class VertexData <VertexDataType> {
                 if (lastStart > _vertexSt) {
                     vertexDataFile.seek(0);
                 }
+                lastStart = _vertexSt;
 
                 int sizeOf = converter.sizeOf();
                 long startPos = vertexDataFile.getFilePointer();
@@ -185,7 +187,7 @@ public class VertexData <VertexDataType> {
 
                 int i = 0;
                 try {
-                    while(true) {
+                    while(i < n) {
                         int vertexId = vertexDataFile.readInt();
                         if (vertexId >= _vertexSt && vertexId <= _vertexEn) {
                             index[i] = vertexId;
@@ -222,5 +224,46 @@ public class VertexData <VertexDataType> {
     // int array in scala?
     public static int[] createIntArray(int n) {
         return new int[n];
+    }
+
+    public Iterator<Integer> currentIterator() {
+        if (!sparse) {
+            return new Iterator<Integer>() {
+                int j = vertexSt;
+                @Override
+                public boolean hasNext() {
+                    return (j <= vertexEn);
+                }
+
+                @Override
+                public Integer next() {
+                    return j++;
+                }
+
+                @Override
+                public void remove() {
+                    throw new UnsupportedOperationException();
+                }
+            };
+        } else {
+            return new Iterator<Integer>() {
+                int j = 0;
+                @Override
+                public boolean hasNext() {
+                    return (j < index.length);
+                }
+
+                @Override
+                public Integer next() {
+                    return index[j++];
+                }
+
+                @Override
+                public void remove() {
+                    throw new UnsupportedOperationException();
+                }
+            };
+
+        }
     }
 }

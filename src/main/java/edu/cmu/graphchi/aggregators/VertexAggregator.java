@@ -25,6 +25,7 @@ import edu.cmu.graphchi.datablocks.IntConverter;
 import edu.cmu.graphchi.engine.auxdata.VertexData;
 
 import java.io.*;
+import java.util.Iterator;
 
 
 /**
@@ -47,7 +48,10 @@ public class VertexAggregator {
             if (en >= numVertices) en = numVertices - 1;
             int blockId =  vertexData.load(i, en);
 
-            for(int j=i; j<en; j++) {
+            Iterator<Integer> iter = vertexData.currentIterator();
+
+            while (iter.hasNext()) {
+                int j = iter.next();
                 ChiPointer ptr = vertexData.getVertexValuePtr(j, blockId);
                 VertexDataType value = blockManager.dereference(ptr, conv);
                 callback.callback(j, value);
