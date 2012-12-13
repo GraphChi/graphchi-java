@@ -121,6 +121,8 @@ public class VertexData <VertexDataType> {
                 vertexDataFile.writeInt(index[i]);
                 vertexDataFile.write(data, i * sizeOf, sizeOf);
             }
+            blockManager.release(blockId);
+            vertexDataFile.flush();
         }
     }
 
