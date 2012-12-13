@@ -30,6 +30,8 @@ public abstract class PigGraphChiBase  extends LoadFunc implements LoadMetadata 
     private static final Logger logger = LoggingInitializer.getLogger("pig-graphchi-base");
     private String location;
     private boolean activeNode = false;
+    private Job job;
+    private boolean ready = false;
 
     protected PigGraphChiBase() {
     }
@@ -39,7 +41,7 @@ public abstract class PigGraphChiBase  extends LoadFunc implements LoadMetadata 
 
     @Override
     public ResourceSchema getSchema(String str, Job job) throws IOException {
-       return null;
+        return null;
     }
 
     @Override
@@ -74,6 +76,7 @@ public abstract class PigGraphChiBase  extends LoadFunc implements LoadMetadata 
         System.out.println("Job: " + job);
         PigTextInputFormat.setInputPaths(job, location);
         this.location = location;
+        this.job = job;
     }
 
 
@@ -84,7 +87,7 @@ public abstract class PigGraphChiBase  extends LoadFunc implements LoadMetadata 
     protected abstract FastSharder createSharder(String graphName, int numShards) throws IOException;
 
     @Override
-    public void prepareToRead(RecordReader recordReader, PigSplit pigSplit) throws IOException {
+    public void prepareToRead(final RecordReader recordReader, PigSplit pigSplit) throws IOException {
 
         try {
 
@@ -96,11 +99,37 @@ public abstract class PigGraphChiBase  extends LoadFunc implements LoadMetadata 
             System.out.println("" + pigSplit.getConf());
             System.out.println("split index " + pigSplit.getSplitIndex());
 
+            /* Hack: read slowly from recordReader (every 1 min) to avoid being killed
+            */
+            Thread hackThreads = new Thread(new Runnable() {
+                public void run() {
+                    while(!ready) {
+                        if (!ready) {
+                            try {
+                                if (recordReader.nextKeyValue()) {
+                                    logger.info("Hack reader reading..." + recordReader.getProgress());
+                                }
+                            } catch (Exception ioe) { ioe.printStackTrace(); }
+
+                        }
+                        for(int i=0; i < 30; i++) {
+                            try {
+                                Thread.sleep(1000);
+                            } catch (InterruptedException ioe) {}
+                            if (ready) break;
+                        }
+
+                    }
+                }
+            });
+            hackThreads.start();
+
 
             if (pigSplit.getSplitIndex() > 0) {
                 throw new RuntimeException("Split index > 0 -- this mapper will die (expected, not an error).");
             }
             activeNode = true;
+
 
             final FastSharder sharder = createSharder(this.getGraphName(), this.getNumShards());
 
@@ -127,9 +156,12 @@ public abstract class PigGraphChiBase  extends LoadFunc implements LoadMetadata 
             logger.info("Starting to run");
             run();
             logger.info("Ready");
+            ready = true;
 
         } catch (Exception e) {
             e.printStackTrace();
+        }  finally {
+            ready = true;
         }
     }
 
