@@ -18,6 +18,7 @@ import org.apache.pig.backend.hadoop.executionengine.mapReduceLayer.PigTextInput
 import org.apache.pig.data.Tuple;
 import org.apache.pig.data.TupleFactory;
 import org.apache.pig.impl.util.Utils;
+import org.apache.pig.tools.pigstats.PigStatusReporter;
 
 import java.io.IOException;
 import java.util.logging.Logger;
@@ -99,30 +100,19 @@ public abstract class PigGraphChiBase  extends LoadFunc implements LoadMetadata 
             System.out.println("" + pigSplit.getConf());
             System.out.println("split index " + pigSplit.getSplitIndex());
 
-            /* Hack: read slowly from recordReader (every 1 min) to avoid being killed
-            */
-            Thread hackThreads = new Thread(new Runnable() {
+            Thread progressThread = new Thread(new Runnable() {
                 public void run() {
                     while(!ready) {
-                        if (!ready) {
+                            PigStatusReporter.getInstance().progress();
                             try {
-                                if (recordReader.nextKeyValue()) {
-                                    logger.info("Hack reader reading..." + recordReader.getProgress());
-                                }
-                            } catch (Exception ioe) { ioe.printStackTrace(); }
-
-                        }
-                        for(int i=0; i < 30; i++) {
-                            try {
-                                Thread.sleep(1000);
+                                Thread.sleep(5000);
                             } catch (InterruptedException ioe) {}
-                            if (ready) break;
                         }
 
                     }
-                }
+
             });
-            hackThreads.start();
+            progressThread.start();
 
 
             if (pigSplit.getSplitIndex() > 0) {
