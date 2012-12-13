@@ -115,14 +115,16 @@ public class VertexData <VertexDataType> {
                 vertexDataFile.flush();
             }
         } else {
-            vertexDataFile.seek(lastOffset);
-            int sizeOf = converter.sizeOf();
-            for(int i=0; i < index.length; i++) {
-                vertexDataFile.writeInt(index[i]);
-                vertexDataFile.write(data, i * sizeOf, sizeOf);
+            synchronized (vertexDataFile) {
+                vertexDataFile.seek(lastOffset);
+                int sizeOf = converter.sizeOf();
+                for(int i=0; i < index.length; i++) {
+                    vertexDataFile.writeInt(index[i]);
+                    vertexDataFile.write(data, i * sizeOf, sizeOf);
+                }
+                blockManager.release(blockId);
+                vertexDataFile.flush();
             }
-            blockManager.release(blockId);
-            vertexDataFile.flush();
         }
     }
 
@@ -137,67 +139,67 @@ public class VertexData <VertexDataType> {
 
         vertexSt = _vertexSt;
         vertexEn = _vertexEn;
+        synchronized (vertexDataFile) {
 
-        if (!sparse) {
-            long dataSize = (long) (vertexEn - vertexSt + 1) *  (long)  converter.sizeOf();
-            long dataStart =  (long) vertexSt *  (long) converter.sizeOf();
+            if (!sparse) {
+                long dataSize = (long) (vertexEn - vertexSt + 1) *  (long)  converter.sizeOf();
+                long dataStart =  (long) vertexSt *  (long) converter.sizeOf();
 
-            int blockId =  blockManager.allocateBlock((int) dataSize);
-            synchronized (vertexDataFile) {
+                int blockId =  blockManager.allocateBlock((int) dataSize);
                 vertexData = blockManager.getRawBlock(blockId);
                 vertexDataFile.seek(dataStart);
                 vertexDataFile.readFully(vertexData);
-            }
-            return blockId;
-        } else {
-            // Have to read in two passes
-            if (lastStart > _vertexSt) {
-                vertexDataFile.seek(0);
-            }
+                return blockId;
+            } else {
 
-            int sizeOf = converter.sizeOf();
-            long startPos = vertexDataFile.getFilePointer();
-            int n = 0;
-            boolean foundStart = false;
-            try {
-                while(true) {
-                   int vertexId = vertexDataFile.readInt();
-                   if (!foundStart && vertexId >= _vertexSt) {
-                       startPos = vertexDataFile.getFilePointer() - 4;
-                       foundStart = true;
-                   }
-                   if (vertexId >= _vertexSt && vertexId <= _vertexEn) {
-                       n++;
-                   } else if (vertexId > vertexEn) {
-                       break;
-                   }
-
-                   vertexDataFile.skipBytes(sizeOf);
+                // Have to read in two passes
+                if (lastStart > _vertexSt) {
+                    vertexDataFile.seek(0);
                 }
-            } catch (EOFException eof) {}
 
-            index = new int[n];
-            vertexDataFile.seek(startPos);
-            int blockId =  blockManager.allocateBlock(n * sizeOf);
-            vertexData = blockManager.getRawBlock(blockId);
+                int sizeOf = converter.sizeOf();
+                long startPos = vertexDataFile.getFilePointer();
+                int n = 0;
+                boolean foundStart = false;
+                try {
+                    while(true) {
+                        int vertexId = vertexDataFile.readInt();
+                        if (!foundStart && vertexId >= _vertexSt) {
+                            startPos = vertexDataFile.getFilePointer() - 4;
+                            foundStart = true;
+                        }
+                        if (vertexId >= _vertexSt && vertexId <= _vertexEn) {
+                            n++;
+                        } else if (vertexId > vertexEn) {
+                            break;
+                        }
 
-            int i = 0;
-            try {
-                while(true) {
-                    int vertexId = vertexDataFile.readInt();
-
-                    if (vertexId >= _vertexSt && vertexId <= _vertexEn) {
-                       index[i] = vertexId;
-                       vertexDataFile.read(vertexData, i * sizeOf, sizeOf);
-                       i++;
-                    } else {
                         vertexDataFile.skipBytes(sizeOf);
                     }
-                }
-            } catch (EOFException eof) {}
-            if (i != n) throw new IllegalStateException("Mismatch when reading sparse vertex data:" + i + " != " + n);
-            lastOffset = (int) startPos;
-            return blockId;
+                } catch (EOFException eof) {}
+
+                index = new int[n];
+                vertexDataFile.seek(startPos);
+                int blockId =  blockManager.allocateBlock(n * sizeOf);
+                vertexData = blockManager.getRawBlock(blockId);
+
+                int i = 0;
+                try {
+                    while(true) {
+                        int vertexId = vertexDataFile.readInt();
+                        if (vertexId >= _vertexSt && vertexId <= _vertexEn) {
+                            index[i] = vertexId;
+                            vertexDataFile.read(vertexData, i * sizeOf, sizeOf);
+                            i++;
+                        } else {
+                            vertexDataFile.skipBytes(sizeOf);
+                        }
+                    }
+                } catch (EOFException eof) {}
+                if (i != n) throw new IllegalStateException("Mismatch when reading sparse vertex data:" + i + " != " + n);
+                lastOffset = (int) startPos;
+                return blockId;
+            }
         }
     }
 
