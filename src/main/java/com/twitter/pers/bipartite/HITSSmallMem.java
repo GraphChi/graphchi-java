@@ -13,13 +13,19 @@ import edu.cmu.graphchi.datablocks.FloatPair;
 import edu.cmu.graphchi.datablocks.FloatPairConverter;
 import edu.cmu.graphchi.engine.GraphChiEngine;
 import edu.cmu.graphchi.engine.VertexInterval;
+import edu.cmu.graphchi.hadoop.PigGraphChiBase;
 import edu.cmu.graphchi.preprocessing.EdgeProcessor;
 import edu.cmu.graphchi.preprocessing.FastSharder;
 import edu.cmu.graphchi.preprocessing.VertexIdTranslate;
 import edu.cmu.graphchi.util.IdFloat;
 import edu.cmu.graphchi.util.Toplist;
+import org.apache.pig.backend.executionengine.ExecException;
+import org.apache.pig.data.Tuple;
+import org.apache.pig.data.TupleFactory;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.TreeSet;
 import java.util.logging.Logger;
 
@@ -30,7 +36,7 @@ import java.util.logging.Logger;
  * On each iteration either left or right side is computed. Each vertex
  * can represent both sides. Left side has out-edges, right side in-edges.
  */
-public class HITSSmallMem implements GraphChiProgram<FloatPair, Float> {
+public class HITSSmallMem extends PigGraphChiBase implements GraphChiProgram<FloatPair, Float>  {
 
     private final static int LEFTSIDE = 0;
     private final static int RIGHTSIDE = 1;
@@ -38,8 +44,11 @@ public class HITSSmallMem implements GraphChiProgram<FloatPair, Float> {
     private String graphName;
     private final static Logger logger = LoggingInitializer.getLogger("hits-smallmem");
 
+    int numShards = 20;
     double leftSideSqrSum = 0;
     double rightSideSqrSum = 0;
+
+    GraphChiEngine<FloatPair, Float> engine;
 
     @Override
     public void update(ChiVertex<FloatPair, Float> vertex, GraphChiContext context) {
@@ -72,7 +81,7 @@ public class HITSSmallMem implements GraphChiProgram<FloatPair, Float> {
 
                 // Write value to outedges
                 for(int i=0; i < vertex.numOutEdges(); i++) {
-                     vertex.outEdge(i).setValue(newValue);
+                    vertex.outEdge(i).setValue(newValue);
                 }
             }
             else if (side == RIGHTSIDE && vertex.numInEdges() > 0) {
@@ -119,6 +128,7 @@ public class HITSSmallMem implements GraphChiProgram<FloatPair, Float> {
                 VertexMapper.map((int) ctx.getNumVertices(), graphName, new FloatPairConverter(), new VertexMapperCallback<FloatPair>() {
                     @Override
                     public FloatPair map(int vertexId, FloatPair value) {
+                        System.out.println("Callback: " + vertexId + "  " + value.first);
                         value.first /= leftNorm;
                         value.second /= rightNorm;
                         return value;
@@ -143,14 +153,25 @@ public class HITSSmallMem implements GraphChiProgram<FloatPair, Float> {
 
     public void run(String graphName, int numShards) throws Exception {
         this.graphName = graphName;
-        GraphChiEngine<FloatPair, Float> engine = new GraphChiEngine<FloatPair, Float>(graphName, numShards);
+        engine = new GraphChiEngine<FloatPair, Float>(graphName, numShards);
         engine.setEnableScheduler(false);
         engine.setSkipZeroDegreeVertices(true);
         engine.setEdataConverter(new FloatConverter());
         engine.setVertexDataConverter(new FloatPairConverter());
         engine.setMaxWindow(20000000);
         engine.run(this, 8);
+    }
 
+    private void outputResults(String graphName) throws IOException {
+
+        VertexAggregator.foreach(engine.numVertices(), graphName, new FloatPairConverter(), new ForeachCallback<FloatPair>() {
+            @Override
+            public void callback(int vertexId, FloatPair vertexValue) {
+                if (vertexValue.first > 0) {
+                    System.out.println(engine.getVertexIdTranslate().backward(vertexId)  + "\t" + vertexValue.first);
+                }
+            }
+        });
     }
 
     /**
@@ -162,23 +183,81 @@ public class HITSSmallMem implements GraphChiProgram<FloatPair, Float> {
         String graphName = null;
         if (args.length == 2) graphName = args[k++];
         int nShards = Integer.parseInt(args[k++]);
+        HITSSmallMem hits = new HITSSmallMem();
 
         if (graphName == null) {
             graphName = "pipein";
-            FastSharder sharder = new FastSharder<Float>(graphName, nShards, new EdgeProcessor<Float>() {
-                @Override
-                public void receiveVertexValue(int vertexId, String token) {
-                }
-
-                @Override
-                public Float receiveEdge(int from, int to, String token) {
-                    return 0.0f;
-                }
-            }, new FloatConverter());
+            FastSharder sharder = hits.createSharder(graphName, nShards);
             sharder.shard(System.in);
         }
-        HITSSmallMem hits = new HITSSmallMem();
         hits.run(graphName, nShards);
+
+        hits.outputResults(graphName);
+    }
+
+    // PIG support
+
+
+    @Override
+    protected String getSchemaString() {
+        return null;  //To change body of implemented methods use File | Settings | File Templates.
+    }
+
+    @Override
+    protected int getNumShards() {
+        return numShards;
+    }
+
+    private ArrayList<IdFloat> results;
+    private Iterator<IdFloat> resultIter;
+
+    @Override
+    protected void run() throws Exception {
+        run(getGraphName(), getNumShards());
+        results = new ArrayList<IdFloat>(100000);
+
+        // Collect results - into memory ... This may consume a lot of memory.
+        // It would be better to have an iterator for the vertex data.
+        VertexAggregator.foreach(engine.numVertices(), graphName, new FloatPairConverter(), new ForeachCallback<FloatPair>() {
+            @Override
+            public void callback(int vertexId, FloatPair vertexValue) {
+                if (vertexValue.first > 0) {
+                    results.add(new IdFloat(engine.getVertexIdTranslate().backward(vertexId), vertexValue.first));
+                }
+            }
+        });
+        engine = null;
+        resultIter = results.iterator();
+    }
+
+    @Override
+    protected FastSharder createSharder(String graphName, int numShards) throws IOException {
+        this.numShards = numShards;
+        return new FastSharder<Float>(graphName, numShards, new EdgeProcessor<Float>() {
+            @Override
+            public void receiveVertexValue(int vertexId, String token) {
+            }
+
+            @Override
+            public Float receiveEdge(int from, int to, String token) {
+                return 0.0f;
+            }
+        }, new FloatConverter());
+    }
+
+
+
+    @Override
+    protected Tuple getNextResult(TupleFactory tupleFactory) throws ExecException {
+        if (resultIter.hasNext()) {
+            IdFloat res = resultIter.next();
+            Tuple t = tupleFactory.newTuple(2);
+            t.set(0, res.getVertexId());
+            t.set(1, res.getValue());
+            return t;
+        } else {
+            return null;
+        }
     }
 }
 

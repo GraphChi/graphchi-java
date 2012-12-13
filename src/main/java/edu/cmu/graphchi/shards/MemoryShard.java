@@ -240,8 +240,6 @@ public class MemoryShard <EdgeDataType> {
             while (true) {
                 int read =  adjStream.read(buf);
                 tot += read;
-                logger.info(tot + " " + read + " " + fileSizeEstimate + " " + buf.length);
-
                 if (read > 0) {
                     adjDataStream.write(buf, 0, read);
                 } else break;
