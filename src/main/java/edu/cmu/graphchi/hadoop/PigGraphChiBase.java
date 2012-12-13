@@ -29,16 +29,17 @@ public abstract class PigGraphChiBase  extends LoadFunc implements LoadMetadata 
 
     private static final Logger logger = LoggingInitializer.getLogger("pig-graphchi-base");
     private String location;
+    private boolean activeNode = false;
 
+    protected PigGraphChiBase() {
+    }
 
     // Example: (vertex:int, value:float)"
     protected abstract String getSchemaString();
 
     @Override
     public ResourceSchema getSchema(String str, Job job) throws IOException {
-        // Utils.getSchemaFromString("(b:bag{f1: chararray, f2: int})");
-        ResourceSchema s = new ResourceSchema(Utils.getSchemaFromString(getSchemaString()));
-        return s;
+       return null;
     }
 
     @Override
@@ -99,6 +100,7 @@ public abstract class PigGraphChiBase  extends LoadFunc implements LoadMetadata 
             if (pigSplit.getSplitIndex() > 0) {
                 throw new RuntimeException("Split index > 0 -- this mapper will die (expected, not an error).");
             }
+            activeNode = true;
 
             final FastSharder sharder = createSharder(this.getGraphName(), this.getNumShards());
 
@@ -135,6 +137,7 @@ public abstract class PigGraphChiBase  extends LoadFunc implements LoadMetadata 
 
     @Override
     public Tuple getNext() throws IOException {
+        if (!activeNode) return null;
         return getNextResult(TupleFactory.getInstance());
     }
 

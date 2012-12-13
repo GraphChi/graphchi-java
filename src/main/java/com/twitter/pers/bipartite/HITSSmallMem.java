@@ -51,6 +51,10 @@ public class HITSSmallMem extends PigGraphChiBase implements GraphChiProgram<Flo
 
     GraphChiEngine<FloatPair, Float> engine;
 
+    public HITSSmallMem() {
+        super();
+    }
+
     @Override
     public void update(ChiVertex<FloatPair, Float> vertex, GraphChiContext context) {
         int side = context.getIteration() % 2;
@@ -218,7 +222,7 @@ public class HITSSmallMem extends PigGraphChiBase implements GraphChiProgram<Flo
 
     @Override
     protected String getSchemaString() {
-        return null;  //To change body of implemented methods use File | Settings | File Templates.
+        return "(vertex:int, auth:float)";
     }
 
     @Override
