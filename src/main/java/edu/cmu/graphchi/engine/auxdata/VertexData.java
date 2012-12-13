@@ -1,14 +1,16 @@
 package edu.cmu.graphchi.engine.auxdata;
 
 import edu.cmu.graphchi.ChiFilenames;
+import edu.cmu.graphchi.LoggingInitializer;
 import edu.cmu.graphchi.datablocks.BytesToValueConverter;
 import edu.cmu.graphchi.datablocks.ChiPointer;
 import edu.cmu.graphchi.datablocks.DataBlockManager;
+import nom.tam.util.BufferedDataInputStream;
 import ucar.unidata.io.RandomAccessFile;
 
-import java.io.File;
-import java.io.FileOutputStream;
-import java.io.IOException;
+import java.io.*;
+import java.util.Arrays;
+import java.util.logging.Logger;
 
 /**
  * Copyright [2012] [Aapo Kyrola, Guy Blelloch, Carlos Guestrin / Carnegie Mellon University]
@@ -33,49 +35,92 @@ public class VertexData <VertexDataType> {
     private RandomAccessFile vertexDataFile;
     private BytesToValueConverter <VertexDataType> converter;
     private DataBlockManager blockManager;
+    private boolean sparse;
+    private int[] index;
+    private int lastOffset = 0;
+    private int lastStart = 0;
 
-    public VertexData(int nvertices, String baseFilename, BytesToValueConverter<VertexDataType> converter) throws IOException {
+    private final static Logger logger = LoggingInitializer.getLogger("vertex-data");
+
+    public VertexData(int nvertices, String baseFilename,
+                      BytesToValueConverter<VertexDataType> converter, boolean sparse) throws IOException {
         this.baseFilename = baseFilename;
         this.converter = converter;
+        this.sparse = sparse;
 
-        long expectedSize = (long) converter.sizeOf() * (long) nvertices;
-
-        // Check size and create if does not exists
-        File vertexfile = new File(ChiFilenames.getFilenameOfVertexData(baseFilename, converter));
-        System.out.println("Vertex file length: " + vertexfile.length() + ", nvertices=" + nvertices
-                + ", expected size: " + expectedSize);
-        if (!vertexfile.exists() || vertexfile.length() < expectedSize) {
-            if (!vertexfile.exists()) {
-                vertexfile.createNewFile();
-            }
-            System.out.println("Vertex data file did not exists, creating it. Vertices: " + nvertices);
-            FileOutputStream fos = new FileOutputStream(vertexfile);
-            byte[] tmp = new byte[32678];
-            long written = 0;
-            while(written < expectedSize) {
-                long n = Math.min(expectedSize - written, tmp.length);
-                fos.write(tmp, 0, (int)n);
-                written += n;
-            }
-            fos.close();
+        File vertexfile = new File(ChiFilenames.getFilenameOfVertexData(baseFilename, converter, sparse));
+        File sparseDegreeFile = new File(ChiFilenames.getFilenameOfDegreeData(baseFilename, true));
+        if (sparse && !sparseDegreeFile.exists()) {
+            sparse = false;
+            logger.warning("Sparse vertex data was allowed but degree data was not false - using dense");
         }
 
-        vertexDataFile = new RandomAccessFile(ChiFilenames.getFilenameOfVertexData(baseFilename, converter), "rwd");
+        if (!sparse) {
+            long expectedSize = (long) converter.sizeOf() * (long) nvertices;
+
+            // Check size and create if does not exists
+            System.out.println("Vertex file length: " + vertexfile.length() + ", nvertices=" + nvertices
+                    + ", expected size: " + expectedSize);
+            if (!vertexfile.exists() || vertexfile.length() < expectedSize) {
+                if (!vertexfile.exists()) {
+                    vertexfile.createNewFile();
+                }
+                System.out.println("Vertex data file did not exists, creating it. Vertices: " + nvertices);
+                FileOutputStream fos = new FileOutputStream(vertexfile);
+                byte[] tmp = new byte[32678];
+                long written = 0;
+                while(written < expectedSize) {
+                    long n = Math.min(expectedSize - written, tmp.length);
+                    fos.write(tmp, 0, (int)n);
+                    written += n;
+                }
+                fos.close();
+            }
+        } else {
+            if (!vertexfile.exists()) {
+                BufferedDataInputStream dis = new BufferedDataInputStream(new FileInputStream(sparseDegreeFile));
+                DataOutputStream dos = new DataOutputStream(new BufferedOutputStream(new FileOutputStream(vertexfile)));
+
+                byte[] empty = new byte[converter.sizeOf()];
+                try {
+                    while(true) {
+                        int vertexId = Integer.reverseBytes(dis.readInt());
+                        dis.skipBytes(8);
+                        dos.writeInt(Integer.reverseBytes(vertexId));
+                        dos.write(empty);
+                    }
+                } catch (EOFException err) {}
+                dos.close();
+                dis.close();;
+            }
+        }
+
+        vertexDataFile = new RandomAccessFile(vertexfile.getAbsolutePath(), "rwd");
         vertexEn = vertexSt = 0;
     }
 
     public void releaseAndCommit(int firstVertex, int blockId) throws IOException {
         assert(blockId >= 0);
         byte[] data = blockManager.getRawBlock(blockId);
-        long dataStart = (long) firstVertex * (long) converter.sizeOf();
 
-        synchronized (vertexDataFile) {
-            vertexDataFile.seek(dataStart);
-            vertexDataFile.write(data);
+        if (!sparse) {
+            long dataStart = (long) firstVertex * (long) converter.sizeOf();
 
-            blockManager.release(blockId);
+            synchronized (vertexDataFile) {
+                vertexDataFile.seek(dataStart);
+                vertexDataFile.write(data);
 
-            vertexDataFile.flush();
+                blockManager.release(blockId);
+
+                vertexDataFile.flush();
+            }
+        } else {
+            vertexDataFile.seek(lastOffset);
+            int sizeOf = converter.sizeOf();
+            for(int i=0; i < index.length; i++) {
+                vertexDataFile.writeInt(index[i]);
+                vertexDataFile.write(data, i * sizeOf, sizeOf);
+            }
         }
     }
 
@@ -91,21 +136,78 @@ public class VertexData <VertexDataType> {
         vertexSt = _vertexSt;
         vertexEn = _vertexEn;
 
-        long dataSize = (long) (vertexEn - vertexSt + 1) *  (long)  converter.sizeOf();
-        long dataStart =  (long) vertexSt *  (long) converter.sizeOf();
+        if (!sparse) {
+            long dataSize = (long) (vertexEn - vertexSt + 1) *  (long)  converter.sizeOf();
+            long dataStart =  (long) vertexSt *  (long) converter.sizeOf();
 
-        int blockId =  blockManager.allocateBlock((int) dataSize);
-        synchronized (vertexDataFile) {
+            int blockId =  blockManager.allocateBlock((int) dataSize);
+            synchronized (vertexDataFile) {
+                vertexData = blockManager.getRawBlock(blockId);
+                vertexDataFile.seek(dataStart);
+                vertexDataFile.readFully(vertexData);
+            }
+            return blockId;
+        } else {
+            // Have to read in two passes
+            if (lastStart > _vertexSt) {
+                vertexDataFile.seek(0);
+            }
+
+            int sizeOf = converter.sizeOf();
+            long startPos = vertexDataFile.getFilePointer();
+            int n = 0;
+            boolean foundStart = false;
+            try {
+                while(true) {
+                   int vertexId = vertexDataFile.readInt();
+                   if (!foundStart && vertexId >= _vertexSt) {
+                       startPos = vertexDataFile.getFilePointer() - 4;
+                       foundStart = true;
+                   }
+                   if (vertexId >= _vertexSt && vertexId <= _vertexEn) {
+                       n++;
+                   } else if (vertexId > vertexEn) {
+                       break;
+                   }
+
+                   vertexDataFile.skipBytes(sizeOf);
+                }
+            } catch (EOFException eof) {}
+
+            index = new int[n];
+            vertexDataFile.seek(startPos);
+            int blockId =  blockManager.allocateBlock(n * sizeOf);
             vertexData = blockManager.getRawBlock(blockId);
-            vertexDataFile.seek(dataStart);
-            vertexDataFile.readFully(vertexData);
+
+            int i = 0;
+            try {
+                while(true) {
+                    int vertexId = vertexDataFile.readInt();
+
+                    if (vertexId >= _vertexSt && vertexId <= _vertexEn) {
+                       index[i] = vertexId;
+                       vertexDataFile.read(vertexData, i * sizeOf, sizeOf);
+                       i++;
+                    } else {
+                        vertexDataFile.skipBytes(sizeOf);
+                    }
+                }
+            } catch (EOFException eof) {}
+            if (i != n) throw new IllegalStateException("Mismatch when reading sparse vertex data:" + i + " != " + n);
+            lastOffset = (int) startPos;
+            return blockId;
         }
-        return blockId;
     }
 
     public ChiPointer getVertexValuePtr(int vertexId, int blockId) {
         assert(vertexId >= vertexSt && vertexId <= vertexEn);
-        return new ChiPointer(blockId, (vertexId - vertexSt) * converter.sizeOf());
+        if (!sparse) {
+            return new ChiPointer(blockId, (vertexId - vertexSt) * converter.sizeOf());
+        } else {
+            int idx = Arrays.binarySearch(index, vertexId);
+            if (idx < 0) return null;
+            return new ChiPointer(blockId, idx * converter.sizeOf());
+        }
     }
 
     public void setBlockManager(DataBlockManager blockManager) {

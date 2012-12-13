@@ -389,7 +389,7 @@ public class DrunkardMobWithCompanion implements GraphChiProgram<Integer, Float>
             System.out.println("Weighted: " + weightedGraph);
 
             /* Delete vertex data */
-            File vertexDataFile = new File(ChiFilenames.getFilenameOfVertexData(baseFilename, new IntConverter()));
+            File vertexDataFile = new File(ChiFilenames.getFilenameOfVertexData(baseFilename, new IntConverter(), false));
             if (vertexDataFile.exists()) {
                 vertexDataFile.delete();
             }

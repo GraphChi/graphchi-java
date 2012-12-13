@@ -44,7 +44,7 @@ object WeightedPersonalizedPagerank {
 
   // Initialize topic-weights
   def initVertexData[T](graphname: String, graphchiSqr: GraphChiSquared[T], cutoff: Float) {
-    val vertexDataFile = new File(ChiFilenames.getFilenameOfVertexData(graphname, new IntConverter()))
+    val vertexDataFile = new File(ChiFilenames.getFilenameOfVertexData(graphname, new IntConverter(), false))
     if (vertexDataFile.exists()) vertexDataFile.delete()
 
     val vertexVals = VertexData.createIntArray(graphchiSqr.numVertices())
@@ -160,6 +160,6 @@ object WeightedPersonalizedPagerank {
     })
 
     // Delete vertex data file
-    new File(ChiFilenames.getFilenameOfVertexData(graphname, new IntConverter())).delete()
+    new File(ChiFilenames.getFilenameOfVertexData(graphname, new IntConverter(), false)).delete()
   }
 }

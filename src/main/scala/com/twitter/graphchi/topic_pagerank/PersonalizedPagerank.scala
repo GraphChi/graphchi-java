@@ -45,7 +45,7 @@ object PersonalizedPagerank {
 
   // Create the vertex-data file
   def initVertexData[T](graphname: String, graphchiSqr: GraphChiSquared[T]) {
-    val vertexDataFile = new File(ChiFilenames.getFilenameOfVertexData(graphname, new IntConverter()))
+    val vertexDataFile = new File(ChiFilenames.getFilenameOfVertexData(graphname, new IntConverter(), false))
     if (vertexDataFile.exists()) vertexDataFile.delete()
 
     val vertexVals = VertexData.createIntArray(graphchiSqr.numVertices())
@@ -131,6 +131,6 @@ object PersonalizedPagerank {
     })
 
     // Delete vertex data file
-    new File(ChiFilenames.getFilenameOfVertexData(graphname, new IntConverter())).delete()
+    new File(ChiFilenames.getFilenameOfVertexData(graphname, new IntConverter(), false)).delete()
   }
 }

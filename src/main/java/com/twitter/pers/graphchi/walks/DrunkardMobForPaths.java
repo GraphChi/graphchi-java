@@ -112,6 +112,7 @@ public class DrunkardMobForPaths implements GraphChiProgram<Integer, Boolean> {
         SimpleMetricsReporter rep = SimpleMetricsReporter.enable(2, TimeUnit.MINUTES);
         String baseFilename = args[0];
 
+
         if (args.length > 1) {
             int nShards = Integer.parseInt(args[1]);
             int nSources = Integer.parseInt(args[2]);
@@ -123,13 +124,14 @@ public class DrunkardMobForPaths implements GraphChiProgram<Integer, Boolean> {
             System.out.println("Max hops: " + maxHops);
 
             /* Delete vertex data */
-            File vertexDataFile = new File(ChiFilenames.getFilenameOfVertexData(baseFilename, new IntConverter()));
+            File vertexDataFile = new File(ChiFilenames.getFilenameOfVertexData(baseFilename, new IntConverter(), false));
             if (vertexDataFile.exists()) {
                 vertexDataFile.delete();
             }
 
             /* Initialize GraphChi engine */
             GraphChiEngine<Integer, Boolean> engine = new GraphChiEngine<Integer, Boolean>(baseFilename, nShards);
+
             engine.setEdataConverter(null);
             engine.setVertexDataConverter(new IntConverter());
             engine.setModifiesInedges(false);
@@ -170,19 +172,20 @@ public class DrunkardMobForPaths implements GraphChiProgram<Integer, Boolean> {
             /* Analyze */
             WalkPathAnalyzer analyzer = new WalkPathAnalyzer(new File("."));
             analyzer.analyze(0, mob.walkManager.getTotalWalks() - 1, maxHops);
-        }
-        System.out.println("Ready. Going to output...");
 
-        /* Output top 20 of visited vertices. */
-        TreeSet<IdInt> top20 = Toplist.topListInt(baseFilename, 20);
-        int i = 0;
-        for(IdInt vertexRank : top20) {
-            System.out.println(++i + ": " + vertexRank.getVertexId() + " = " + vertexRank.getValue());
-        }
-        System.out.println("Finished.");
+            System.out.println("Ready. Going to output...");
 
-        long sumWalks = VertexAggregator.sumInt(baseFilename);
-        System.out.println("Total hops (in file): " + sumWalks);
-        rep.run();
+            /* Output top 20 of visited vertices. */
+            TreeSet<IdInt> top20 = Toplist.topListInt(baseFilename, 20);
+            int i = 0;
+            for(IdInt vertexRank : top20) {
+                System.out.println(++i + ": " + vertexRank.getVertexId() + " = " + vertexRank.getValue());
+            }
+            System.out.println("Finished.");
+
+            long sumWalks = VertexAggregator.sumInt(engine.numVertices(), baseFilename);
+            System.out.println("Total hops (in file): " + sumWalks);
+            rep.run();
+        }
     }
 }

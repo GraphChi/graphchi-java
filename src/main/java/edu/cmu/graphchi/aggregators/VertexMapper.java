@@ -16,7 +16,7 @@ public class VertexMapper {
     public static <VertexDataType> void map(int numVertices, String baseFilename, BytesToValueConverter<VertexDataType> conv,
                                             VertexMapperCallback<VertexDataType> callback) throws IOException {
 
-        VertexData<VertexDataType> vertexData = new VertexData<VertexDataType>(numVertices, baseFilename, conv);
+        VertexData<VertexDataType> vertexData = new VertexData<VertexDataType>(numVertices, baseFilename, conv, true);
 
         DataBlockManager blockManager = new DataBlockManager();
         vertexData.setBlockManager(blockManager);

@@ -19,7 +19,10 @@ package edu.cmu.graphchi.aggregators;
 
 import edu.cmu.graphchi.ChiFilenames;
 import edu.cmu.graphchi.datablocks.BytesToValueConverter;
+import edu.cmu.graphchi.datablocks.ChiPointer;
+import edu.cmu.graphchi.datablocks.DataBlockManager;
 import edu.cmu.graphchi.datablocks.IntConverter;
+import edu.cmu.graphchi.engine.auxdata.VertexData;
 
 import java.io.*;
 
@@ -30,27 +33,35 @@ import java.io.*;
 public class VertexAggregator {
 
 
-    public static <VertexDataType> void  foreach(String baseFilename, BytesToValueConverter<VertexDataType> conv,
+    public static <VertexDataType> void  foreach(int numVertices, String baseFilename, BytesToValueConverter<VertexDataType> conv,
                                                  ForeachCallback<VertexDataType> callback) throws IOException {
 
-        File vertexDataFile = new File(ChiFilenames.getFilenameOfVertexData(baseFilename, conv));
-        BufferedInputStream bis = new BufferedInputStream(new FileInputStream(vertexDataFile), 1024 * 1024);
+        VertexData<VertexDataType> vertexData = new VertexData<VertexDataType>(numVertices, baseFilename, conv, true);
 
-        int i = 0;
-        byte[] tmp = new byte[conv.sizeOf()];
-        System.out.println("read: " + vertexDataFile);
-        try {
-            while (true) {
+        DataBlockManager blockManager = new DataBlockManager();
+        vertexData.setBlockManager(blockManager);
 
-                int rd = bis.read(tmp);
+        int CHUNK = 1000000;
+        for(int i=0; i < numVertices; i += CHUNK) {
+            int en = i + CHUNK;
+            if (en >= numVertices) en = numVertices - 1;
+            int blockId =  vertexData.load(i, en);
 
-                if(rd != tmp.length) break;
-                VertexDataType value = conv.getValue(tmp);
-                callback.callback(i, value);
-                i++;
+            for(int j=i; j<en; j++) {
+                ChiPointer ptr = vertexData.getVertexValuePtr(j, blockId);
+                VertexDataType value = blockManager.dereference(ptr, conv);
+                callback.callback(j, value);
             }
-        } catch (EOFException e) {}
-        bis.close();
+        }
+
+    }
+
+    public static <VertexDataType> void  foreach( String baseFilename, BytesToValueConverter<VertexDataType> conv,
+                                                 ForeachCallback<VertexDataType> callback) throws IOException {
+
+        try {
+            VertexAggregator.foreach(Integer.MAX_VALUE, baseFilename, conv, callback);
+        } catch (EOFException eo) {} // Ugly!
 
     }
 
@@ -66,9 +77,9 @@ public class VertexAggregator {
         }
     }
 
-    public static long sumInt(String baseFilename) throws IOException {
+    public static long sumInt(int numVertices, String baseFilename) throws IOException {
         SumCallbackInt callback = new SumCallbackInt();
-        foreach(baseFilename, new IntConverter(), callback);
+        foreach(numVertices, baseFilename, new IntConverter(), callback);
         return callback.getSum();
     }
 

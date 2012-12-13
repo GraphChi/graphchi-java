@@ -219,7 +219,7 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
 
         /* Initialize vertex-data handler */
         if (vertexDataConverter != null) {
-            vertexDataHandler = new VertexData<VertexDataType>(numVertices(), baseFilename, vertexDataConverter);
+            vertexDataHandler = new VertexData<VertexDataType>(numVertices(), baseFilename, vertexDataConverter, skipZeroDegreeVertices);
             vertexDataHandler.setBlockManager(blockManager);
         }
 

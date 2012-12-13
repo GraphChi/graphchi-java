@@ -26,8 +26,8 @@ public class ChiFilenames {
 
     public static String vertexDataSuffix = "";
 
-    public static String getFilenameOfVertexData(String baseFilename, BytesToValueConverter valueConv) {
-        return baseFilename + "." + valueConv.sizeOf() + "B.vout" + vertexDataSuffix;
+    public static String getFilenameOfVertexData(String baseFilename, BytesToValueConverter valueConv, boolean sparse) {
+        return baseFilename + "." + valueConv.sizeOf() + "B.vout" + vertexDataSuffix  + (sparse ? ".sparse" : "");
     }
 
     public static String getFilenameOfDegreeData(String baseFilename, boolean sparse) {

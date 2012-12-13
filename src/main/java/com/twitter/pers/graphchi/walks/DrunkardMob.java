@@ -125,7 +125,7 @@ public class DrunkardMob implements GraphChiProgram<Integer, Float> {
             System.out.println("Max hops: " + maxHops);
 
             /* Delete vertex data */
-            File vertexDataFile = new File(ChiFilenames.getFilenameOfVertexData(baseFilename, new IntConverter()));
+            File vertexDataFile = new File(ChiFilenames.getFilenameOfVertexData(baseFilename, new IntConverter(), false));
             if (vertexDataFile.exists()) {
                 vertexDataFile.delete();
             }
@@ -176,8 +176,5 @@ public class DrunkardMob implements GraphChiProgram<Integer, Float> {
         }
         System.out.println("Finished.");
 
-        long sumWalks = VertexAggregator.sumInt(baseFilename);
-        System.out.println("Total hops (in file): " + sumWalks);
-        rep.run();
     }
 }

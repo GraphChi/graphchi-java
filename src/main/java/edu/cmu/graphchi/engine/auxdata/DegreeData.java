@@ -41,7 +41,6 @@ public class DegreeData {
         if (sparseFile.exists()) {
             sparse = true;
             degreeFile = new RandomAccessFile(sparseFile.getAbsolutePath(), "r");
-
         } else {
             sparse = false;
             degreeFile = new RandomAccessFile(denseFile.getAbsolutePath(), "r");
