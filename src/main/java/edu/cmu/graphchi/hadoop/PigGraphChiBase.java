@@ -88,7 +88,7 @@ public abstract class PigGraphChiBase  extends LoadFunc implements LoadMetadata 
     protected abstract FastSharder createSharder(String graphName, int numShards) throws IOException;
 
     @Override
-    public void prepareToRead(final RecordReader recordReader, PigSplit pigSplit) throws IOException {
+    public void prepareToRead(final RecordReader recordReader, final PigSplit pigSplit) throws IOException {
 
         try {
 
@@ -100,53 +100,63 @@ public abstract class PigGraphChiBase  extends LoadFunc implements LoadMetadata 
             System.out.println("" + pigSplit.getConf());
             System.out.println("split index " + pigSplit.getSplitIndex());
 
+
             Thread progressThread = new Thread(new Runnable() {
                 public void run() {
+                    int i = 0;
                     while(!ready) {
-                            PigStatusReporter.getInstance().progress();
-                            try {
-                                Thread.sleep(5000);
-                            } catch (InterruptedException ioe) {}
-                        }
-
+                        PigStatusReporter.getInstance().progress();
+                        PigStatusReporter.getInstance().setStatus("Status idx: " + i);
+                        try {
+                            Thread.sleep(5000);
+                        } catch (InterruptedException ioe) {}
                     }
+
+                }
 
             });
             progressThread.start();
 
-
             if (pigSplit.getSplitIndex() > 0) {
                 throw new RuntimeException("Split index > 0 -- this mapper will die (expected, not an error).");
             }
+
             activeNode = true;
 
-
-            final FastSharder sharder = createSharder(this.getGraphName(), this.getNumShards());
-
-            HDFSGraphLoader hdfsLoader = new HDFSGraphLoader(this.location, new EdgeProcessor<Float>() {
-                @Override
-                public Float receiveEdge(int from, int to, String token) {
+            Thread chiThread = new Thread(new Runnable() {
+                public void run() {
                     try {
-                        sharder.addEdge(from, to, token);
-                    } catch (IOException e) {
-                        throw new RuntimeException(e);
+                        final FastSharder sharder = createSharder(getGraphName(), getNumShards());
+
+                        HDFSGraphLoader hdfsLoader = new HDFSGraphLoader(location, new EdgeProcessor<Float>() {
+                            @Override
+                            public Float receiveEdge(int from, int to, String token) {
+                                try {
+                                    sharder.addEdge(from, to, token);
+                                } catch (IOException e) {
+                                    throw new RuntimeException(e);
+                                }
+                                return null;
+                            }
+
+                            @Override
+                            public void receiveVertexValue(int vertexId, String token) {
+
+                            }
+                        });
+
+                        hdfsLoader.load(pigSplit.getConf());
+                        sharder.process();
+
+                        logger.info("Starting to run");
+                        run();
+                        logger.info("Ready");
+                    } catch (Exception err) {
+                        err.printStackTrace();
                     }
-                    return null;
-                }
-
-                @Override
-                public void receiveVertexValue(int vertexId, String token) {
-
-                }
-            });
-
-            hdfsLoader.load(pigSplit.getConf());
-            sharder.process();
-
-            logger.info("Starting to run");
-            run();
-            logger.info("Ready");
-            ready = true;
+                    ready = true;
+                }});
+            chiThread.start();
 
         } catch (Exception e) {
             e.printStackTrace();
@@ -160,6 +170,15 @@ public abstract class PigGraphChiBase  extends LoadFunc implements LoadMetadata 
     @Override
     public Tuple getNext() throws IOException {
         if (!activeNode) return null;
+        while (!ready) {
+            logger.info("Still waiting in getNext()");
+            PigStatusReporter.getInstance().setStatus("Waiting to finish " + System.currentTimeMillis());
+            PigStatusReporter.getInstance().progress();
+            try {
+                Thread.sleep(5000);
+            } catch (InterruptedException ioe) {
+            }
+        }
         return getNextResult(TupleFactory.getInstance());
     }
 
