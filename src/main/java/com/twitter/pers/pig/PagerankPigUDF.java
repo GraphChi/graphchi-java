@@ -109,17 +109,34 @@ public class PagerankPigUDF extends LoadFunc implements LoadMetadata {
                 throw new RuntimeException("Split index > 0");
             }
 
-            final FastSharder sharder = new FastSharder("pigudf", numShards, 4);
-
-
-            HDFSGraphLoader hdfsLoader = new HDFSGraphLoader(this.location, new EdgeProcessor() {
+            final FastSharder sharder = new FastSharder("pigudf", numShards, new EdgeProcessor<Float>() {
                 @Override
-                public void receiveEdge(int from, int to) {
+                public void receiveVertexValue(int vertexId, String token) {
+
+                }
+
+                @Override
+                public Float receiveEdge(int from, int to, String token) {
+                    if (token == null) return 1.0f;
+                    else return Float.parseFloat(token);
+                }
+            }, new FloatConverter());
+
+
+            HDFSGraphLoader hdfsLoader = new HDFSGraphLoader(this.location, new EdgeProcessor<Float>() {
+                @Override
+                public Float receiveEdge(int from, int to, String token) {
                     try {
-                        sharder.addEdge(from, to);
+                        sharder.addEdge(from, to, token);
                     } catch (IOException e) {
                         throw new RuntimeException(e);
                     }
+                    return null;
+                }
+
+                @Override
+                public void receiveVertexValue(int vertexId, String token) {
+
                 }
             });
 

@@ -6,6 +6,7 @@ import edu.cmu.graphchi.GraphChiProgram;
 import edu.cmu.graphchi.datablocks.FloatConverter;
 import edu.cmu.graphchi.engine.GraphChiEngine;
 import edu.cmu.graphchi.engine.VertexInterval;
+import edu.cmu.graphchi.preprocessing.EdgeProcessor;
 import edu.cmu.graphchi.preprocessing.FastSharder;
 import edu.cmu.graphchi.preprocessing.VertexIdTranslate;
 import edu.cmu.graphchi.util.IdFloat;
@@ -34,6 +35,7 @@ public class Pagerank implements GraphChiProgram<Float, Float> {
         float outValue = vertex.getValue() / vertex.numOutEdges();
         for(int i=0; i<vertex.numOutEdges(); i++) {
             vertex.outEdge(i).setValue(outValue);
+
         }
     }
 
@@ -66,7 +68,17 @@ public class Pagerank implements GraphChiProgram<Float, Float> {
         int nShards = Integer.parseInt(args[1]);
 
         if (baseFilename.equals("pipein")) {
-            FastSharder sharder = new FastSharder("pipein", nShards, 4);
+            FastSharder sharder = new FastSharder<Float>("pipein", nShards, new EdgeProcessor<Float>() {
+                @Override
+                public void receiveVertexValue(int vertexId, String token) {
+                }
+
+                @Override
+                public Float receiveEdge(int from, int to, String token) {
+                    if (token == null) return 1.0f;
+                    return Float.parseFloat(token);
+                }
+            }, new FloatConverter());
             sharder.shard(System.in);
         }
 

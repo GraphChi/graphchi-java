@@ -7,6 +7,7 @@ import nom.tam.util.BufferedDataInputStream;
 
 import java.io.*;
 import java.util.Arrays;
+import java.util.Random;
 import java.util.logging.Logger;
 import java.util.zip.DeflaterOutputStream;
 import java.util.zip.GZIPOutputStream;
@@ -16,7 +17,7 @@ import java.util.zip.GZIPOutputStream;
  * and translates the vertex ids in order to randomize the order.
  * Need to use VertexIdTranslate.  Requires enough memory to store vertex degrees (TODO, fix).
  */
-public class FastSharder {
+public class FastSharder <EdgeValueType> {
 
     private String baseFilename;
     private int numShards;
@@ -29,22 +30,28 @@ public class FastSharder {
 
     private int[] inDegrees;
     private int[] outDegrees;
-    private final int edgeDataSize;
+    private BytesToValueConverter<EdgeValueType> edgeValueTypeBytesToValueConverter;
+
+    private EdgeProcessor<EdgeValueType> edgeProcessor;
 
     private static final Logger logger = LoggingInitializer.getLogger("fast-sharder");
 
 
-    public FastSharder(String baseFilename, int numShards, int edgeDataSize) throws IOException {
+
+    public FastSharder(String baseFilename, int numShards,
+                       EdgeProcessor<EdgeValueType> edgeProcessor, BytesToValueConverter<EdgeValueType> edgeValConverter) throws IOException {
         this.baseFilename = baseFilename;
         this.numShards = numShards;
         this.initialIntervalLength = Integer.MAX_VALUE / numShards;
         this.preIdTranslate = new VertexIdTranslate(this.initialIntervalLength, numShards);
+        this.edgeProcessor = edgeProcessor;
+        this.edgeValueTypeBytesToValueConverter = edgeValConverter;
 
         shovelStreams = new DataOutputStream[numShards];
         for(int i=0; i < numShards; i++) {
             shovelStreams[i] = new DataOutputStream(new BufferedOutputStream(new FileOutputStream(shovelFilename(i))));
         }
-        this.edgeDataSize = edgeDataSize;
+        valueTemplate =  new byte[edgeValueTypeBytesToValueConverter.sizeOf()];
     }
 
     private String shovelFilename(int i) {
@@ -52,20 +59,29 @@ public class FastSharder {
     }
 
 
-    public void addEdge(int from, int to) throws IOException {
-        if (from == to) return;
+    public void addEdge(int from, int to, String edgeValueToken) throws IOException {
+        if (from == to) {
+            edgeProcessor.receiveVertexValue(from, edgeValueToken);
+            return;
+        }
         int preTranslatedIdFrom = preIdTranslate.forward(from);
         int preTranslatedTo = preIdTranslate.forward(to);
 
         if (maxVertexId < from) maxVertexId = from;
         if (maxVertexId < to)  maxVertexId = to;
 
-        addToShovel(to % numShards, preTranslatedIdFrom, preTranslatedTo);
+        addToShovel(to % numShards, preTranslatedIdFrom, preTranslatedTo, edgeProcessor.receiveEdge(from, to, edgeValueToken));
     }
 
-    private void addToShovel(int shard, int preTranslatedIdFrom, int preTranslatedTo) throws IOException {
+
+    private byte[] valueTemplate;
+
+    private void addToShovel(int shard, int preTranslatedIdFrom, int preTranslatedTo,
+                             EdgeValueType value) throws IOException {
         DataOutputStream strm = shovelStreams[shard];
         strm.writeLong(packEdges(preTranslatedIdFrom, preTranslatedTo));
+        edgeValueTypeBytesToValueConverter.setValue(valueTemplate, value);
+        strm.write(valueTemplate);
     }
 
     public static long packEdges(int a, int b) {
@@ -107,7 +123,7 @@ public class FastSharder {
         for(int i=0; i<inDegrees.length; i++) {
             degreeOut.writeInt(Integer.reverseBytes(inDegrees[i]));
             degreeOut.writeInt(Integer.reverseBytes(outDegrees[i]));
-       }
+        }
         degreeOut.close();
     }
 
@@ -127,7 +143,15 @@ public class FastSharder {
 
     private void processShovel(int shardNum) throws IOException {
         File shovelFile = new File(shovelFilename(shardNum));
-        long[] shoveled = new long[(int) (shovelFile.length() / 8)];
+        long[] shoveled = new long[(int) (shovelFile.length() / (8 + edgeValueTypeBytesToValueConverter.sizeOf()))];
+
+        // TODO: improve
+        if (shoveled.length > 500000000) {
+            throw new RuntimeException("Too big shard size, shovel length was: " + shoveled.length + " max: " + 500000000);
+        }
+        int sizeOf = edgeValueTypeBytesToValueConverter.sizeOf();
+        byte[] edgeValues = new byte[shoveled.length * sizeOf];
+
 
         logger.info("Processing shovel " + shardNum);
 
@@ -136,9 +160,15 @@ public class FastSharder {
             long l = in.readLong();
             int from = getFirst(l);
             int to = getSecond(l);
+            in.readFully(valueTemplate);
+
             int newFrom = finalIdTranslate.forward(preIdTranslate.backward(from));
             int newTo = finalIdTranslate.forward(preIdTranslate.backward(to));
             shoveled[i] = packEdges(newFrom, newTo);
+
+            /* Edge value */
+            int valueIdx = i * sizeOf;
+            System.arraycopy(valueTemplate, 0, edgeValues, valueIdx, sizeOf);
 
             inDegrees[newTo]++;
             outDegrees[newFrom]++;
@@ -149,7 +179,7 @@ public class FastSharder {
 
         logger.info("Processing shovel " + shardNum + " ... sorting");
 
-        Arrays.sort(shoveled);  // The source id is  higher order, so sorting the longs will produce right result
+        sortWithValues(shoveled, edgeValues, sizeOf);  // The source id is  higher order, so sorting the longs will produce right result
 
         logger.info("Processing shovel " + shardNum + " ... writing shard");
 
@@ -160,8 +190,6 @@ public class FastSharder {
         int istart = 0;
         for(int i=0; i < shoveled.length; i++) {
             int from = getFirst(shoveled[i]);
-
-
             if (from != curvid || i == shoveled.length - 1) {
                 int count = i - istart;
                 if (count > 0) {
@@ -196,13 +224,13 @@ public class FastSharder {
         adjOut.close();
 
         /* Create compressed edge data directories */
-        int blockSize = ChiFilenames.getBlocksize(edgeDataSize);
+        int blockSize = ChiFilenames.getBlocksize(edgeValueTypeBytesToValueConverter.sizeOf());
 
 
         String edataFileName = ChiFilenames.getFilenameShardEdata(baseFilename, new BytesToValueConverter() {
             @Override
             public int sizeOf() {
-                return edgeDataSize;
+                return edgeValueTypeBytesToValueConverter.sizeOf();
             }
 
             @Override
@@ -218,22 +246,78 @@ public class FastSharder {
         File edgeDataDir = new File(ChiFilenames.getDirnameShardEdataBlock(edataFileName, blockSize));
         if (!edgeDataDir.exists()) edgeDataDir.mkdir();
 
-        long edatasize = shoveled.length * edgeDataSize;
+        long edatasize = shoveled.length * edgeValueTypeBytesToValueConverter.sizeOf();
         FileWriter sizeWr = new FileWriter(edgeDataSizeFile);
         sizeWr.write(edatasize + "");
         sizeWr.close();
 
         /* Create blocks */
         int blockIdx = 0;
+        int edgeIdx= 0;
         for(long idx=0; idx < edatasize; idx += blockSize) {
             File blockFile = new File(ChiFilenames.getFilenameShardEdataBlock(edataFileName, blockIdx, blockSize));
             DeflaterOutputStream blockOs = new DeflaterOutputStream(new BufferedOutputStream(new FileOutputStream(blockFile)));
             long len = Math.min(blockSize, edatasize - idx);
             byte[] block = new byte[(int)len];
+
+            System.arraycopy(edgeValues, edgeIdx * sizeOf, block, 0, block.length);
+            edgeIdx += len / sizeOf;
+
             blockOs.write(block);
             blockOs.close();
             blockIdx++;
         }
+
+        assert(edgeIdx == edgeValues.length);
+    }
+
+    private static Random random = new Random();
+
+
+
+    // http://www.algolist.net/Algorithms/Sorting/Quicksort
+    // TODO: implement faster
+    static int partition(long arr[], byte[] values, int sizeOf, int left, int right)
+    {
+        int i = left, j = right;
+        long tmp;
+        long pivot = arr[left + random.nextInt(right - left + 1)];
+        byte[] valueTemplate = new byte[sizeOf];
+
+        while (i <= j) {
+            while (arr[i] < pivot)
+                i++;
+            while (arr[j] > pivot)
+                j--;
+            if (i <= j) {
+                tmp = arr[i];
+
+                /* Swap */
+                System.arraycopy(values, j * sizeOf, valueTemplate, 0, sizeOf);
+                System.arraycopy(values, i * sizeOf, values, j * sizeOf, sizeOf);
+                System.arraycopy(valueTemplate, 0, values, i * sizeOf, sizeOf);
+
+                arr[i] = arr[j];
+                arr[j] = tmp;
+                i++;
+                j--;
+            }
+        }
+
+        return i;
+    }
+
+    static void quickSort(long arr[], byte[] values, int sizeOf, int left, int right) {
+        int index = partition(arr, values, sizeOf, left, right);
+        if (left < index - 1)
+            quickSort(arr, values, sizeOf, left, index - 1);
+        if (index < right)
+            quickSort(arr, values, sizeOf, index, right);
+    }
+
+
+    public static void sortWithValues(long[] shoveled, byte[] edgeValues, int sizeOf) {
+        quickSort(shoveled, edgeValues, sizeOf, 0, shoveled.length - 1);
     }
 
 
@@ -247,7 +331,9 @@ public class FastSharder {
                 if (lineNum % 2000000 == 0) System.out.println(lineNum);
                 String[] tok = ln.split("\t");
                 if (tok.length == 2) {
-                    this.addEdge(Integer.parseInt(tok[0]), Integer.parseInt(tok[1]));
+                    this.addEdge(Integer.parseInt(tok[0]), Integer.parseInt(tok[1]), null);
+                } else if (tok.length == 3) {
+                    this.addEdge(Integer.parseInt(tok[0]), Integer.parseInt(tok[1]), tok[2]);
                 }
             }
         }

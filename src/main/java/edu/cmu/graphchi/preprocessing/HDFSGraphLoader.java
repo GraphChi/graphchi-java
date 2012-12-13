@@ -55,12 +55,12 @@ public class HDFSGraphLoader {
         while ((ln = rd.readLine()) != null) {
             if (ln.startsWith("#")) continue;
             String[] tok = ln.split("\t");
-            if (tok.length == 2) {
+            if (tok.length >= 2) {
                 try {
                     int from = Integer.parseInt(tok[0]);
                     int to = Integer.parseInt(tok[1]);
 
-                    edgeProcessor.receiveEdge(from, to);
+                    edgeProcessor.receiveEdge(from, to, tok.length == 3 ? tok[2] : null);
                 } catch (NumberFormatException nfe) {
                      logger.warning("Number format exceptions on line: " + ln);
                 }
