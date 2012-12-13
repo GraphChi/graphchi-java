@@ -108,7 +108,7 @@ public class FastSharder <EdgeValueType> {
          */
 
         // Ad-hoc: require that degree vertices won't take more than 5th of memory
-        memoryEfficientDegreeCount = Runtime.getRuntime().maxMemory() / 5 <  maxVertexId * 8;
+        memoryEfficientDegreeCount = Runtime.getRuntime().maxMemory() / 5 <  ((long) maxVertexId) * 8;
 
         if (memoryEfficientDegreeCount) {
             logger.info("Going to use memory-efficient, but slower, method to compute vertex degrees.");
@@ -382,6 +382,8 @@ public class FastSharder <EdgeValueType> {
                 slidingShards[p].setOnlyAdjacency(true);
             }
 
+            int SUBINTERVAL = 2000000;
+
             for(int p=0; p < numShards; p++) {
                 logger.info("Degree computation round " + p + " / " + numShards);
                 int intervalSt = p * finalIdTranslate.getVertexIntervalLength();
@@ -391,22 +393,26 @@ public class FastSharder <EdgeValueType> {
                         intervalSt, intervalEn);
                 memoryShard.setOnlyAdjacency(true);
 
-                ChiVertex[] verts = new ChiVertex[intervalEn - intervalSt + 1];
-                for(int i=0; i < verts.length; i++) {
-                    verts[i] = new ChiVertex(i + intervalSt, null);
-                }
 
-                memoryShard.loadVertices(intervalSt, intervalEn, verts, false);
-                memoryShard = null;
-                for(int i=0; i < numShards; i++) {
-                    if (i != p) {
-                        slidingShards[i].readNextVertices(verts, intervalSt, true);
+                for(int subIntervalSt=intervalSt; subIntervalSt < intervalEn; subIntervalSt += SUBINTERVAL) {
+                    int subIntervalEn = subIntervalSt + SUBINTERVAL - 1;
+                    if (subIntervalEn > intervalEn) subIntervalEn = intervalEn;
+                    ChiVertex[] verts = new ChiVertex[subIntervalEn - subIntervalSt + 1];
+                    for(int i=0; i < verts.length; i++) {
+                        verts[i] = new ChiVertex(i + subIntervalSt, null);
                     }
-                }
 
-                for(int i=0; i < verts.length; i++) {
-                    degreeOut.writeInt(Integer.reverseBytes(verts[i].numInEdges()));
-                    degreeOut.writeInt(Integer.reverseBytes(verts[i].numOutEdges()));
+                    memoryShard.loadVertices(subIntervalSt, subIntervalEn, verts, false);
+                    for(int i=0; i < numShards; i++) {
+                        if (i != p) {
+                            slidingShards[i].readNextVertices(verts, subIntervalSt, true);
+                        }
+                    }
+
+                    for(int i=0; i < verts.length; i++) {
+                        degreeOut.writeInt(Integer.reverseBytes(verts[i].numInEdges()));
+                        degreeOut.writeInt(Integer.reverseBytes(verts[i].numOutEdges()));
+                    }
                 }
             }
             degreeOut.close();

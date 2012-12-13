@@ -69,6 +69,8 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
 
     /* Automatic loading of next window */
     private boolean autoLoadNext = false; // Only for only-adjacency cases!
+    private boolean skipZeroDegreeVertices = false;
+
     private FutureTask<IntervalData> nextWindow;
 
     /* Metrics */
@@ -139,6 +141,10 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
         return memBudget;
     }
 
+
+    public void setSkipZeroDegreeVertices(boolean skipZeroDegreeVertices) {
+        this.skipZeroDegreeVertices = skipZeroDegreeVertices;
+    }
 
     public int numVertices() {
         return 1 + intervals.get(intervals.size() - 1).getLastVertex();
@@ -523,10 +529,15 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
 
         int blockId = (vertexDataConverter != null ? vertexDataHandler.load(firstVertexId, firstVertexId + nvertices - 1) : -1);
         for(int j=0; j < nvertices; j++) {
-            VertexDegree degree = degreeHandler.getDegree(j + firstVertexId);
             if (enableScheduler && !scheduler.isScheduled(j + firstVertexId)) {
                 continue;
             }
+
+            VertexDegree degree = degreeHandler.getDegree(j + firstVertexId);
+            if (skipZeroDegreeVertices && (degree.inDegree + degree.outDegree == 0)) {
+                continue;
+            }
+
             ChiVertex<VertexDataType, EdgeDataType> v = new ChiVertex<VertexDataType, EdgeDataType>(j + firstVertexId, degree);
 
             if (vertexDataConverter != null) {
@@ -718,6 +729,10 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
                 VertexDegree deg = degreeHandler.getDegree(i + subIntervalStart);
                 int inc = deg.inDegree;
                 int outc = deg.outDegree;
+
+                if (inc + outc == 0 && skipZeroDegreeVertices) {
+                    continue;
+                }
 
                 totalDegree += inc + outc;
 

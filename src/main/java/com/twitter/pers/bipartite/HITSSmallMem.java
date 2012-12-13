@@ -38,6 +38,8 @@ public class HITSSmallMem implements GraphChiProgram<FloatPair, Float> {
     private String graphName;
     private final static Logger logger = LoggingInitializer.getLogger("hits-smallmem");
 
+    double leftSideSqrSum = 0;
+    double rightSideSqrSum = 0;
 
     @Override
     public void update(ChiVertex<FloatPair, Float> vertex, GraphChiContext context) {
@@ -62,8 +64,18 @@ public class HITSSmallMem implements GraphChiProgram<FloatPair, Float> {
             }
 
             FloatPair curValue = vertex.getValue();
-            if (side == LEFTSIDE) curValue.first = nbrSum;
-            else curValue.second = nbrSum;
+            if (side == LEFTSIDE) {
+                curValue.first = nbrSum;
+                synchronized (this) {
+                    leftSideSqrSum += nbrSum * nbrSum;
+                }
+            }
+            else {
+                curValue.second = nbrSum;
+                synchronized (this) {
+                    rightSideSqrSum += nbrSum * nbrSum;
+                }
+            }
             vertex.setValue(curValue);
 
         }
@@ -83,24 +95,12 @@ public class HITSSmallMem implements GraphChiProgram<FloatPair, Float> {
     }
 
 
-    double leftSideSqrSum = 0;
-    double rightSideSqrSum = 0;
-
 
     public void endIteration(GraphChiContext ctx) {
         if (ctx.getIteration() % 2 == 1) {
             try {
-                // Normalize both sides by their square... A bit tortured
-
-                /* Compute the squared sums of both sides */
-                VertexAggregator.foreach(graphName, new FloatPairConverter(), new ForeachCallback<FloatPair>() {
-                    @Override
-                    public void callback(int vertexId, FloatPair vertexValue) {
-                        leftSideSqrSum += vertexValue.first * vertexValue.first;
-                        rightSideSqrSum += vertexValue.second * vertexValue.second;
-                    }
-                });
-
+                logger.info("NORMALIZING");
+                // Normalize both sides by their square...
                 final float leftNorm = (float) Math.sqrt(leftSideSqrSum);
                 final float rightNorm = (float) Math.sqrt(rightSideSqrSum);
 
@@ -114,6 +114,9 @@ public class HITSSmallMem implements GraphChiProgram<FloatPair, Float> {
                         return value;
                     }
                 });
+
+                leftSideSqrSum = 0.0;
+                rightSideSqrSum = 0.0;
             } catch (IOException ioe) {
                 ioe.printStackTrace();
             }
@@ -132,34 +135,39 @@ public class HITSSmallMem implements GraphChiProgram<FloatPair, Float> {
         this.graphName = graphName;
         GraphChiEngine<FloatPair, Float> engine = new GraphChiEngine<FloatPair, Float>(graphName, numShards);
         engine.setEnableScheduler(true);
+        engine.setSkipZeroDegreeVertices(true);
         engine.setEdataConverter(new FloatConverter());
         engine.setVertexDataConverter(new FloatPairConverter());
-        engine.run(this, 4);
+        engine.run(this, 8);
 
     }
 
     /**
-     * Supports only pipein
-     * @param args
+     ]     * @param args
      * @throws Exception
      */
     public static void main(String[] args) throws  Exception {
-        int nShards = Integer.parseInt(args[0]);
+        int k = 0;
+        String graphName = null;
+        if (args.length == 2) graphName = args[k++];
+        int nShards = Integer.parseInt(args[k++]);
 
-        FastSharder sharder = new FastSharder<FloatPair>("pipein", nShards, new EdgeProcessor<FloatPair>() {
-            @Override
-            public void receiveVertexValue(int vertexId, String token) {
-            }
+        if (graphName == null) {
+            graphName = "pipein";
+            FastSharder sharder = new FastSharder<Float>(graphName, nShards, new EdgeProcessor<Float>() {
+                @Override
+                public void receiveVertexValue(int vertexId, String token) {
+                }
 
-            @Override
-            public FloatPair receiveEdge(int from, int to, String token) {
-                return new FloatPair(0.0f, 0.0f);
-            }
-        }, new FloatPairConverter());
-        sharder.shard(System.in);
-
+                @Override
+                public Float receiveEdge(int from, int to, String token) {
+                    return 0.0f;
+                }
+            }, new FloatConverter());
+            sharder.shard(System.in);
+        }
         HITSSmallMem hits = new HITSSmallMem();
-        hits.run("pipein", nShards);
+        hits.run(graphName, nShards);
     }
 }
 
