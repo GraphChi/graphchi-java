@@ -47,6 +47,7 @@ public class HITSSmallMem extends PigGraphChiBase implements GraphChiProgram<Flo
     int numShards = 20;
     double leftSideSqrSum = 0;
     double rightSideSqrSum = 0;
+    float leftNorm = 1.0f, rightNorm = 1.0f;
 
     GraphChiEngine<FloatPair, Float> engine;
 
@@ -63,10 +64,12 @@ public class HITSSmallMem extends PigGraphChiBase implements GraphChiProgram<Flo
                     for(int i=0; i < vertex.numOutEdges(); i++) {
                         nbrSum += vertex.outEdge(i).getValue();
                     }
+                    nbrSum /= rightNorm; // Normalize
                 } else {
                     for(int i=0; i < vertex.numInEdges(); i++) {
                         nbrSum += vertex.inEdge(i).getValue();
                     }
+                    nbrSum /= leftNorm;
                 }
             }
 
@@ -96,7 +99,6 @@ public class HITSSmallMem extends PigGraphChiBase implements GraphChiProgram<Flo
                 }
             }
             vertex.setValue(curValue);
-
         }
     }
 
@@ -116,31 +118,47 @@ public class HITSSmallMem extends PigGraphChiBase implements GraphChiProgram<Flo
 
 
     public void endIteration(GraphChiContext ctx) {
-        if (ctx.getIteration() % 2 == 1) {
+        // Normalize side the squaresum..
+        // Note, that the normalization does not affect the values in edges,
+        // thus it is reapplied in the update function. This is a bit annoying.
+        if (ctx.getIteration() % 2 == LEFTSIDE) {
             try {
-                logger.info("NORMALIZING");
-                // Normalize both sides by their square...
-                final float leftNorm = (float) Math.sqrt(leftSideSqrSum);
-                final float rightNorm = (float) Math.sqrt(rightSideSqrSum);
+                logger.info("NORMALIZING - LEFT");
 
-                logger.info("Left side norm: " + leftNorm + ", right: " + rightNorm);
 
+                leftNorm = (float) Math.sqrt(leftSideSqrSum);
                 VertexMapper.map((int) ctx.getNumVertices(), graphName, new FloatPairConverter(), new VertexMapperCallback<FloatPair>() {
                     @Override
                     public FloatPair map(int vertexId, FloatPair value) {
-                        System.out.println("Callback: " + vertexId + "  " + value.first);
                         value.first /= leftNorm;
-                        value.second /= rightNorm;
                         return value;
                     }
                 });
 
                 leftSideSqrSum = 0.0;
+            } catch (IOException ioe) {
+                ioe.printStackTrace();
+            }
+        } else if (ctx.getIteration() % 2 == RIGHTSIDE) {
+            try {
+                logger.info("NORMALIZING - RIGHT");
+
+                rightNorm = (float) Math.sqrt(rightSideSqrSum);
+
+                VertexMapper.map((int) ctx.getNumVertices(), graphName, new FloatPairConverter(), new VertexMapperCallback<FloatPair>() {
+                    @Override
+                    public FloatPair map(int vertexId, FloatPair value) {
+                        value.second /= rightNorm;
+                        return value;
+                    }
+                });
+
                 rightSideSqrSum = 0.0;
             } catch (IOException ioe) {
                 ioe.printStackTrace();
             }
         }
+        logger.info("Normalizing factors now, left=" + leftNorm + ", right=" + rightNorm);
     }
 
     @Override
@@ -159,7 +177,7 @@ public class HITSSmallMem extends PigGraphChiBase implements GraphChiProgram<Flo
         engine.setEdataConverter(new FloatConverter());
         engine.setVertexDataConverter(new FloatPairConverter());
         engine.setMaxWindow(20000000);
-        engine.run(this, 8);
+        engine.run(this, 7);   // As we are really only interested about the left side, run odd number of iterations.
     }
 
     private void outputResults(String graphName) throws IOException {
