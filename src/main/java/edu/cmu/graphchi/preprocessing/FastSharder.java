@@ -1,8 +1,11 @@
 package edu.cmu.graphchi.preprocessing;
 
 import edu.cmu.graphchi.ChiFilenames;
+import edu.cmu.graphchi.ChiVertex;
 import edu.cmu.graphchi.LoggingInitializer;
 import edu.cmu.graphchi.datablocks.BytesToValueConverter;
+import edu.cmu.graphchi.shards.MemoryShard;
+import edu.cmu.graphchi.shards.SlidingShard;
 import nom.tam.util.BufferedDataInputStream;
 
 import java.io.*;
@@ -30,6 +33,8 @@ public class FastSharder <EdgeValueType> {
 
     private int[] inDegrees;
     private int[] outDegrees;
+    private boolean memoryEfficientDegreeCount = false;
+
     private BytesToValueConverter<EdgeValueType> edgeValueTypeBytesToValueConverter;
 
     private EdgeProcessor<EdgeValueType> edgeProcessor;
@@ -98,8 +103,21 @@ public class FastSharder <EdgeValueType> {
 
 
     public void process() throws  IOException {
-        inDegrees = new int[maxVertexId + numShards];
-        outDegrees = new int[maxVertexId + numShards];
+        /* Check if we have enough memory to keep track of
+           vertex degree in memory
+         */
+
+        // Ad-hoc: require that degree vertices won't take more than 5th of memory
+        memoryEfficientDegreeCount = Runtime.getRuntime().maxMemory() / 5 <  maxVertexId * 8;
+
+        if (memoryEfficientDegreeCount) {
+            logger.info("Going to use memory-efficient, but slower, method to compute vertex degrees.");
+        }
+
+        if (!memoryEfficientDegreeCount) {
+            inDegrees = new int[maxVertexId + numShards];
+            outDegrees = new int[maxVertexId + numShards];
+        }
         finalIdTranslate = new VertexIdTranslate((1 + maxVertexId) / numShards + 1, numShards);
         saveVertexTranslate();
 
@@ -114,7 +132,11 @@ public class FastSharder <EdgeValueType> {
             processShovel(i);
         }
 
-        writeDegrees();
+        if (!memoryEfficientDegreeCount) {
+            writeDegrees();
+        } else {
+            computeVertexDegrees();
+        }
     }
 
     private void writeDegrees() throws IOException {
@@ -169,9 +191,10 @@ public class FastSharder <EdgeValueType> {
             /* Edge value */
             int valueIdx = i * sizeOf;
             System.arraycopy(valueTemplate, 0, edgeValues, valueIdx, sizeOf);
-
-            inDegrees[newTo]++;
-            outDegrees[newFrom]++;
+            if (!memoryEfficientDegreeCount) {
+                inDegrees[newTo]++;
+                outDegrees[newFrom]++;
+            }
         }
         in.close();
 
@@ -338,5 +361,57 @@ public class FastSharder <EdgeValueType> {
             }
         }
         this.process();
+    }
+
+    /**
+     * Compute vertex degrees by running a special graphchi program
+     */
+    public void computeVertexDegrees() {
+        try {
+            DataOutputStream degreeOut = new DataOutputStream(new BufferedOutputStream(
+                    new FileOutputStream(ChiFilenames.getFilenameOfDegreeData(baseFilename))));
+
+
+            SlidingShard[] slidingShards = new SlidingShard[numShards];
+            for(int p=0; p < numShards; p++) {
+                int intervalSt = p * finalIdTranslate.getVertexIntervalLength();
+                int intervalEn = (p + 1) * finalIdTranslate.getVertexIntervalLength() - 1;
+
+                slidingShards[p] = new SlidingShard(null, ChiFilenames.getFilenameShardsAdj(baseFilename, p, numShards),
+                        intervalSt, intervalEn);
+                slidingShards[p].setOnlyAdjacency(true);
+            }
+
+            for(int p=0; p < numShards; p++) {
+                logger.info("Degree computation round " + p + " / " + numShards);
+                int intervalSt = p * finalIdTranslate.getVertexIntervalLength();
+                int intervalEn = (p + 1) * finalIdTranslate.getVertexIntervalLength() - 1;
+
+                MemoryShard<Float> memoryShard = new MemoryShard<Float>(null, ChiFilenames.getFilenameShardsAdj(baseFilename, p, numShards),
+                        intervalSt, intervalEn);
+                memoryShard.setOnlyAdjacency(true);
+
+                ChiVertex[] verts = new ChiVertex[intervalEn - intervalSt + 1];
+                for(int i=0; i < verts.length; i++) {
+                    verts[i] = new ChiVertex(i + intervalSt, null);
+                }
+
+                memoryShard.loadVertices(intervalSt, intervalEn, verts, false);
+                memoryShard = null;
+                for(int i=0; i < numShards; i++) {
+                    if (i != p) {
+                        slidingShards[i].readNextVertices(verts, intervalSt, true);
+                    }
+                }
+
+                for(int i=0; i < verts.length; i++) {
+                    degreeOut.writeInt(Integer.reverseBytes(verts[i].numInEdges()));
+                    degreeOut.writeInt(Integer.reverseBytes(verts[i].numOutEdges()));
+                }
+            }
+            degreeOut.close();
+        } catch (Exception err) {
+            err.printStackTrace();
+        }
     }
 }

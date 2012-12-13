@@ -48,15 +48,18 @@ public class ChiVertex<VertexValue, EdgeValue> {
 
     public ChiVertex(int id, VertexDegree degree) {
         this.id = id;
-        if (!disableInedges) {
-            inEdgeDataArray = new int[degree.inDegree * (edgeValueConverter != null ? 3 : 1)];
-        } else {
-            nInedges = degree.inDegree;
-        }
-        if (!disableOutedges) {
-            outEdgeDataArray = new int[degree.outDegree * (edgeValueConverter != null ? 3 : 1)];
-        } else {
-            nOutedges.set(degree.outDegree);
+
+        if (degree != null) {
+            if (!disableInedges) {
+                inEdgeDataArray = new int[degree.inDegree * (edgeValueConverter != null ? 3 : 1)];
+            } else {
+                nInedges = degree.inDegree;
+            }
+            if (!disableOutedges) {
+                outEdgeDataArray = new int[degree.outDegree * (edgeValueConverter != null ? 3 : 1)];
+            } else {
+                nOutedges.set(degree.outDegree);
+            }
         }
     }
 
@@ -116,7 +119,8 @@ public class ChiVertex<VertexValue, EdgeValue> {
             inEdgeDataArray[idx + 1] = offset;
             inEdgeDataArray[idx + 2] = vertexId;
         } else {
-            inEdgeDataArray[nInedges] = vertexId;
+            if (inEdgeDataArray != null)
+                inEdgeDataArray[nInedges] = vertexId;
         }
         nInedges++;
 
@@ -133,7 +137,8 @@ public class ChiVertex<VertexValue, EdgeValue> {
             outEdgeDataArray[idx + 1] = offset;
             outEdgeDataArray[idx + 2] = vertexId;
         } else {
-            outEdgeDataArray[tmpOutEdges] = vertexId;
+            if (outEdgeDataArray != null)
+                outEdgeDataArray[tmpOutEdges] = vertexId;
         }
     }
 
@@ -188,7 +193,7 @@ public class ChiVertex<VertexValue, EdgeValue> {
     public EdgeValue getOutEdgeValue(int i) {
         int idx = i * 3;
         return blockManager.dereference(new ChiPointer(outEdgeDataArray[idx], outEdgeDataArray[idx + 1]),
-                    (BytesToValueConverter<EdgeValue>) edgeValueConverter);
+                (BytesToValueConverter<EdgeValue>) edgeValueConverter);
     }
 
 

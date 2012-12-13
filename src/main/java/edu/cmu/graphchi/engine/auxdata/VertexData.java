@@ -82,6 +82,13 @@ public class VertexData <VertexDataType> {
         }
     }
 
+    /**
+     * Load vertices
+     * @param _vertexSt
+     * @param _vertexEn inclusive
+     * @return
+     * @throws IOException
+     */
     public int load(int _vertexSt, int _vertexEn) throws IOException {
 
         vertexSt = _vertexSt;

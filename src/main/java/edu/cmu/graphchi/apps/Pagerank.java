@@ -35,7 +35,6 @@ public class Pagerank implements GraphChiProgram<Float, Float> {
         float outValue = vertex.getValue() / vertex.numOutEdges();
         for(int i=0; i<vertex.numOutEdges(); i++) {
             vertex.outEdge(i).setValue(outValue);
-
         }
     }
 
