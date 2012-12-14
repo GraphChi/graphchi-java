@@ -633,6 +633,10 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
         _timer.stop();
     }
 
+    public GraphChiContext getContext() {
+        return chiContext;
+    }
+
     class IntervalData {
         private VertexInterval subInterval;
         private ChiVertex<VertexDataType, EdgeDataType>[] vertices;

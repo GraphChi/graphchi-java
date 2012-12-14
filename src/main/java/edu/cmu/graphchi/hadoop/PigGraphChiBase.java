@@ -81,7 +81,7 @@ public abstract class PigGraphChiBase  extends LoadFunc implements LoadMetadata 
     }
 
 
-    protected abstract void run() throws Exception;
+    protected abstract void runGraphChi() throws Exception;
 
 
 
@@ -106,7 +106,7 @@ public abstract class PigGraphChiBase  extends LoadFunc implements LoadMetadata 
                     int i = 0;
                     while(!ready) {
                         PigStatusReporter.getInstance().progress();
-                        PigStatusReporter.getInstance().setStatus("Status idx: " + i);
+                        PigStatusReporter.getInstance().setStatus("Status idx: " + i++);
                         try {
                             Thread.sleep(5000);
                         } catch (InterruptedException ioe) {}
@@ -149,7 +149,7 @@ public abstract class PigGraphChiBase  extends LoadFunc implements LoadMetadata 
                         sharder.process();
 
                         logger.info("Starting to run");
-                        run();
+                        runGraphChi();
                         logger.info("Ready");
                     } catch (Exception err) {
                         err.printStackTrace();
@@ -160,9 +160,11 @@ public abstract class PigGraphChiBase  extends LoadFunc implements LoadMetadata 
 
         } catch (Exception e) {
             e.printStackTrace();
-        }  finally {
-            ready = true;
         }
+    }
+
+    protected String getStatusString() {
+        return "Still running: " + System.currentTimeMillis();
     }
 
     protected abstract Tuple getNextResult(TupleFactory tupleFactory) throws ExecException;
@@ -172,7 +174,7 @@ public abstract class PigGraphChiBase  extends LoadFunc implements LoadMetadata 
         if (!activeNode) return null;
         while (!ready) {
             logger.info("Still waiting in getNext()");
-            PigStatusReporter.getInstance().setStatus("Waiting to finish " + System.currentTimeMillis());
+            PigStatusReporter.getInstance().setStatus(getStatusString());
             PigStatusReporter.getInstance().progress();
             try {
                 Thread.sleep(5000);

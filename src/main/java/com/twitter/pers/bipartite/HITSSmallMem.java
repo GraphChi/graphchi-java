@@ -234,7 +234,7 @@ public class HITSSmallMem extends PigGraphChiBase implements GraphChiProgram<Flo
     private Iterator<IdFloat> resultIter;
 
     @Override
-    protected void run() throws Exception {
+    protected void runGraphChi() throws Exception {
         run(getGraphName(), getNumShards());
         results = new ArrayList<IdFloat>(100000);
 
@@ -280,6 +280,17 @@ public class HITSSmallMem extends PigGraphChiBase implements GraphChiProgram<Flo
         } else {
             return null;
         }
+    }
+
+    @Override
+    protected String getStatusString() {
+        if (engine != null) {
+            GraphChiContext ctx = engine.getContext();
+            if (ctx != null) {
+                return ctx.getCurInterval() + " iteration: " +  ctx.getIteration() + "/" + ctx.getNumIterations();
+            }
+        }
+        return "Initializing";
     }
 }
 
