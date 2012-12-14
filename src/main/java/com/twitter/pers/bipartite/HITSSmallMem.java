@@ -36,11 +36,17 @@ import java.util.logging.Logger;
  *
  * On each iteration either left or right side is computed. Each vertex
  * can represent both sides. Left side has out-edges, right side in-edges.
+ * Left side = authorities (users)
+ * Right side = hubs
+ *
+ * The algorithm starts with the right side, and the edges have initial
+ * values for the left side vertices (authorities).
  */
 public class HITSSmallMem extends PigGraphChiBase implements GraphChiProgram<FloatPair, Float>  {
 
-    private final static int LEFTSIDE = 0;
-    private final static int RIGHTSIDE = 1;
+
+    private final static int RIGHTSIDE = 0; // Start with right side
+    private final static int LEFTSIDE = 1;
 
     private String graphName;
     private final static Logger logger = LoggingInitializer.getLogger("hits-smallmem");
@@ -62,20 +68,16 @@ public class HITSSmallMem extends PigGraphChiBase implements GraphChiProgram<Flo
         if (vertex.numEdges() > 0) {
             float nbrSum = 0.0f;
 
-            if ((side == LEFTSIDE) && context.getIteration() == 0) {
-                nbrSum = vertex.numOutEdges() * 1.0f;
-            } else {
-                if (side == LEFTSIDE) {
-                    for(int i=0; i < vertex.numOutEdges(); i++) {
-                        nbrSum += vertex.outEdge(i).getValue();
-                    }
-                    nbrSum /= rightNorm; // Normalize
-                } else {
-                    for(int i=0; i < vertex.numInEdges(); i++) {
-                        nbrSum += vertex.inEdge(i).getValue();
-                    }
-                    nbrSum /= leftNorm;
+            if (side == LEFTSIDE) {
+                for(int i=0; i < vertex.numOutEdges(); i++) {
+                    nbrSum += vertex.outEdge(i).getValue();
                 }
+                nbrSum /= rightNorm; // Normalize
+            } else {
+                for(int i=0; i < vertex.numInEdges(); i++) {
+                    nbrSum += vertex.inEdge(i).getValue();
+                }
+                nbrSum /= leftNorm;
             }
 
             float newValue = nbrSum;
@@ -182,7 +184,7 @@ public class HITSSmallMem extends PigGraphChiBase implements GraphChiProgram<Flo
         engine.setEdataConverter(new FloatConverter());
         engine.setVertexDataConverter(new FloatPairConverter());
         engine.setMaxWindow(20000000);
-        engine.run(this, 7);   // As we are really only interested about the left side, run odd number of iterations.
+        engine.run(this, 8);
     }
 
     private void outputResults(String graphName) throws IOException {
@@ -266,7 +268,7 @@ public class HITSSmallMem extends PigGraphChiBase implements GraphChiProgram<Flo
         }, new EdgeProcessor<Float>() {
             @Override
             public Float receiveEdge(int from, int to, String token) {
-                return 0.0f;
+                return Float.parseFloat(token);
             }
         }, new FloatPairConverter(), new FloatConverter());
     }
