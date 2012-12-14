@@ -63,6 +63,7 @@ public class HDFSGraphLoader {
                     edgeProcessor.receiveEdge(from, to, tok.length == 3 ? tok[2] : null);
                 } catch (NumberFormatException nfe) {
                      logger.warning("Number format exceptions on line: " + ln);
+                     nfe.printStackTrace();
                 }
             }
         }

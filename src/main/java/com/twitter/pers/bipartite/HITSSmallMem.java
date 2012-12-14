@@ -98,7 +98,6 @@ public class HITSSmallMem extends PigGraphChiBase implements GraphChiProgram<Flo
                 // Renormalization
                 int numRelevantEdges = vertex.numInEdges();
                 int totalEdges = (int)  curValue.second;
-                System.out.println(vertex.getId() + " " + totalEdges);
                 if (totalEdges == 0) {
                     logger.warning("Normalization factor cannot be zero! Id:" + context.getVertexIdTranslate().backward(vertex.getId()));
                     totalEdges = numRelevantEdges;
@@ -262,8 +261,7 @@ public class HITSSmallMem extends PigGraphChiBase implements GraphChiProgram<Flo
             @Override
             /* For lists (hubs), the vertex value will encode the total number of edges */
             public FloatPair receiveVertexValue(int vertexId, String token) {
-                int num = Integer.parseInt(token);
-                return new FloatPair(0.0f, (float)num);
+                return new FloatPair(0.0f, Float.parseFloat(token));
             }
         }, new EdgeProcessor<Float>() {
             @Override
