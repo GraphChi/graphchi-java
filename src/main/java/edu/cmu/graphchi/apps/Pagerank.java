@@ -67,21 +67,6 @@ public class Pagerank implements GraphChiProgram<Float, Float> {
         String baseFilename = args[0];
         int nShards = Integer.parseInt(args[1]);
 
-        if (baseFilename.equals("pipein") && ! (new File("pipein_degs.bin.sparse").exists())) {
-            FastSharder sharder = new FastSharder<Float>("pipein", nShards, new EdgeProcessor<Float>() {
-                @Override
-                public void receiveVertexValue(int vertexId, String token) {
-                }
-
-                @Override
-                public Float receiveEdge(int from, int to, String token) {
-                    if (token == null) return 1.0f;
-                    return Float.parseFloat(token);
-                }
-            }, new FloatConverter());
-            sharder.shard(System.in);
-        }
-
         GraphChiEngine<Float, Float> engine = new GraphChiEngine<Float, Float>(baseFilename, nShards);
         engine.setEdataConverter(new FloatConverter());
         engine.setVertexDataConverter(new FloatConverter());
