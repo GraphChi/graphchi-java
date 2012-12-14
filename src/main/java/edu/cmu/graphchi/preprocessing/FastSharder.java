@@ -4,12 +4,16 @@ import edu.cmu.graphchi.ChiFilenames;
 import edu.cmu.graphchi.ChiVertex;
 import edu.cmu.graphchi.LoggingInitializer;
 import edu.cmu.graphchi.datablocks.BytesToValueConverter;
+import edu.cmu.graphchi.datablocks.ChiPointer;
+import edu.cmu.graphchi.datablocks.DataBlockManager;
+import edu.cmu.graphchi.engine.auxdata.VertexData;
 import edu.cmu.graphchi.shards.MemoryShard;
 import edu.cmu.graphchi.shards.SlidingShard;
 import nom.tam.util.BufferedDataInputStream;
 
 import java.io.*;
 import java.util.Arrays;
+import java.util.Iterator;
 import java.util.Random;
 import java.util.logging.Logger;
 import java.util.zip.DeflaterOutputStream;
@@ -37,6 +41,7 @@ public class FastSharder <VertexValueType, EdgeValueType> {
     private int[] outDegrees;
     private boolean memoryEfficientDegreeCount = false;
     private long numEdges = 0;
+    private boolean useSparseDegrees = false;
 
     private BytesToValueConverter<EdgeValueType> edgeValueTypeBytesToValueConverter;
     private BytesToValueConverter<VertexValueType> vertexValueTypeBytesToValueConverter;
@@ -63,26 +68,31 @@ public class FastSharder <VertexValueType, EdgeValueType> {
         this.vertexValueTypeBytesToValueConverter = vertexValConterter;
 
         shovelStreams = new DataOutputStream[numShards];
+        vertexShovelStreams = new DataOutputStream[numShards];
         for(int i=0; i < numShards; i++) {
             shovelStreams[i] = new DataOutputStream(new BufferedOutputStream(new FileOutputStream(shovelFilename(i))));
             if (vertexProcessor != null) {
-                vertexShovelStreams[i] = new DataOutputStream(new BufferedOutputStream(new FileOutputStream(shovelFilename(i) + ".vertex")));
+                vertexShovelStreams[i] = new DataOutputStream(new BufferedOutputStream(new FileOutputStream(vertexShovelFileName(i))));
             }
         }
         valueTemplate =  new byte[edgeValueTypeBytesToValueConverter.sizeOf()];
 
         if (vertexValueTypeBytesToValueConverter != null)
-             vertexValueTemplate = new byte[vertexValueTypeBytesToValueConverter.sizeOf()];
+            vertexValueTemplate = new byte[vertexValueTypeBytesToValueConverter.sizeOf()];
     }
 
     private String shovelFilename(int i) {
         return baseFilename + ".shovel." + i;
     }
 
+    private String vertexShovelFileName(int i) {
+        return baseFilename + ".vertexshovel." + i;
+    }
+
 
     public void addEdge(int from, int to, String edgeValueToken) throws IOException {
         if (from == to) {
-            if (vertexProcessor != null) {
+            if (vertexProcessor != null && edgeValueToken != null) {
                 VertexValueType value = vertexProcessor.receiveVertexValue(from, edgeValueToken);
                 if (value != null) {
                     addVertexValue(from % numShards, preIdTranslate.forward(from), value);
@@ -112,9 +122,10 @@ public class FastSharder <VertexValueType, EdgeValueType> {
     }
 
     private void addVertexValue(int shard, int pretranslatedVertexId, VertexValueType value) throws IOException{
-          DataOutputStream strm = vertexShovelStreams[shard];
-          strm.writeInt(pretranslatedVertexId);
-
+        DataOutputStream strm = vertexShovelStreams[shard];
+        strm.writeInt(pretranslatedVertexId);
+        vertexValueTypeBytesToValueConverter.setValue(vertexValueTemplate, value);
+        strm.write(vertexValueTemplate);
     }
 
     public static long packEdges(int a, int b) {
@@ -160,16 +171,21 @@ public class FastSharder <VertexValueType, EdgeValueType> {
             processShovel(i);
         }
 
+        useSparseDegrees = (maxVertexId > numEdges) || "1".equals(System.getProperty("sparsedeg"));
+        logger.info("Use sparse output: " + useSparseDegrees);
+
         if (!memoryEfficientDegreeCount) {
             writeDegrees();
         } else {
             computeVertexDegrees();
         }
+
+        if (vertexProcessor != null) {
+            processVertexValues(useSparseDegrees);
+        }
     }
 
     private void writeDegrees() throws IOException {
-        boolean useSparseDegrees = (maxVertexId > numEdges) || "1".equals(System.getProperty("sparsedeg"));
-
         DataOutputStream degreeOut = new DataOutputStream(new BufferedOutputStream(
                 new FileOutputStream(ChiFilenames.getFilenameOfDegreeData(baseFilename, useSparseDegrees))));
         for(int i=0; i<inDegrees.length; i++) {
@@ -201,15 +217,82 @@ public class FastSharder <VertexValueType, EdgeValueType> {
         wr.close();
     }
 
+    // Import to do after degrees have been computed
+    private void processVertexValues(boolean sparse) throws IOException {
+        DataBlockManager dataBlockManager = new DataBlockManager();
+        VertexData<VertexValueType> vertexData = new VertexData<VertexValueType>(maxVertexId - 1, baseFilename,
+                vertexValueTypeBytesToValueConverter, sparse);
+        vertexData.setBlockManager(dataBlockManager);
+        for(int p=0; p < numShards; p++) {
+            int intervalSt = p * finalIdTranslate.getVertexIntervalLength();
+            int intervalEn = (p + 1) * finalIdTranslate.getVertexIntervalLength() - 1;
+            if (intervalEn > maxVertexId) intervalEn = maxVertexId;
+
+            vertexShovelStreams[p].close();
+
+            /* Read shovel and sort */
+            File shovelFile = new File(vertexShovelFileName(p));
+            BufferedDataInputStream in = new BufferedDataInputStream(new FileInputStream(shovelFile));
+
+            int sizeOf = vertexValueTypeBytesToValueConverter.sizeOf();
+            long[] vertexIds = new long[(int) (shovelFile.length() / (4 + sizeOf))];
+            if (vertexIds.length == 0) continue;
+            byte[] vertexValues = new byte[vertexIds.length * sizeOf];
+            for(int i=0; i<vertexIds.length; i++) {
+                int vid = in.readInt();
+                int transVid = finalIdTranslate.forward(preIdTranslate.backward(vid));
+                vertexIds[i] = transVid;
+                in.readFully(vertexValueTemplate);
+                int valueIdx = i * sizeOf;
+                System.arraycopy(vertexValueTemplate, 0, vertexValues, valueIdx, sizeOf);
+            }
+
+            /* Sort */
+            sortWithValues(vertexIds, vertexValues, sizeOf);  // The source id is  higher order, so sorting the longs will produce right result
+
+            int SUBINTERVAL = 2000000;
+
+            int iterIdx = 0;
+
+            /* Insert into data */
+            for(int subIntervalSt=intervalSt; subIntervalSt < intervalEn; subIntervalSt += SUBINTERVAL) {
+                int subIntervalEn = subIntervalSt + SUBINTERVAL - 1;
+                if (subIntervalEn > intervalEn) subIntervalEn = intervalEn;
+                int blockId = vertexData.load(subIntervalSt, subIntervalEn);
+
+                Iterator<Integer> iterator = vertexData.currentIterator();
+                while(iterator.hasNext()) {
+                    int curId = iterator.next();
+
+                    while(iterIdx < vertexIds.length && vertexIds[iterIdx] < curId) {
+                        iterIdx++;
+                    }
+                    if (iterIdx >= vertexIds.length) break;
+
+                    if (curId == (int) vertexIds[iterIdx]) {
+                        ChiPointer pointer = vertexData.getVertexValuePtr(curId, blockId);
+                        System.arraycopy(vertexValues, iterIdx * sizeOf, vertexValueTemplate, 0, sizeOf);
+                        dataBlockManager.writeValue(pointer, vertexValueTemplate);
+                    } else {
+                        logger.warning("Had vertex id for non existing (zero degree vertex): " + curId);
+                    }
+
+                }
+                vertexData.releaseAndCommit(subIntervalSt, blockId);
+            }
+        }
+    }
+
     private void processShovel(int shardNum) throws IOException {
         File shovelFile = new File(shovelFilename(shardNum));
-        long[] shoveled = new long[(int) (shovelFile.length() / (8 + edgeValueTypeBytesToValueConverter.sizeOf()))];
+        int sizeOf = edgeValueTypeBytesToValueConverter.sizeOf();
+
+        long[] shoveled = new long[(int) (shovelFile.length() / (8 + sizeOf))];
 
         // TODO: improve
         if (shoveled.length > 500000000) {
             throw new RuntimeException("Too big shard size, shovel length was: " + shoveled.length + " max: " + 500000000);
         }
-        int sizeOf = edgeValueTypeBytesToValueConverter.sizeOf();
         byte[] edgeValues = new byte[shoveled.length * sizeOf];
 
 
@@ -408,9 +491,6 @@ public class FastSharder <VertexValueType, EdgeValueType> {
      */
     public void computeVertexDegrees() {
         try {
-
-            boolean useSparseDegrees = (maxVertexId > numEdges) || "1".equals(System.getProperty("sparsedeg"));
-
             logger.info("Use sparse degrees: " + useSparseDegrees);
 
             DataOutputStream degreeOut = new DataOutputStream(new BufferedOutputStream(

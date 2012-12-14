@@ -86,4 +86,7 @@ public class DataBlockManager {
         System.arraycopy(arr, 0, getRawBlock(ptr.blockId), ptr.offset, arr.length);
     }
 
+    public <T> void writeValue(ChiPointer ptr, byte[] data) {
+        System.arraycopy(data, 0, getRawBlock(ptr.blockId), ptr.offset, data.length);
+    }
 }

@@ -17,6 +17,7 @@ import edu.cmu.graphchi.hadoop.PigGraphChiBase;
 import edu.cmu.graphchi.preprocessing.EdgeProcessor;
 import edu.cmu.graphchi.preprocessing.FastSharder;
 import edu.cmu.graphchi.preprocessing.VertexIdTranslate;
+import edu.cmu.graphchi.preprocessing.VertexProcessor;
 import edu.cmu.graphchi.util.IdFloat;
 import edu.cmu.graphchi.util.Toplist;
 import org.apache.pig.backend.executionengine.ExecException;
@@ -92,7 +93,16 @@ public class HITSSmallMem extends PigGraphChiBase implements GraphChiProgram<Flo
                 }
             }
             else if (side == RIGHTSIDE && vertex.numInEdges() > 0) {
-                curValue.second = newValue;
+                // Renormalization
+                int numRelevantEdges = vertex.numInEdges();
+                int totalEdges = (int)  curValue.second;
+                System.out.println(vertex.getId() + " " + totalEdges);
+                if (totalEdges == 0) {
+                    logger.warning("Normalization factor cannot be zero! Id:" + context.getVertexIdTranslate().backward(vertex.getId()));
+                    totalEdges = numRelevantEdges;
+                }
+                newValue *= numRelevantEdges * 1.0f / (float)totalEdges;
+
                 synchronized (this) {
                     rightSideSqrSum += newValue * newValue;
                 }
@@ -144,23 +154,14 @@ public class HITSSmallMem extends PigGraphChiBase implements GraphChiProgram<Flo
                 ioe.printStackTrace();
             }
         } else if (ctx.getIteration() % 2 == RIGHTSIDE) {
-            try {
-                logger.info("NORMALIZING - RIGHT");
+            logger.info("NORMALIZING - RIGHT");
 
-                rightNorm = (float) Math.sqrt(rightSideSqrSum);
+            rightNorm = (float) Math.sqrt(rightSideSqrSum);
 
-                VertexMapper.map((int) ctx.getNumVertices(), graphName, new FloatPairConverter(), new VertexMapperCallback<FloatPair>() {
-                    @Override
-                    public FloatPair map(int vertexId, FloatPair value) {
-                        value.second /= rightNorm;
-                        return value;
-                    }
-                });
-
-                rightSideSqrSum = 0.0;
-            } catch (IOException ioe) {
-                ioe.printStackTrace();
-            }
+            // NOTE: we do not normalize the values of right side, as the right side
+            // vertex value does not encode the score but instead the total number of
+            // edges for that vertex/
+            rightSideSqrSum = 0.0;
         }
         logger.info("Normalizing factors now, left=" + leftNorm + ", right=" + rightNorm);
     }
@@ -222,7 +223,7 @@ public class HITSSmallMem extends PigGraphChiBase implements GraphChiProgram<Flo
 
     @Override
     protected String getSchemaString() {
-        return "(vertex:int, auth:float)";
+        return "(weight:float, vertex:int)";
     }
 
     @Override
@@ -255,16 +256,19 @@ public class HITSSmallMem extends PigGraphChiBase implements GraphChiProgram<Flo
     @Override
     protected FastSharder createSharder(String graphName, int numShards) throws IOException {
         this.numShards = numShards;
-        return new FastSharder<Float>(graphName, numShards, new EdgeProcessor<Float>() {
+        return new FastSharder<FloatPair, Float>(graphName, numShards, new VertexProcessor<FloatPair>() {
             @Override
-            public void receiveVertexValue(int vertexId, String token) {
+            /* For lists (hubs), the vertex value will encode the total number of edges */
+            public FloatPair receiveVertexValue(int vertexId, String token) {
+                int num = Integer.parseInt(token);
+                return new FloatPair(0.0f, (float)num);
             }
-
+        }, new EdgeProcessor<Float>() {
             @Override
             public Float receiveEdge(int from, int to, String token) {
                 return 0.0f;
             }
-        }, new FloatConverter());
+        }, new FloatPairConverter(), new FloatConverter());
     }
 
 
@@ -274,8 +278,8 @@ public class HITSSmallMem extends PigGraphChiBase implements GraphChiProgram<Flo
         if (resultIter.hasNext()) {
             IdFloat res = resultIter.next();
             Tuple t = tupleFactory.newTuple(2);
-            t.set(0, res.getVertexId());
-            t.set(1, res.getValue());
+            t.set(0, res.getValue());
+            t.set(1, res.getVertexId());
             return t;
         } else {
             return null;

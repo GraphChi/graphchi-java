@@ -138,11 +138,6 @@ public abstract class PigGraphChiBase  extends LoadFunc implements LoadMetadata 
                                 }
                                 return null;
                             }
-
-                            @Override
-                            public void receiveVertexValue(int vertexId, String token) {
-
-                            }
                         });
 
                         hdfsLoader.load(pigSplit.getConf());
