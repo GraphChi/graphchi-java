@@ -67,10 +67,8 @@ public class DegreeData {
             // Copy previous
             len = (int) ((prevVertexEn - vertexSt + 1) * 8);
             System.arraycopy(prevData, prevData.length - len, degreeData, 0, len);
-            System.out.println("ADJUSTMENT: " + len);
         }
 
-        System.out.println("DEGREE: READ " + vertexSt + ", " + vertexEn);
 
         if (!sparse) {
             int adjLen = (int) (dataSize - len);
@@ -81,11 +79,9 @@ public class DegreeData {
             try {
                 degreeFile.seek(dataStart);
                 degreeFile.readFully(degreeData, (int)(dataSize - adjLen), adjLen);
-                System.out.println("Read bytes " + dataStart  + " -- " + (dataStart + adjLen) + " ptr:" + (dataSize-adjLen));
             } catch (EOFException eof) {
                 System.err.println("Tried to read past file: " + dataStart + " --- " + (dataStart + dataSize));
                 // But continue
-
             }
         } else {
             if (lastQuery > _vertexSt) {

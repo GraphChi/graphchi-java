@@ -20,7 +20,7 @@ import java.util.zip.GZIPOutputStream;
  * and translates the vertex ids in order to randomize the order.
  * Need to use VertexIdTranslate.  Requires enough memory to store vertex degrees (TODO, fix).
  */
-public class FastSharder <EdgeValueType> {
+public class FastSharder <VertexValueType, EdgeValueType> {
 
     private String baseFilename;
     private int numShards;
@@ -29,6 +29,8 @@ public class FastSharder <EdgeValueType> {
     private VertexIdTranslate finalIdTranslate;
 
     private DataOutputStream[] shovelStreams;
+    private DataOutputStream[] vertexShovelStreams;
+
     private int maxVertexId = 0;
 
     private int[] inDegrees;
@@ -37,27 +39,40 @@ public class FastSharder <EdgeValueType> {
     private long numEdges = 0;
 
     private BytesToValueConverter<EdgeValueType> edgeValueTypeBytesToValueConverter;
+    private BytesToValueConverter<VertexValueType> vertexValueTypeBytesToValueConverter;
 
     private EdgeProcessor<EdgeValueType> edgeProcessor;
+    private VertexProcessor<VertexValueType> vertexProcessor;
+
 
     private static final Logger logger = LoggingInitializer.getLogger("fast-sharder");
 
-
-
     public FastSharder(String baseFilename, int numShards,
-                       EdgeProcessor<EdgeValueType> edgeProcessor, BytesToValueConverter<EdgeValueType> edgeValConverter) throws IOException {
+
+                       VertexProcessor<VertexValueType> vertexProcessor,
+                       EdgeProcessor<EdgeValueType> edgeProcessor,
+                       BytesToValueConverter<VertexValueType> vertexValConterter,
+                       BytesToValueConverter<EdgeValueType> edgeValConverter) throws IOException {
         this.baseFilename = baseFilename;
         this.numShards = numShards;
         this.initialIntervalLength = Integer.MAX_VALUE / numShards;
         this.preIdTranslate = new VertexIdTranslate(this.initialIntervalLength, numShards);
         this.edgeProcessor = edgeProcessor;
+        this.vertexProcessor = vertexProcessor;
         this.edgeValueTypeBytesToValueConverter = edgeValConverter;
+        this.vertexValueTypeBytesToValueConverter = vertexValConterter;
 
         shovelStreams = new DataOutputStream[numShards];
         for(int i=0; i < numShards; i++) {
             shovelStreams[i] = new DataOutputStream(new BufferedOutputStream(new FileOutputStream(shovelFilename(i))));
+            if (vertexProcessor != null) {
+                vertexShovelStreams[i] = new DataOutputStream(new BufferedOutputStream(new FileOutputStream(shovelFilename(i) + ".vertex")));
+            }
         }
         valueTemplate =  new byte[edgeValueTypeBytesToValueConverter.sizeOf()];
+
+        if (vertexValueTypeBytesToValueConverter != null)
+             vertexValueTemplate = new byte[vertexValueTypeBytesToValueConverter.sizeOf()];
     }
 
     private String shovelFilename(int i) {
@@ -67,7 +82,12 @@ public class FastSharder <EdgeValueType> {
 
     public void addEdge(int from, int to, String edgeValueToken) throws IOException {
         if (from == to) {
-            edgeProcessor.receiveVertexValue(from, edgeValueToken);
+            if (vertexProcessor != null) {
+                VertexValueType value = vertexProcessor.receiveVertexValue(from, edgeValueToken);
+                if (value != null) {
+                    addVertexValue(from % numShards, preIdTranslate.forward(from), value);
+                }
+            }
             return;
         }
         int preTranslatedIdFrom = preIdTranslate.forward(from);
@@ -81,6 +101,7 @@ public class FastSharder <EdgeValueType> {
 
 
     private byte[] valueTemplate;
+    private byte[] vertexValueTemplate;
 
     private void addToShovel(int shard, int preTranslatedIdFrom, int preTranslatedTo,
                              EdgeValueType value) throws IOException {
@@ -88,6 +109,12 @@ public class FastSharder <EdgeValueType> {
         strm.writeLong(packEdges(preTranslatedIdFrom, preTranslatedTo));
         edgeValueTypeBytesToValueConverter.setValue(valueTemplate, value);
         strm.write(valueTemplate);
+    }
+
+    private void addVertexValue(int shard, int pretranslatedVertexId, VertexValueType value) throws IOException{
+          DataOutputStream strm = vertexShovelStreams[shard];
+          strm.writeInt(pretranslatedVertexId);
+
     }
 
     public static long packEdges(int a, int b) {
