@@ -274,7 +274,7 @@ public class FastSharder <VertexValueType, EdgeValueType> {
                         System.arraycopy(vertexValues, iterIdx * sizeOf, vertexValueTemplate, 0, sizeOf);
                         dataBlockManager.writeValue(pointer, vertexValueTemplate);
                     } else {
-                        logger.warning("Had vertex id for non existing (zero degree vertex): " + curId);
+                       // No vertex data for that vertex.
                     }
 
                 }
