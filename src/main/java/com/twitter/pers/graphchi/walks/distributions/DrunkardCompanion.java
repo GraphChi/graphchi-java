@@ -1,6 +1,5 @@
 package com.twitter.pers.graphchi.walks.distributions;
 
-import com.sun.xml.internal.messaging.saaj.util.ByteInputStream;
 import com.twitter.pers.graphchi.walks.WalkManager;
 import edu.cmu.graphchi.LoggingInitializer;
 import edu.cmu.graphchi.util.IdCount;

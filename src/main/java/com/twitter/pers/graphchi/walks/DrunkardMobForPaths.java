@@ -167,8 +167,6 @@ public class DrunkardMobForPaths implements GraphChiProgram<Integer, Boolean> {
             /* Run */
             engine.run(mob, maxHops + 1);
 
-
-
             /* Analyze */
             WalkPathAnalyzer analyzer = new WalkPathAnalyzer(new File("."));
             analyzer.analyze(0, mob.walkManager.getTotalWalks() - 1, maxHops);
