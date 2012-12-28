@@ -109,7 +109,9 @@
                 </configuration>
             </plugin>
 
-	        </plugins>      
+	        </plugins>    
+	           <testOutputDirectory>target/test-classes</testOutputDirectory>
+             <testSourceDirectory>test</testSourceDirectory>
 	</build>
 
 </project>
