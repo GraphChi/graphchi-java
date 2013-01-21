@@ -21,7 +21,7 @@ import java.io.*;
 import java.util.zip.*;
 
 /**
- * Zlib-compressed I/O support.
+ * Zlib-compressed I/O utilities.
  * @author akyrola
  */
 public class CompressedIO {

@@ -1,4 +1,4 @@
-package edu.cmu.graphchi.aggregators;
+package edu.cmu.graphchi.vertexdata;
 
 /**
  * Copyright [2012] [Aapo Kyrola, Guy Blelloch, Carlos Guestrin / Carnegie Mellon University]
@@ -17,7 +17,6 @@ package edu.cmu.graphchi.aggregators;
  */
 
 
-import edu.cmu.graphchi.ChiFilenames;
 import edu.cmu.graphchi.datablocks.BytesToValueConverter;
 import edu.cmu.graphchi.datablocks.ChiPointer;
 import edu.cmu.graphchi.datablocks.DataBlockManager;
@@ -29,11 +28,22 @@ import java.util.Iterator;
 
 
 /**
- * Compute aggregates over the vertex values.
+ * Efficient iteration over vertex values for computing aggregates.
+ * @author Aapo Kyrola
  */
 public class VertexAggregator {
 
 
+    /**
+     * Enumerate vertices using a callback
+     * @see edu.cmu.graphchi.vertexdata.ForeachCallback
+     * @param numVertices number of vertices in the graph (hint: use engine.numVertices())
+     * @param baseFilename name of the input graph
+     * @param conv converter object for converting bytes to vertex's value type
+     * @param callback your callback function
+     * @param <VertexDataType> vertex data type
+     * @throws IOException if the vertex data file is not found
+     */
     public static <VertexDataType> void foreach(int numVertices, String baseFilename, BytesToValueConverter<VertexDataType> conv,
                                                  ForeachCallback<VertexDataType> callback) throws IOException {
 
@@ -73,6 +83,13 @@ public class VertexAggregator {
         }
     }
 
+    /**
+     * Compute a sum of vertex-values (assumed to be integers)
+     * @param numVertices number of vertices in the graph (hint: use engine.numVertices())
+     * @param baseFilename name of the input graph
+     * @return the sum
+     * @throws IOException if the vertex data file is not found
+     */
     public static long sumInt(int numVertices, String baseFilename) throws IOException {
         SumCallbackInt callback = new SumCallbackInt();
         foreach(numVertices, baseFilename, new IntConverter(), callback);

@@ -1,10 +1,10 @@
 package edu.cmu.graphchi.util;
 
 /**
- * A huge dense matrix, which internally splits to many subblocks
- * Row-directed storage, so scanning row by row is efficient.
+ * A huge dense matrix, which internally splits to many sub-blocks
+ * Row-directed storage, so scanning row by row is efficient.  This is useful
+ * in keeping all vertex-values in memory efficiently.
  * @author akyrola
- *
  */
 public class HugeFloatMatrix implements Cloneable {
 

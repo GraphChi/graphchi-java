@@ -17,7 +17,6 @@ import java.io.*;
 import java.util.ArrayList;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.logging.LogManager;
 import java.util.logging.Logger;
 
 /**
@@ -35,6 +34,12 @@ import java.util.logging.Logger;
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
+/**
+ * The engine responsible for executing a GraphChi computation.
+ * @param <VertexDataType>  type of vertex-data
+ * @param <EdgeDataType>   type of edge-data
+ */
 public class GraphChiEngine <VertexDataType, EdgeDataType> {
 
     protected String baseFilename;
@@ -45,7 +50,7 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
     protected BytesToValueConverter<EdgeDataType> edataConverter;
     protected BytesToValueConverter<VertexDataType> vertexDataConverter;
 
-    protected GraphChiContext chiContext = new GraphChiContext();
+    protected GraphChiContextInternal chiContext = new GraphChiContextInternal();
     private DataBlockManager blockManager;
     private ExecutorService parallelExecutor;
     private ExecutorService loadingExecutor;
@@ -64,8 +69,10 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
     protected long memBudget;
     protected VertexIdTranslate vertexIdTranslate;
 
+    protected boolean hasSetVertexDataConverter = false, hasSetEdgeDataConverter = false;
 
-    private static final Logger logger = LoggingInitializer.getLogger("engine");
+
+    private static final Logger logger = ChiLogger.getLogger("engine");
 
     /* Automatic loading of next window */
     private boolean autoLoadNext = false; // Only for only-adjacency cases!
@@ -84,6 +91,14 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
     protected boolean modifiesInedges = true, modifiesOutedges = true;
     private boolean disableInEdges = false, disableOutEdges = false;
 
+
+    /**
+     * Constructor
+     * @param baseFilename input-file name
+     * @param nShards number of shards
+     * @throws FileNotFoundException
+     * @throws IOException
+     */
     public GraphChiEngine(String baseFilename, int nShards) throws FileNotFoundException, IOException {
         this.baseFilename = baseFilename;
         this.nShards = nShards;
@@ -106,6 +121,10 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
 
     }
 
+    /**
+     * Access the intervals for shards.
+     * @return
+     */
     public ArrayList<VertexInterval> getIntervals() {
         return intervals;
     }
@@ -116,26 +135,43 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
 
 
     /**
-     * Set the memorybudget in megabytes. Default is JVM's max memory / 4
+     * Set the memorybudget in megabytes. Default is JVM's max memory / 4.
+     * Memory budget affects the number of vertices loaded into memory at
+     * any time.
      * @param mb
      */
     public void setMemoryBudgetMb(long mb) {
         memBudget = mb * 1024 * 1024;
     }
 
+    /**
+     * @return the current memory budget in <b>bytes</b>.
+     */
     public long getMemoryBudget() {
         return memBudget;
     }
 
 
+    /**
+     * You can instruct the engine to automatically ignore vertices that do not
+     * have any edges. By default this is <b>false</b>.
+     * @param skipZeroDegreeVertices
+     */
     public void setSkipZeroDegreeVertices(boolean skipZeroDegreeVertices) {
         this.skipZeroDegreeVertices = skipZeroDegreeVertices;
     }
 
+    /**
+     * @return the number of vertices in the current graph
+     */
     public int numVertices() {
         return 1 + intervals.get(intervals.size() - 1).getLastVertex();
     }
 
+    /**
+     * For definition of "sliding shards", see http://code.google.com/p/graphchi/wiki/IntroductionToGraphChi
+     * @throws IOException
+     */
     protected void initializeSlidingShards() throws IOException {
         slidingShards = new ArrayList<SlidingShard<EdgeDataType> >();
         for(int p=0; p < nShards; p++) {
@@ -153,11 +189,16 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
         }
     }
 
+    /**
+     * For definition of "memory shards", see http://code.google.com/p/graphchi/wiki/IntroductionToGraphChi
+     * @throws IOException
+     */
     protected MemoryShard<EdgeDataType> createMemoryShard(int intervalStart, int intervalEnd, int execInterval) {
         String edataFilename = (onlyAdjacency ? null : ChiFilenames.getFilenameShardEdata(baseFilename, edataConverter, execInterval, nShards));
         String adjFilename = ChiFilenames.getFilenameShardsAdj(baseFilename, execInterval, nShards);
 
-        MemoryShard<EdgeDataType> newMemoryShard = new MemoryShard<EdgeDataType>(edataFilename, adjFilename, intervals.get(execInterval).getFirstVertex(),
+        MemoryShard<EdgeDataType> newMemoryShard = new MemoryShard<EdgeDataType>(edataFilename, adjFilename,
+                intervals.get(execInterval).getFirstVertex(),
                 intervals.get(execInterval).getLastVertex());
         newMemoryShard.setConverter(edataConverter);
         newMemoryShard.setDataBlockManager(blockManager);
@@ -166,7 +207,23 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
     }
 
 
+    /**
+     * Runs the GraphChi program for given number of iterations. <b>Note:</b> Prior to calling this,
+     * you must have set the edge-data and vertex-data converters:
+     *   setEdataConverter()
+     *   setVertexDataConverter()
+     * @param program yoru GraphChi program
+     * @param niters number of iterations
+     * @throws IOException
+     */
     public void run(GraphChiProgram<VertexDataType, EdgeDataType> program, int niters) throws IOException {
+
+        if (!hasSetEdgeDataConverter) {
+            throw new IllegalStateException("You need to call setEdataConverter() prior to calling run()!");
+        }
+        if (!hasSetVertexDataConverter) {
+            throw new IllegalStateException("You need to call setVertexDataConverter() prior to calling run()!");
+        }
 
         int nprocs = 4;
         if (Runtime.getRuntime().availableProcessors() > nprocs) {
@@ -619,6 +676,9 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
         _timer.stop();
     }
 
+    /**
+     * @return the current GraphChiContext object
+     */
     public GraphChiContext getContext() {
         return chiContext;
     }
@@ -749,22 +809,42 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
         return enableScheduler;
     }
 
+    /**
+     * Enabled the selective scheduling. By default, scheduling is not enabled.
+     * @param enableScheduler
+     */
     public void setEnableScheduler(boolean enableScheduler) {
         this.enableScheduler = enableScheduler;
     }
 
+    /**
+     * Sets the bytes->vertex value converter object.
+     * @param vertexDataConverter
+     */
     public void setVertexDataConverter(BytesToValueConverter<VertexDataType> vertexDataConverter) {
         this.vertexDataConverter = vertexDataConverter;
+        this.hasSetVertexDataConverter = true;
     }
 
+    /**
+     * Sets the bytes->edge value converter object. If the object is null,
+     * then no edge-values are read (only adjacency information).
+     * @param edataConverter
+     */
     public void setEdataConverter(BytesToValueConverter<EdgeDataType> edataConverter) {
         this.edataConverter = edataConverter;
+        this.hasSetEdgeDataConverter = true;
     }
 
     public boolean isEnableDeterministicExecution() {
         return enableDeterministicExecution;
     }
 
+    /**
+     * Enabled or disables the deterministic parallelism. It is enabled by default.
+     * See http://code.google.com/p/graphchi/wiki/IntroductionToGraphChi section "Parallel Updates"
+     * @param enableDeterministicExecution
+     */
     public void setEnableDeterministicExecution(boolean enableDeterministicExecution) {
         this.enableDeterministicExecution = enableDeterministicExecution;
     }
@@ -773,6 +853,10 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
         return disableOutEdges;
     }
 
+    /**
+     * Disable loading of out-edges
+     * @param disableOutEdges
+     */
     public void setDisableOutEdges(boolean disableOutEdges) {
         this.disableOutEdges = disableOutEdges;
     }
@@ -781,6 +865,10 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
         return modifiesInedges;
     }
 
+    /**
+     * Disable/enable writing of in-edges (enabled by default)
+     * @param modifiesInedges
+     */
     public void setModifiesInedges(boolean modifiesInedges) {
         this.modifiesInedges = modifiesInedges;
     }
@@ -797,8 +885,13 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
         return onlyAdjacency;
     }
 
+    /**
+     * Load only adjacency data.
+     * @param onlyAdjacency
+     */
     public void setOnlyAdjacency(boolean onlyAdjacency) {
         this.onlyAdjacency = onlyAdjacency;
+        this.hasSetEdgeDataConverter = true;
     }
 
     public void setDisableInedges(boolean b) {
@@ -809,6 +902,11 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
         return maxWindow;
     }
 
+    /**
+     * Configures the maximum number of vertices loaded at any time.
+     * Default is 20 million. Generally you should not needed to modify this.
+     * @param maxWindow
+     */
     public void setMaxWindow(int maxWindow) {
         this.maxWindow = maxWindow;
     }
@@ -817,6 +915,12 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
         return useStaticWindowSize;
     }
 
+    /**
+     * Enables use of static window size (without adjusting the number
+     * of vertices loaded at any time based on the amount of available memory).
+     * Only for advanced users!
+     * @param useStaticWindowSize
+     */
     public void setUseStaticWindowSize(boolean useStaticWindowSize) {
         this.useStaticWindowSize = useStaticWindowSize;
     }
@@ -825,6 +929,12 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
         return autoLoadNext;
     }
 
+
+    /**
+     * Experimental feature that enables GraphChi to load data ahead.
+     * This works only with onlyAdjacency-setting. DO NOT USE - NOT TESTED.
+     * @param autoLoadNext
+     */
     public void setAutoLoadNext(boolean autoLoadNext) {
         this.autoLoadNext = autoLoadNext;
     }
@@ -864,6 +974,12 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
         }
     }
 
+    /**
+     * GraphChi uses internal vertex ids. To translate from the internal ids
+     * to the ids used in the original graph, obtain VertexIdTranslate object
+     * by using this method and call translater.backward(internalId)
+     * @return
+     */
     public VertexIdTranslate getVertexIdTranslate() {
         return vertexIdTranslate;
     }
@@ -871,9 +987,49 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
     public void setVertexIdTranslate(VertexIdTranslate vertexIdTranslate) {
         this.vertexIdTranslate = vertexIdTranslate;
     }
+
+    private class GraphChiContextInternal extends GraphChiContext{
+        @Override
+        protected void setVertexIdTranslate(VertexIdTranslate vertexIdTranslate) {
+            super.setVertexIdTranslate(vertexIdTranslate);    
+        }
+
+        @Override
+        public void setThreadLocal(Object threadLocal) {
+            super.setThreadLocal(threadLocal);    
+        }
+
+        @Override
+        protected void setNumVertices(long numVertices) {
+            super.setNumVertices(numVertices);    
+        }
+
+        @Override
+        protected void setNumEdges(long numEdges) {
+            super.setNumEdges(numEdges);    
+        }
+
+        @Override
+        protected void setScheduler(Scheduler scheduler) {
+            super.setScheduler(scheduler);    
+        }
+
+        @Override
+        protected void setNumIterations(int numIterations) {
+            super.setNumIterations(numIterations);    
+        }
+
+        @Override
+        protected void setIteration(int iteration) {
+            super.setIteration(iteration);    
+        }
+
+        @Override
+        protected void setCurInterval(VertexInterval curInterval) {
+            super.setCurInterval(curInterval);    
+        }
+    }
 }
 
 class NoEdgesInIntervalException extends Exception {
-
-
 }

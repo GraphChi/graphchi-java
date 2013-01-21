@@ -15,6 +15,11 @@ package edu.cmu.graphchi.datablocks;
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
+/**
+ * Internal representation for referring to a chunk of bytes.
+ * Emulates C/C++ pointers.
+ */
 public class ChiPointer {
     public int blockId;
     public int offset;

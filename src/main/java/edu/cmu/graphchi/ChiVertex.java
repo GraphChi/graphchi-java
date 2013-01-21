@@ -23,6 +23,12 @@ import java.util.concurrent.atomic.AtomicInteger;
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
+/**
+ * Represents a vertex. Vertex contains a value and a set of in- and out-edges.
+ * @param <VertexValue>
+ * @param <EdgeValue>
+ */
 public class ChiVertex<VertexValue, EdgeValue> {
 
     /**
@@ -73,16 +79,27 @@ public class ChiVertex<VertexValue, EdgeValue> {
     }
 
 
+    /**
+     * Access the value of a vertex
+     */
     public VertexValue getValue() {
         return blockManager.dereference(vertexPtr, (BytesToValueConverter<VertexValue>)
                 vertexValueConverter);
     }
 
+    /**
+     * Set the value of the vertex.
+     * @param x new value
+     */
     public void setValue(VertexValue x) {
         blockManager.writeValue(vertexPtr, vertexValueConverter, x);
     }
 
 
+    /**
+     * Returns a random out-neighbors vertex id.
+     * @return
+     */
     public int getRandomOutNeighbor() {
         int i = (int) (Math.random() * numOutEdges());
         if (edgeValueConverter != null) {
@@ -93,6 +110,10 @@ public class ChiVertex<VertexValue, EdgeValue> {
         }
     }
 
+    /**
+     * Returns a random neighbor's vertex id.
+     * @return
+     */
     public int getRandomNeighbor() {
         if (numEdges() == 0) {
             return -1;
@@ -112,6 +133,9 @@ public class ChiVertex<VertexValue, EdgeValue> {
         return nInedges;
     }
 
+    /**
+     * INTERNAL USE ONLY    (TODO: separate better)
+     */
     public void addInEdge(int chunkId, int offset, int vertexId) {
         if (edgeValueConverter != null) {
             int idx = nInedges * 3;
@@ -127,8 +151,9 @@ public class ChiVertex<VertexValue, EdgeValue> {
     }
 
 
-
-
+    /**
+     * INTERNAL USE ONLY  (TODO: separate better)
+     */
     public void addOutEdge(int chunkId, int offset,  int vertexId) {
         int tmpOutEdges = nOutedges.addAndGet(1) - 1;
         if (edgeValueConverter != null) {
@@ -142,6 +167,11 @@ public class ChiVertex<VertexValue, EdgeValue> {
         }
     }
 
+    /**
+     * Get i'th in-edge
+     * @param i
+     * @return edge object
+     */
     public ChiEdge<EdgeValue> inEdge(int i) {
         if (edgeValueConverter != null) {
             int idx = i * 3;
@@ -151,6 +181,11 @@ public class ChiVertex<VertexValue, EdgeValue> {
         }
     }
 
+    /**
+     * Get i'th outedge
+     * @param i
+     * @return  edge object
+     */
     public ChiEdge<EdgeValue>  outEdge(int i) {
         if (edgeValueConverter != null) {
             int idx = i * 3;
@@ -160,6 +195,10 @@ public class ChiVertex<VertexValue, EdgeValue> {
         }
     }
 
+    /**
+     * Get vertex-id of the i'th out edge (avoid creating the edge-object).
+     * @param i
+     */
     public int getOutEdgeId(int i) {
         if (edgeValueConverter != null) {
             int idx = i * 3;
@@ -169,15 +208,26 @@ public class ChiVertex<VertexValue, EdgeValue> {
         }
     }
 
+    /**
+     * Get i'th edge (in- our out-edge).
+     * @param i
+     * @return  edge object
+     */
     public ChiEdge<EdgeValue> edge(int i) {
         if (i < nInedges) return inEdge(i);
         else return outEdge(i - nInedges);
     }
 
+    /**
+     * @return the number of in- and out-edges
+     */
     public int numEdges() {
         return nInedges + nOutedges.get();
     }
 
+    /**
+     * ONLY ADVANCED USE
+     */
     public int[] getOutNeighborArray() {
         if (edgeValueConverter != null) {
             int[] nbrs = new int[numOutEdges()];
@@ -190,6 +240,11 @@ public class ChiVertex<VertexValue, EdgeValue> {
         }
     }
 
+    /**
+     * Returns the value of i'th outedge (short-cut to outEdge(i)->getValue())
+     * @param i
+     * @return  the value of i'th outedge (short-cut to outEdge(i)->getValue())
+     */
     public EdgeValue getOutEdgeValue(int i) {
         int idx = i * 3;
         return blockManager.dereference(new ChiPointer(outEdgeDataArray[idx], outEdgeDataArray[idx + 1]),
@@ -211,6 +266,7 @@ public class ChiVertex<VertexValue, EdgeValue> {
         public int getVertexId() {
             return  vertexId;
         }
+
 
         public EdgeValue getValue() {
             return blockManager.dereference(dataPtr, (BytesToValueConverter<EdgeValue>) edgeValueConverter);

@@ -1,5 +1,8 @@
 package edu.cmu.graphchi.util;
 
+/**
+ * Tuple containg a vertex-id and an integer number.
+ */
 public class IdInt {
     int vertexId;
     int value;

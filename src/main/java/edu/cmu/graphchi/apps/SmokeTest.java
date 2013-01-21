@@ -11,17 +11,17 @@ import edu.cmu.graphchi.preprocessing.VertexProcessor;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
-import java.util.TreeSet;
 import java.util.logging.Logger;
 
 /**
- * Tests that the system works.
+ * Tests that the system works. Processes any graph and runs a
+ * deterministic algorithm on the graph and checks that the
+ * result is intended.
  * @author akyrola
- *         Date: 7/11/12
  */
 public class SmokeTest implements GraphChiProgram<Integer, Integer> {
 
-    private static Logger logger = LoggingInitializer.getLogger("smoketest");
+    private static Logger logger = ChiLogger.getLogger("smoketest");
 
 
     public void update(ChiVertex<Integer, Integer> vertex, GraphChiContext context) {

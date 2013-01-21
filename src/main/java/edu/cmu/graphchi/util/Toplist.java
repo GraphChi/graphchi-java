@@ -1,8 +1,8 @@
 package edu.cmu.graphchi.util;
 
 import edu.cmu.graphchi.ChiFilenames;
-import edu.cmu.graphchi.aggregators.ForeachCallback;
-import edu.cmu.graphchi.aggregators.VertexAggregator;
+import edu.cmu.graphchi.vertexdata.ForeachCallback;
+import edu.cmu.graphchi.vertexdata.VertexAggregator;
 import edu.cmu.graphchi.datablocks.FloatConverter;
 import edu.cmu.graphchi.datablocks.IntConverter;
 import edu.cmu.graphchi.engine.VertexInterval;
@@ -15,10 +15,19 @@ import java.util.Comparator;
 import java.util.TreeSet;
 
 /**
- * From float vertex data, prints a top K listing
+ * From float vertex data, prints a top K listing. For example, used
+ * to get top K highest ranked vertices in PageRank.
  */
 public class Toplist {
 
+    /**
+     * Returns a sorted list of top topN vertices having float values.
+     * @param baseFilename input-graph
+     * @param numVertices number of vertices in the graph (use engine.numVertices())
+     * @param topN how many top results to include
+     * @return
+     * @throws IOException
+     */
     public static TreeSet<IdFloat> topListFloat(String baseFilename, int numVertices, final int topN) throws IOException{
         final TreeSet<IdFloat> topList = new TreeSet<IdFloat>(new IdFloat.Comparator());
         VertexAggregator.foreach(numVertices, baseFilename, new FloatConverter(), new ForeachCallback<Float>()  {
@@ -41,6 +50,14 @@ public class Toplist {
         return topList;
     }
 
+    /**
+     * Returns a sorted list of top topN vertices having integer values.
+     * @param baseFilename input-graph
+     * @param numVertices number of vertices in the graph (use engine.numVertices())
+     * @param topN how many top results to include
+     * @return
+     * @throws IOException
+     */
     public static TreeSet<IdInt> topListInt(String baseFilename, int numVertices, final int topN) throws IOException{
         final TreeSet<IdInt> topList = new TreeSet<IdInt>(new Comparator<IdInt>() {
             public int compare(IdInt a, IdInt b) {
@@ -67,7 +84,15 @@ public class Toplist {
         );
         return topList;
     }
-
+    /**
+     * Returns a sorted list of top topN vertices having float values stored
+     * in-memory in the HugeFloatMatrix.
+     * @param floatMatrix vertex-values
+     * @param column column to use
+     * @param topN how many top results to include
+     * @return
+     * @throws IOException
+     */
     public static TreeSet<IdFloat> topList(final HugeFloatMatrix floatMatrix, final int column, final int topN) {
         final TreeSet<IdFloat> topList = new TreeSet<IdFloat>(new Comparator<IdFloat>() {
             public int compare(IdFloat idFloat, IdFloat idFloat1) {

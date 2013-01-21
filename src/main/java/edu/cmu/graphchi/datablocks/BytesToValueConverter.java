@@ -16,6 +16,16 @@ package edu.cmu.graphchi.datablocks;
  * limitations under the License.
  */
 
+
+/**
+ * GraphChi stores vertex adn edge values in compact byte format.
+ * To convert the bytes to Java objects, one needs to define converter
+ * objects. Note that the size of the values as bytes is fixed.
+ * For an example,
+ * @see edu.cmu.graphchi.datablocks.FloatConverter
+ * @see edu.cmu.graphchi.datablocks.FloatPairConverter
+ * @param <T>
+ */
 public interface BytesToValueConverter<T> {
 
     public int sizeOf();

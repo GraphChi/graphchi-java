@@ -1,7 +1,7 @@
 package edu.cmu.graphchi.util;
 
-import edu.cmu.graphchi.aggregators.ForeachCallback;
-import edu.cmu.graphchi.aggregators.VertexAggregator;
+import edu.cmu.graphchi.vertexdata.ForeachCallback;
+import edu.cmu.graphchi.vertexdata.VertexAggregator;
 import edu.cmu.graphchi.datablocks.IntConverter;
 import edu.cmu.graphchi.preprocessing.VertexIdTranslate;
 
@@ -16,6 +16,7 @@ import java.util.HashMap;
  * vertex-data. Vertices which have same id as their vertex-id are
  * not calculated. This is used for connected components and community
  * detection applications.
+ * @author  Aapo Kyrola
  */
 public class LabelAnalysis {
 
@@ -24,7 +25,7 @@ public class LabelAnalysis {
     /**
      * Analyzes the labels of the vertices and outputs a file baseFilename + ".components"
      * with label,count.  Singletons labels not listed.
-     * @param baseFilename
+     * @param baseFilename input graph fhile
      * @param numVertices number of vertices in graph
      * @param translate vertex-id translater (from internal to actual ids)
      * @return

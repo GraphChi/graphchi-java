@@ -4,8 +4,8 @@ import com.yammer.metrics.Metrics;
 import com.yammer.metrics.core.Timer;
 import com.yammer.metrics.core.TimerContext;
 import edu.cmu.graphchi.ChiFilenames;
+import edu.cmu.graphchi.ChiLogger;
 import edu.cmu.graphchi.ChiVertex;
-import edu.cmu.graphchi.LoggingInitializer;
 import edu.cmu.graphchi.datablocks.BytesToValueConverter;
 import edu.cmu.graphchi.datablocks.DataBlockManager;
 import edu.cmu.graphchi.io.CompressedIO;
@@ -30,6 +30,12 @@ import java.util.zip.GZIPInputStream;
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ */
+
+/**
+ * Used only internally - do not modify. To understand Memory shards, see
+ * http://code.google.com/p/graphchi/wiki/IntroductionToGraphChi
+ * @param <EdgeDataType>
  */
 public class MemoryShard <EdgeDataType> {
 
@@ -57,7 +63,7 @@ public class MemoryShard <EdgeDataType> {
     private final Timer loadAdjTimer = Metrics.defaultRegistry().newTimer(MemoryShard.class, "load-adj", TimeUnit.SECONDS, TimeUnit.MINUTES);
     private final Timer loadVerticesTimers = Metrics.defaultRegistry().newTimer(MemoryShard.class, "load-vertices", TimeUnit.SECONDS, TimeUnit.MINUTES);
 
-    private static final Logger logger = LoggingInitializer.getLogger("memoryshard");
+    private static final Logger logger = ChiLogger.getLogger("memoryshard");
     
 
     private MemoryShard() {}

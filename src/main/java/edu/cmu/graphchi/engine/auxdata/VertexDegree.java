@@ -16,6 +16,11 @@ package edu.cmu.graphchi.engine.auxdata;
  * limitations under the License.
  */
 
+/**
+ * Represents a vertex in- and out-degree, i.e the number of in-edges
+ * and out-edges.
+ * @author Aapo Kyrola
+ */
 public class VertexDegree {
     public int inDegree;
     public int outDegree;

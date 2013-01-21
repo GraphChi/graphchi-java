@@ -1,8 +1,8 @@
 package edu.cmu.graphchi.shards;
 
 import edu.cmu.graphchi.ChiFilenames;
+import edu.cmu.graphchi.ChiLogger;
 import edu.cmu.graphchi.ChiVertex;
-import edu.cmu.graphchi.LoggingInitializer;
 import edu.cmu.graphchi.datablocks.BytesToValueConverter;
 import edu.cmu.graphchi.datablocks.ChiPointer;
 import edu.cmu.graphchi.datablocks.DataBlockManager;
@@ -29,6 +29,12 @@ import java.util.zip.GZIPInputStream;
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
+/**
+ * Used only internally - do not modify. To understand Sliding shards, see
+ * http://code.google.com/p/graphchi/wiki/IntroductionToGraphChi
+ * @param <EdgeDataType>
+ */
 public class SlidingShard <EdgeDataType> {
 
     private String edgeDataFilename;
@@ -54,7 +60,7 @@ public class SlidingShard <EdgeDataType> {
     private BufferedDataInputStream adjFile;
     private boolean modifiesOutedges = true;
     
-    private static final Logger logger = LoggingInitializer.getLogger("slidingshard");
+    private static final Logger logger = ChiLogger.getLogger("slidingshard");
 
 
     public SlidingShard(String edgeDataFilename, String adjDataFilename,

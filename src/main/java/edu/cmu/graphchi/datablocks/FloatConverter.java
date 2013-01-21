@@ -16,6 +16,10 @@ package edu.cmu.graphchi.datablocks;
  * limitations under the License.
  */
 
+/**
+ * Converts byte[4] array to Float and Float to byte[4].
+ * @author Aapo Kyrola
+ */
 public class FloatConverter implements  BytesToValueConverter<Float> {
     public int sizeOf() {
         return 4;

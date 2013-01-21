@@ -3,7 +3,7 @@ package edu.cmu.graphchi.walks;
 import com.yammer.metrics.Metrics;
 import com.yammer.metrics.core.Timer;
 import com.yammer.metrics.core.TimerContext;
-import edu.cmu.graphchi.LoggingInitializer;
+import edu.cmu.graphchi.ChiLogger;
 import edu.cmu.graphchi.Scheduler;
 import edu.cmu.graphchi.engine.VertexInterval;
 
@@ -42,7 +42,7 @@ public class WalkManager {
     private final Timer schedulePopulate = Metrics.defaultRegistry().newTimer(WalkManager.class, "populate-scheduler", TimeUnit.SECONDS, TimeUnit.MINUTES);
     private final Timer restore = Metrics.defaultRegistry().newTimer(WalkManager.class, "restore", TimeUnit.SECONDS, TimeUnit.MINUTES);
 
-    private static final Logger logger = LoggingInitializer.getLogger("walk-manager");
+    private static final Logger logger = ChiLogger.getLogger("walk-manager");
     
     private GrabbedBucketConsumer bucketConsumer;
     private BufferedWriter log;

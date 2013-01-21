@@ -9,7 +9,12 @@ import java.text.MessageFormat;
 import java.util.Date;
 import java.util.logging.*;
 
-public class LoggingInitializer {
+
+/**
+ * Wrapper for Java logging.
+ * Use ChiLogger.getLogger("object-name") to get a logger object.
+ */
+public class ChiLogger {
 
 
     public static void init() {

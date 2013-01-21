@@ -1,6 +1,5 @@
-package edu.cmu.graphchi.aggregators;
+package edu.cmu.graphchi.vertexdata;
 
-import edu.cmu.graphchi.ChiFilenames;
 import edu.cmu.graphchi.datablocks.BytesToValueConverter;
 import edu.cmu.graphchi.datablocks.ChiPointer;
 import edu.cmu.graphchi.datablocks.DataBlockManager;
@@ -10,12 +9,22 @@ import java.io.*;
 import java.util.Iterator;
 
 /**
- * Maps vertex values to new values
+ * Transforms vertex values to new values.
+ * @author Aapo Kyrola
  */
-public class VertexMapper {
+public class VertexTransformer {
 
-    public static <VertexDataType> void map(int numVertices, String baseFilename, BytesToValueConverter<VertexDataType> conv,
-                                            VertexMapperCallback<VertexDataType> callback) throws IOException {
+    /**
+     * Performs x -> y transformation to vertex values
+     * @param numVertices   number of vertices in the graph (hint: use engine.numVertices())
+     * @param baseFilename  name of the input graph
+     * @param conv   bytes-to-vertex value converter
+     * @param callback  callback performing the transform
+     * @param <VertexDataType>
+     * @throws IOException
+     */
+    public static <VertexDataType> void transform(int numVertices, String baseFilename, BytesToValueConverter<VertexDataType> conv,
+                                                  VertexTransformCallBack<VertexDataType> callback) throws IOException {
 
         VertexData<VertexDataType> vertexData = new VertexData<VertexDataType>(numVertices, baseFilename, conv, true);
 

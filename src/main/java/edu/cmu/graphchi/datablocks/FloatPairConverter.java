@@ -1,7 +1,9 @@
 package edu.cmu.graphchi.datablocks;
 
 /**
- * @author Aapo Kyrola, akyrola@twitter.com, akyrola@cs.cmu.edu
+ * Converts byte[8] arrays to FloatPair's and vice versa
+ * @see edu.cmu.graphchi.datablocks.FloatPair
+ * @author Aapo Kyrola, akyrola@cs.cmu.edu
  */
 
 public class FloatPairConverter implements  BytesToValueConverter<FloatPair> {

@@ -21,9 +21,18 @@ import java.io.IOException;
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
+
+/**
+ * GraphChi keeps track of the degree of each vertex (count of in- and out-edges). This class
+ * allows accessing the vertex degrees efficiently by loading a window
+ * of the edges a time. This supports both sparse and dense representation
+ * of the degrees. This class should not be needed by application writers, and
+ * is only used internally by GraphChi.
+ * @author Aapo Kyrola
+ */
 public class DegreeData {
 
-    private String baseFilename;
     private RandomAccessFile degreeFile;
 
     private byte[] degreeData;
@@ -33,8 +42,6 @@ public class DegreeData {
     private int lastQuery = 0, lastId = -1;
 
     public DegreeData(String baseFilename) throws IOException {
-        this.baseFilename = baseFilename;
-
         File sparseFile = new File(ChiFilenames.getFilenameOfDegreeData(baseFilename, true));
         File denseFile = new File(ChiFilenames.getFilenameOfDegreeData(baseFilename, false));
 
@@ -48,6 +55,12 @@ public class DegreeData {
         vertexEn = vertexSt = 0;
     }
 
+    /**
+     * Load degrees for an interval of vertices
+     * @param _vertexSt first vertex
+     * @param _vertexEn last vertex (inclusive)
+     * @throws IOException
+     */
     public void load(int _vertexSt, int _vertexEn) throws IOException {
 
         int prevVertexEn = vertexEn;
@@ -108,6 +121,12 @@ public class DegreeData {
         }
     }
 
+    /**
+     * Returns degree of a vertex. The vertex must be in the previous
+     * interval loaded using load().
+     * @param vertexId id of the vertex
+     * @return  VertexDegree object
+     */
     public VertexDegree getDegree(int vertexId) {
         assert(vertexId >= vertexSt && vertexId <= vertexEn);
 

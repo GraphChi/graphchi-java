@@ -1,6 +1,7 @@
-package edu.cmu.graphchi.preprocessing;
+package edu.cmu.graphchi.hadoop;
 
-import edu.cmu.graphchi.LoggingInitializer;
+import edu.cmu.graphchi.ChiLogger;
+import edu.cmu.graphchi.preprocessing.EdgeProcessor;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hadoop.fs.FileStatus;
@@ -14,13 +15,14 @@ import java.util.logging.Logger;
 
 /**
  * Loads a graph from HDFS edge by edge and calls
- * a call back for each edge.
+ * a callback for each edge. Used by the Pig-integration:
+ * @see edu.cmu.graphchi.hadoop.PigGraphChiBase
  */
 public class HDFSGraphLoader {
 
     private EdgeProcessor edgeProcessor;
     private String hdfsLocation;
-    private static final Logger logger = LoggingInitializer.getLogger("hdfs-graph-loader");
+    private static final Logger logger = ChiLogger.getLogger("hdfs-graph-loader");
 
     public HDFSGraphLoader(String hdfsLocation, EdgeProcessor edgeProcessor) {
         this.edgeProcessor = edgeProcessor;

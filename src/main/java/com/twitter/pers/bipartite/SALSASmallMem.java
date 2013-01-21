@@ -1,13 +1,11 @@
 package com.twitter.pers.bipartite;
 
+import edu.cmu.graphchi.ChiLogger;
 import edu.cmu.graphchi.ChiVertex;
 import edu.cmu.graphchi.GraphChiContext;
 import edu.cmu.graphchi.GraphChiProgram;
-import edu.cmu.graphchi.LoggingInitializer;
-import edu.cmu.graphchi.aggregators.ForeachCallback;
-import edu.cmu.graphchi.aggregators.VertexAggregator;
-import edu.cmu.graphchi.aggregators.VertexMapper;
-import edu.cmu.graphchi.aggregators.VertexMapperCallback;
+import edu.cmu.graphchi.vertexdata.ForeachCallback;
+import edu.cmu.graphchi.vertexdata.VertexAggregator;
 import edu.cmu.graphchi.datablocks.FloatConverter;
 import edu.cmu.graphchi.datablocks.FloatPair;
 import edu.cmu.graphchi.datablocks.FloatPairConverter;
@@ -16,10 +14,8 @@ import edu.cmu.graphchi.engine.VertexInterval;
 import edu.cmu.graphchi.hadoop.PigGraphChiBase;
 import edu.cmu.graphchi.preprocessing.EdgeProcessor;
 import edu.cmu.graphchi.preprocessing.FastSharder;
-import edu.cmu.graphchi.preprocessing.VertexIdTranslate;
 import edu.cmu.graphchi.preprocessing.VertexProcessor;
 import edu.cmu.graphchi.util.IdFloat;
-import edu.cmu.graphchi.util.Toplist;
 import org.apache.pig.backend.executionengine.ExecException;
 import org.apache.pig.data.Tuple;
 import org.apache.pig.data.TupleFactory;
@@ -27,7 +23,6 @@ import org.apache.pig.data.TupleFactory;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Iterator;
-import java.util.TreeSet;
 import java.util.logging.Logger;
 
 /**
@@ -52,7 +47,7 @@ public class SALSASmallMem extends PigGraphChiBase implements GraphChiProgram<Fl
     private final static int LEFTSIDE = 1;
 
     private String graphName;
-    private final static Logger logger = LoggingInitializer.getLogger("salsa-smallmem");
+    private final static Logger logger = ChiLogger.getLogger("salsa-smallmem");
 
     int numShards = 20;
 

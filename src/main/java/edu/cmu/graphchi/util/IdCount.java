@@ -3,6 +3,7 @@ package edu.cmu.graphchi.util;
 import java.io.Serializable;
 
 /**
+ * Tuple presenting a vertex-id and a count.
  * @author akyrola
  *         Date: 7/15/12
  */

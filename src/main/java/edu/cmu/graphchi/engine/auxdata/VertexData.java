@@ -1,7 +1,7 @@
 package edu.cmu.graphchi.engine.auxdata;
 
 import edu.cmu.graphchi.ChiFilenames;
-import edu.cmu.graphchi.LoggingInitializer;
+import edu.cmu.graphchi.ChiLogger;
 import edu.cmu.graphchi.datablocks.BytesToValueConverter;
 import edu.cmu.graphchi.datablocks.ChiPointer;
 import edu.cmu.graphchi.datablocks.DataBlockManager;
@@ -41,7 +41,7 @@ public class VertexData <VertexDataType> {
     private int lastOffset = 0;
     private int lastStart = 0;
 
-    private final static Logger logger = LoggingInitializer.getLogger("vertex-data");
+    private final static Logger logger = ChiLogger.getLogger("vertex-data");
 
     public VertexData(int nvertices, String baseFilename,
                       BytesToValueConverter<VertexDataType> converter, boolean _sparse) throws IOException {

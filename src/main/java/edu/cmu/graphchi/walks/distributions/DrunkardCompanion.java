@@ -1,7 +1,7 @@
 package edu.cmu.graphchi.walks.distributions;
 
+import edu.cmu.graphchi.ChiLogger;
 import edu.cmu.graphchi.walks.WalkManager;
-import edu.cmu.graphchi.LoggingInitializer;
 import edu.cmu.graphchi.util.IdCount;
 import edu.cmu.graphchi.util.IntegerBuffer;
 
@@ -53,7 +53,7 @@ public class DrunkardCompanion extends UnicastRemoteObject implements RemoteDrun
     private String workingDir;
     private LinkedBlockingQueue<WalkSubmission> pendingQueue = new LinkedBlockingQueue<WalkSubmission>();
 
-    private static Logger logger = LoggingInitializer.getLogger("drunkardcompanion");
+    private static Logger logger = ChiLogger.getLogger("drunkardcompanion");
     private Timer timer  = new Timer(true);
 
     /**

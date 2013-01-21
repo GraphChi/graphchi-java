@@ -5,8 +5,14 @@ import java.io.FileInputStream;
 import java.io.IOException;
 
 /**
- * Translates vertices from original id to a module-shifted
- * id and backwards.
+ * Translates vertices from original id to internal-id and
+ * vice versa.  GraphChi translates original ids to "modulo-shifted"
+ * ids and thus effectively shuffles the vertex ids. This will lead
+ * likely to a balanced edge distribution over the space of vertex-ids,
+ * and thus roughly equal amount of edges in each shard. With this
+ * trick, we do not need to first count the edge distribution and divide
+ * the shard intervals based on that but can skip that step. As a downside,
+ * the vertex ids need to be translated back and forth.
  * @author Aapo Kyrola, akyrola@cs.cmu.edu
  */
 public class VertexIdTranslate {
@@ -26,8 +32,6 @@ public class VertexIdTranslate {
     public int forward(int origId) {
         return (origId % numShards) * vertexIntervalLength + origId / numShards;
     }
-
-
 
     public int backward(int transId) {
         final int shard = transId / vertexIntervalLength;

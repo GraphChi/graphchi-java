@@ -1,9 +1,8 @@
 package edu.cmu.graphchi.preprocessing;
 
-import com.twitter.pers.graph_generator.EdgeListOutput;
 import edu.cmu.graphchi.ChiFilenames;
+import edu.cmu.graphchi.ChiLogger;
 import edu.cmu.graphchi.ChiVertex;
-import edu.cmu.graphchi.LoggingInitializer;
 import edu.cmu.graphchi.datablocks.BytesToValueConverter;
 import edu.cmu.graphchi.datablocks.ChiPointer;
 import edu.cmu.graphchi.datablocks.DataBlockManager;
@@ -13,12 +12,10 @@ import edu.cmu.graphchi.shards.SlidingShard;
 import nom.tam.util.BufferedDataInputStream;
 
 import java.io.*;
-import java.util.Arrays;
 import java.util.Iterator;
 import java.util.Random;
 import java.util.logging.Logger;
 import java.util.zip.DeflaterOutputStream;
-import java.util.zip.GZIPOutputStream;
 
 /**
  * New version of sharder that requires predefined number of shards
@@ -77,7 +74,7 @@ public class FastSharder <VertexValueType, EdgeValueType> {
     private VertexProcessor<VertexValueType> vertexProcessor;
 
 
-    private static final Logger logger = LoggingInitializer.getLogger("fast-sharder");
+    private static final Logger logger = ChiLogger.getLogger("fast-sharder");
 
     public FastSharder(String baseFilename, int numShards,
 

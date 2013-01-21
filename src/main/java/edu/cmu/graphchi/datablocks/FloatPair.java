@@ -1,5 +1,10 @@
 package edu.cmu.graphchi.datablocks;
 
+/**
+ * Represents a 2-tuple of floats.
+ * Access the tuple elements by pair.first, pair.second.
+ * @author Aapo Kyrola
+ */
 public class FloatPair {
     public float first;
     public float second;

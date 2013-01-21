@@ -15,6 +15,11 @@ package edu.cmu.graphchi.datablocks;
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
+/**
+ * Converts byte[8] to Long and vice versa.
+ * @author Aapo Kyrola
+ */
 public class LongConverter implements  BytesToValueConverter<Long> {
     public int sizeOf() {
         return 8;
@@ -39,6 +44,6 @@ public class LongConverter implements  BytesToValueConverter<Long> {
         array[4] = (byte) ((x >>> 24) & 0xff);
         array[5] = (byte) ((x >>> 16) & 0xff);
         array[6] = (byte) ((x >>> 8) & 0xff);
-        array[7] = (byte) ((x >>> 0) & 0xff);
+        array[7] = (byte) ((x) & 0xff);
     }
 }

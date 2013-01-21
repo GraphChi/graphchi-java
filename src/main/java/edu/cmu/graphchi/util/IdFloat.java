@@ -1,9 +1,9 @@
 package edu.cmu.graphchi.util;
 
-import java.util.Comparator;
 
 /**
- * Container class carrying a vertex id and a float value
+ * Container class carrying a vertex id and a float value.
+ * @author Aapo Kyrola
  */
 public class IdFloat {
     int vertexId;

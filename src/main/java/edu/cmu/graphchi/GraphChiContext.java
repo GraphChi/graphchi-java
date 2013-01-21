@@ -18,56 +18,81 @@ import edu.cmu.graphchi.preprocessing.VertexIdTranslate;
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
+/**
+ * GraphChiContext represents the current state of the computation.
+ * This is passed to the update-function.
+ * @see edu.cmu.graphchi.GraphChiProgram
+ */
 public class GraphChiContext {
 
 
     public GraphChiContext() {}
 
+    /**
+     * @return Current interval of vertices being worked on.
+     */
     public VertexInterval getCurInterval() {
         return curInterval;
     }
 
-    public void setCurInterval(VertexInterval curInterval) {
+    protected void setCurInterval(VertexInterval curInterval) {
         this.curInterval = curInterval;
     }
 
+    /**
+     * @return the current iteration (starts from 0)
+     */
     public int getIteration() {
         return iteration;
     }
 
-    public void setIteration(int iteration) {
+    protected void setIteration(int iteration) {
         this.iteration = iteration;
     }
 
+    /**
+     * @return  the total number of iterations
+     */
     public int getNumIterations() {
         return numIterations;
     }
 
-    public void setNumIterations(int numIterations) {
+    protected void setNumIterations(int numIterations) {
         this.numIterations = numIterations;
     }
 
+    /**
+     * Get the scheduler bound to this computation.
+     * @return scheduler
+     */
     public Scheduler getScheduler() {
         return scheduler;
     }
 
-    public void setScheduler(Scheduler scheduler) {
+    protected void setScheduler(Scheduler scheduler) {
         this.scheduler = scheduler;
     }
 
+    /**
+     * @return the total number of edges in the current graph
+     */
     public long getNumEdges() {
         return numEdges;
     }
 
-    public void setNumEdges(long numEdges) {
+    protected void setNumEdges(long numEdges) {
         this.numEdges = numEdges;
     }
 
+    /**
+     * @return the total number of vertices in the current graph
+     */
     public long getNumVertices() {
         return numVertices;
     }
 
-    public void setNumVertices(long numVertices) {
+    protected void setNumVertices(long numVertices) {
         this.numVertices = numVertices;
     }
 
@@ -88,7 +113,7 @@ public class GraphChiContext {
         return vertexIdTranslate;
     }
 
-    public void setVertexIdTranslate(VertexIdTranslate vertexIdTranslate) {
+    protected void setVertexIdTranslate(VertexIdTranslate vertexIdTranslate) {
         this.vertexIdTranslate = vertexIdTranslate;
     }
 

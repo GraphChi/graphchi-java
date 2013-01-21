@@ -19,15 +19,13 @@ import java.util.ArrayList;
  */
 
 /**
- *  Manages large chunks of data which are accessed using ChiPointers.
+ * Manages large chunks of data which are accessed using ChiPointers.
+ * Used internally by GraphChi.
  * @author akyrola
- *         Date: 7/10/12
  */
 public class DataBlockManager {
 
     private ArrayList<byte[]> blocks = new ArrayList<byte[]>(32678);
-
-
 
     public DataBlockManager() {
 

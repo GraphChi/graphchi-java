@@ -16,6 +16,10 @@ package edu.cmu.graphchi;
  * limitations under the License.
  */
 
+/**
+ * Represents an edge.
+ * @param <EdgeData>
+ */
 public interface ChiEdge<EdgeData> {
 
     public int getVertexId();

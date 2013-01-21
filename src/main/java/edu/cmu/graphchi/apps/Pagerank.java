@@ -2,8 +2,6 @@ package edu.cmu.graphchi.apps;
 
 import edu.cmu.graphchi.*;
 import edu.cmu.graphchi.datablocks.FloatConverter;
-import edu.cmu.graphchi.datablocks.FloatPair;
-import edu.cmu.graphchi.datablocks.FloatPairConverter;
 import edu.cmu.graphchi.engine.GraphChiEngine;
 import edu.cmu.graphchi.engine.VertexInterval;
 import edu.cmu.graphchi.preprocessing.EdgeProcessor;
@@ -21,12 +19,13 @@ import java.util.logging.Logger;
 
 /**
  * Example application: PageRank (http://en.wikipedia.org/wiki/Pagerank)
+ * Iteratively computes a pagerank for each vertex by averaging the pageranks
+ * of in-neighbors pageranks.
  * @author akyrola
- *         Date: 7/11/12
  */
 public class Pagerank implements GraphChiProgram<Float, Float> {
 
-    private static Logger logger = LoggingInitializer.getLogger("pagerank");
+    private static Logger logger = ChiLogger.getLogger("pagerank");
 
     public void update(ChiVertex<Float, Float> vertex, GraphChiContext context)  {
         if (context.getIteration() == 0) {
@@ -64,17 +63,6 @@ public class Pagerank implements GraphChiProgram<Float, Float> {
 
     public void endSubInterval(GraphChiContext ctx, VertexInterval interval) {}
 
-    // Temp
-    public static VertexIdTranslate runForPig(String filename, int numShards) throws Exception {
-        GraphChiEngine<Float, Float> engine = new GraphChiEngine<Float, Float>(filename, numShards);
-
-        engine.setEdataConverter(new FloatConverter());
-        engine.setVertexDataConverter(new FloatConverter());
-        engine.setModifiesInedges(false); // Important optimization
-        engine.run(new Pagerank(), 5);
-        return engine.getVertexIdTranslate();
-    }
-
     /**
      * Initialize the sharder-program.
      * @param graphName
@@ -94,6 +82,10 @@ public class Pagerank implements GraphChiProgram<Float, Float> {
         }, new FloatConverter(), new FloatConverter());
     }
 
+    /**
+     * Usage: java edu.cmu.graphchi.apps.PageRank graph-name num-shards filetype(edgelist|adjlist)
+     * For specifying the number of shards, 20-50 million edges/shard is often a good configuration.
+     */
     public static void main(String[] args) throws  Exception {
         String baseFilename = args[0];
         int nShards = Integer.parseInt(args[1]);

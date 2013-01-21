@@ -1,7 +1,6 @@
 package edu.cmu.graphchi.apps;
 
 import edu.cmu.graphchi.*;
-import edu.cmu.graphchi.datablocks.FloatConverter;
 import edu.cmu.graphchi.datablocks.IntConverter;
 import edu.cmu.graphchi.engine.GraphChiEngine;
 import edu.cmu.graphchi.engine.VertexInterval;
@@ -16,12 +15,17 @@ import java.io.IOException;
 import java.util.logging.Logger;
 
 /**
+ * Example application for computing the weakly connected components
+ * of a graph. The algorithm uses label exchange: each vertex first chooses
+ * a label equaling its id; on the subsequent iterations each vertex sets
+ * its label to be the minimum of the neighbors' labels and its current label.
+ * Algorithm finishes when no labels change. Each vertex with same label belongs
+ * to same component.
  * @author akyrola
- *         Date: 7/15/12
  */
 public class ConnectedComponents implements GraphChiProgram<Integer, Integer> {
 
-    private static Logger logger = LoggingInitializer.getLogger("connectedcomponents");
+    private static Logger logger = ChiLogger.getLogger("connectedcomponents");
 
     public void update(ChiVertex<Integer, Integer> vertex, GraphChiContext context) {
         final int iteration = context.getIteration();
@@ -104,6 +108,11 @@ public class ConnectedComponents implements GraphChiProgram<Integer, Integer> {
         }, new IntConverter(), new IntConverter());
     }
 
+
+    /**
+     * Usage: java edu.cmu.graphchi.apps.ConnectedComponents graph-name num-shards filetype(edgelist|adjlist)
+     * For specifying the number of shards, 20-50 million edges/shard is often a good configuration.
+     */
     public static void main(String[] args) throws  Exception {
         String baseFilename = args[0];
         int nShards = Integer.parseInt(args[1]);
