@@ -610,18 +610,16 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
                         try {
                             logger.info("Loading memshard started. " + Thread.currentThread().getName() + " id=" +
                                     Thread.currentThread().getId());
-                            logger.info("Memshard:  " + memShard + " ... st: " + startVertex + " -- " + endVertex);
-                            logger.info("Vertices length: " + vertices.length + "; disableOut=" + disableOutEdges);
+                            logger.info("Memshard: " + startVertex + " -- " + endVertex);
+                            logger.info("Vertices length: " + vertices.length);
                             memShard.loadVertices(startVertex, endVertex, vertices, disableOutEdges);
-                            logger.info("Loading memshard finished." + Thread.currentThread().getName());
+                            logger.info("Loading memory-shard finished." + Thread.currentThread().getName());
 
                             if (countDown.decrementAndGet() == 0) {
                                 synchronized (terminationLock) {
                                     terminationLock.notifyAll();
                                 }
                             }
-                            logger.info("Finishing memshard task: " + Thread.currentThread().getName());
-
                         } catch (IOException ioe) {
                             ioe.printStackTrace();
                             throw new RuntimeException(ioe);
