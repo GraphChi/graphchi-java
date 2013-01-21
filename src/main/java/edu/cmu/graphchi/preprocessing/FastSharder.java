@@ -474,7 +474,7 @@ public class FastSharder <VertexValueType, EdgeValueType> {
         while ((ln = ins.readLine()) != null) {
             if (ln.length() > 2 && !ln.startsWith("#")) {
                 lineNum++;
-                if (lineNum % 2000000 == 0) System.out.println(lineNum);
+                if (lineNum % 2000000 == 0) logger.info("Reading line: " + lineNum);
                 String[] tok = ln.split("\t");
                 if (tok.length == 2) {
                     this.addEdge(Integer.parseInt(tok[0]), Integer.parseInt(tok[1]), null);

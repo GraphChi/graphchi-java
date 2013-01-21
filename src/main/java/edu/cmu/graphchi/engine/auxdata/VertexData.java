@@ -49,18 +49,18 @@ public class VertexData <VertexDataType> {
         this.converter = converter;
         this.sparse = sparse;
 
-        File vertexfile = new File(ChiFilenames.getFilenameOfVertexData(baseFilename, converter, sparse));
         File sparseDegreeFile = new File(ChiFilenames.getFilenameOfDegreeData(baseFilename, true));
         if (sparse && !sparseDegreeFile.exists()) {
             sparse = false;
-            logger.warning("Sparse vertex data was allowed but degree data was not false - using dense");
+            logger.warning("Sparse vertex data was allowed but sparse degree file did not exist  using dense");
         }
+        File vertexfile = new File(ChiFilenames.getFilenameOfVertexData(baseFilename, converter, sparse));
 
         if (!sparse) {
             long expectedSize = (long) converter.sizeOf() * (long) nvertices;
 
             // Check size and create if does not exists
-            System.out.println("Vertex file length: " + vertexfile.length() + ", nvertices=" + nvertices
+            logger.info("Vertex file [" + vertexfile.getAbsolutePath() + "] length: " + vertexfile.length() + ", nvertices=" + nvertices
                     + ", expected size: " + expectedSize);
             if (!vertexfile.exists() || vertexfile.length() < expectedSize) {
                 if (!vertexfile.exists()) {

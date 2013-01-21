@@ -4,15 +4,20 @@ import edu.cmu.graphchi.ChiVertex;
 import edu.cmu.graphchi.GraphChiContext;
 import edu.cmu.graphchi.GraphChiProgram;
 import edu.cmu.graphchi.datablocks.FloatConverter;
+import edu.cmu.graphchi.datablocks.FloatPair;
+import edu.cmu.graphchi.datablocks.FloatPairConverter;
 import edu.cmu.graphchi.engine.GraphChiEngine;
 import edu.cmu.graphchi.engine.VertexInterval;
 import edu.cmu.graphchi.preprocessing.EdgeProcessor;
 import edu.cmu.graphchi.preprocessing.FastSharder;
 import edu.cmu.graphchi.preprocessing.VertexIdTranslate;
+import edu.cmu.graphchi.preprocessing.VertexProcessor;
 import edu.cmu.graphchi.util.IdFloat;
 import edu.cmu.graphchi.util.Toplist;
 
 import java.io.File;
+import java.io.FileInputStream;
+import java.io.IOException;
 import java.util.TreeSet;
 
 /**
@@ -52,7 +57,7 @@ public class Pagerank implements GraphChiProgram<Float, Float> {
 
     public void endSubInterval(GraphChiContext ctx, VertexInterval interval) {}
 
-        // Temp
+    // Temp
     public static VertexIdTranslate runForPig(String filename, int numShards) throws Exception {
         GraphChiEngine<Float, Float> engine = new GraphChiEngine<Float, Float>(filename, numShards);
 
@@ -63,15 +68,43 @@ public class Pagerank implements GraphChiProgram<Float, Float> {
         return engine.getVertexIdTranslate();
     }
 
+    /**
+     * Initialize the sharder-program.
+     * @param graphName
+     * @param numShards
+     * @return
+     * @throws IOException
+     */
+    protected static FastSharder createSharder(String graphName, int numShards) throws IOException {
+        return new FastSharder<Float, Float>(graphName, numShards, new VertexProcessor<Float>() {
+            public Float receiveVertexValue(int vertexId, String token) {
+                return (token == null ? 0.0f : Float.parseFloat(token));
+            }
+        }, new EdgeProcessor<Float>() {
+            public Float receiveEdge(int from, int to, String token) {
+                return (token == null ? 0.0f : Float.parseFloat(token));
+            }
+        }, new FloatConverter(), new FloatConverter());
+    }
+
     public static void main(String[] args) throws  Exception {
         String baseFilename = args[0];
         int nShards = Integer.parseInt(args[1]);
+
+        /* Create shards */
+        FastSharder sharder = createSharder(baseFilename, nShards);
+        if (baseFilename.equals("pipein")) {     // Allow piping graph in
+            sharder.shard(System.in);
+        } else {
+            sharder.shard(new FileInputStream(new File(baseFilename)));
+
+        }
 
         GraphChiEngine<Float, Float> engine = new GraphChiEngine<Float, Float>(baseFilename, nShards);
         engine.setEdataConverter(new FloatConverter());
         engine.setVertexDataConverter(new FloatConverter());
         engine.setModifiesInedges(false); // Important optimization
-        engine.run(new Pagerank(), 5);
+        engine.run(new Pagerank(), 4);
 
         System.out.println("Ready.");
 
