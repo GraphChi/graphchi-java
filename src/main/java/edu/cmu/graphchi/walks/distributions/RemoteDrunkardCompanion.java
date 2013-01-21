@@ -1,10 +1,9 @@
-package com.twitter.pers.graphchi.walks.distributions;
+package edu.cmu.graphchi.walks.distributions;
 
 import edu.cmu.graphchi.util.IdCount;
 
 import java.rmi.Remote;
 import java.rmi.RemoteException;
-import java.util.TreeSet;
 
 /**
  * @author  Aapo Kyrola, akyrola@twitter.com

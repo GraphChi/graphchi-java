@@ -1,6 +1,6 @@
-package com.twitter.pers.graphchi.walks;
+package edu.cmu.graphchi.walks;
 
-import com.twitter.pers.graphchi.walks.distributions.RemoteDrunkardCompanion;
+import edu.cmu.graphchi.walks.distributions.RemoteDrunkardCompanion;
 import com.yammer.metrics.Metrics;
 import com.yammer.metrics.core.Timer;
 import com.yammer.metrics.core.TimerContext;
@@ -8,31 +8,26 @@ import edu.cmu.graphchi.ChiFilenames;
 import edu.cmu.graphchi.ChiVertex;
 import edu.cmu.graphchi.GraphChiContext;
 import edu.cmu.graphchi.GraphChiProgram;
-import edu.cmu.graphchi.aggregators.VertexAggregator;
 import edu.cmu.graphchi.datablocks.FloatConverter;
 import edu.cmu.graphchi.datablocks.IntConverter;
 import edu.cmu.graphchi.engine.GraphChiEngine;
 import edu.cmu.graphchi.engine.VertexInterval;
 import edu.cmu.graphchi.metrics.SimpleMetricsReporter;
-import edu.cmu.graphchi.util.IdInt;
-import edu.cmu.graphchi.util.Toplist;
 
 import java.io.File;
 import java.rmi.Naming;
 import java.rmi.RemoteException;
 import java.util.ArrayList;
 import java.util.Random;
-import java.util.TreeSet;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * Launch millions (?) of random walks and record the
  * hops for each source. Uses a remote DrunkardCompanion to
  * keep track of the distribution.
- * @author Aapo Kyrola, akyrola@twitter.com, akyrola@cs.cmu.edu
+ * @author Aapo Kyrola, akyrola@cs.cmu.edu
  */
 public class DrunkardMobWithCompanion implements GraphChiProgram<Integer, Float>, GrabbedBucketConsumer {
 
@@ -127,7 +122,6 @@ public class DrunkardMobWithCompanion implements GraphChiProgram<Integer, Float>
         }
     }
 
-    @Override
     public void consume(int firstVertexInBucket, int[] walkBucket, int len) {
         try {
             pendingWalksToSubmit.addAndGet(len);

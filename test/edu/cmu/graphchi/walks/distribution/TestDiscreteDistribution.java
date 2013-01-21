@@ -1,6 +1,6 @@
-package com.twitter.pers.graphchi.walks.distribution;
+package edu.cmu.graphchi.walks.distribution;
 
-import com.twitter.pers.graphchi.walks.distributions.DiscreteDistribution;
+import edu.cmu.graphchi.walks.distributions.DiscreteDistribution;
 import edu.cmu.graphchi.util.IdCount;
 import org.junit.Test;
 

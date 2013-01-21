@@ -1,4 +1,4 @@
-package com.twitter.pers.graphchi.walks;
+package edu.cmu.graphchi.walks;
 
 import com.yammer.metrics.Metrics;
 import com.yammer.metrics.core.Timer;
@@ -14,7 +14,8 @@ import java.util.logging.Logger;
 
 /**
  * Manager for random walks
- * @author Aapo Kyrola, akyrola@twitter.com, akyrola@cs.cmu.edu
+ * * Done partially during authors internship at Twitter, Fall 2012.
+ * @author Aapo Kyrola,  akyrola@cs.cmu.edu
  */
 public class WalkManager {
 

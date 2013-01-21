@@ -1,9 +1,7 @@
-package com.twitter.pers.graphchi.walks;
+package edu.cmu.graphchi.walks;
 
 import java.io.*;
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 
 /**
  * Class for computing paths from the walk-files produced

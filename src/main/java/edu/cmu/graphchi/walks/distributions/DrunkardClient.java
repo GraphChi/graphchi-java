@@ -1,4 +1,4 @@
-package com.twitter.pers.graphchi.walks.distributions;
+package edu.cmu.graphchi.walks.distributions;
 
 import com.twitter.pers.util.RemoteVertexNameService;
 import edu.cmu.graphchi.util.IdCount;
@@ -6,9 +6,7 @@ import edu.cmu.graphchi.util.IdCount;
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.rmi.Naming;
-import java.rmi.RemoteException;
 import java.util.ArrayList;
-import java.util.TreeSet;
 
 /**
  * Client for querying

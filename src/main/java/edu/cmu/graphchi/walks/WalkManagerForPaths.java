@@ -1,4 +1,4 @@
-package com.twitter.pers.graphchi.walks;
+package edu.cmu.graphchi.walks;
 
 import com.yammer.metrics.Metrics;
 import com.yammer.metrics.core.Timer;

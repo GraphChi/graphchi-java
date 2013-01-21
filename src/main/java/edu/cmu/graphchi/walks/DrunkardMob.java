@@ -1,11 +1,9 @@
-package com.twitter.pers.graphchi.walks;
+package edu.cmu.graphchi.walks;
 
-import com.yammer.metrics.Metrics;
 import edu.cmu.graphchi.ChiFilenames;
 import edu.cmu.graphchi.ChiVertex;
 import edu.cmu.graphchi.GraphChiContext;
 import edu.cmu.graphchi.GraphChiProgram;
-import edu.cmu.graphchi.aggregators.VertexAggregator;
 import edu.cmu.graphchi.datablocks.IntConverter;
 import edu.cmu.graphchi.engine.GraphChiEngine;
 import edu.cmu.graphchi.engine.VertexInterval;
@@ -18,46 +16,46 @@ import java.util.TreeSet;
 import java.util.concurrent.TimeUnit;
 
 /**
- * Launch millions (?) of random walks and record each hop
- * for the walks. Each walk has an unique id. This version thus
- * uses twice amount of memory as the DrunkardMob which only
- * can be used for computing distributions of source-destinations.
- *  @author Aapo Kyrola, akyrola@twitter.com, akyrola@cs.cmu.edu
+ * Launch millions (?) of random walks and record the
+ * hops for each source. This version can be used only for computing
+ * distribution of the source-destinations. For recording the actual
+ * paths, use DrunkardMobForPaths
+ * Done partially during authors internship at Twitter, Fall 2012.
+ * @author Aapo Kyrola, akyrola@cs.cmu.edu
  */
-public class DrunkardMobForPaths implements GraphChiProgram<Integer, Boolean> {
+public class DrunkardMob implements GraphChiProgram<Integer, Float> {
 
-    private WalkManagerForPaths walkManager;
-    private WalkSnapshotForPaths curWalkSnapshot;
-    private int maxHops;
-    private String basefileName;
+    private WalkManager walkManager;
+    private WalkSnapshot curWalkSnapshot;
 
-    public DrunkardMobForPaths(int maxHops, String basefileName) {
-        this.maxHops = maxHops;
-        this.basefileName = basefileName;
+    public DrunkardMob() {
     }
 
-    public void update(ChiVertex<Integer, Boolean> vertex, GraphChiContext context) {
-        long[] walksAtMe = curWalkSnapshot.getWalksAtVertex(vertex.getId());
+    public void update(ChiVertex<Integer, Float> vertex, GraphChiContext context) {
+        int[] walksAtMe = curWalkSnapshot.getWalksAtVertex(vertex.getId(), true);
         if (context.getIteration() == 0) vertex.setValue(0);
         if (walksAtMe == null) return;
 
+        int walkLength = walksAtMe.length;
+
         int numWalks = 0;
-        for(int i=0; i < walksAtMe.length; i++) {
-            long walk = walksAtMe[i];
-            int hop = walkManager.hop(walk);
-            if (hop > 0) numWalks++;
-            if (hop < maxHops) {
-                // Choose a random destination and move the walk forward
-                int dst;
-                if (vertex.numEdges() > 0) {
-                    dst = vertex.getRandomNeighbor();
-                } else {
-                    // Dead end!
-                    continue;   // Ignore this walk
-                }
-                walkManager.updateWalk(walkManager.walkId(walk), dst, hop + 1);
-                context.getScheduler().addTask(dst);
+        for(int i=0; i < walkLength; i++) {
+            int walk = walksAtMe[i];
+            boolean hop = walkManager.hop(walk);
+            // Choose a random destination and move the walk forward
+            int dst;
+            if (vertex.getId() != walkManager.getSourceVertex(walk)) {
+                numWalks++;
             }
+            if (vertex.numOutEdges() > 0) {
+                dst = vertex.getRandomOutNeighbor();
+            } else {
+                // Dead end!
+                dst = walkManager.getSourceVertex(walk);
+            }
+            walkManager.updateWalk(walkManager.sourceIdx(walk), dst, !hop);
+            context.getScheduler().addTask(dst);
+
         }
         vertex.setValue(vertex.getValue() + numWalks);
     }
@@ -70,9 +68,7 @@ public class DrunkardMobForPaths implements GraphChiProgram<Integer, Boolean> {
         }
     }
 
-    public void endIteration(GraphChiContext ctx) {
-
-    }
+    public void endIteration(GraphChiContext ctx) {}
 
     /**
      * At the start of interval - grab the snapshot of walks
@@ -87,11 +83,13 @@ public class DrunkardMobForPaths implements GraphChiProgram<Integer, Boolean> {
         if (ctx.getIteration() == 0) { // NOTE, temporary hack to save disk space but have the same I/O cost for testing
             new File(filename).delete();
         }
+
         // Launch a thread to dump
+        final WalkSnapshot snapshot = curWalkSnapshot;
         Thread dumperThread = new Thread(new Runnable() {
             public void run() {
                 try {
-                    walkManager.dumpToFile(curWalkSnapshot, filename);
+                    walkManager.dumpToFile(snapshot, filename);
                 } catch (Exception err) {
                     err.printStackTrace();
                 }
@@ -101,6 +99,7 @@ public class DrunkardMobForPaths implements GraphChiProgram<Integer, Boolean> {
     }
 
     public void endSubInterval(GraphChiContext ctx, final VertexInterval interval) {
+        curWalkSnapshot.restoreUngrabbed();
         curWalkSnapshot = null; // Release memory
     }
 
@@ -109,9 +108,10 @@ public class DrunkardMobForPaths implements GraphChiProgram<Integer, Boolean> {
     public void endInterval(GraphChiContext ctx, VertexInterval interval) {}
 
     public static void main(String[] args) throws  Exception {
-        SimpleMetricsReporter rep = SimpleMetricsReporter.enable(2, TimeUnit.MINUTES);
-        String baseFilename = args[0];
 
+        SimpleMetricsReporter rep = SimpleMetricsReporter.enable(2, TimeUnit.MINUTES);
+
+        String baseFilename = args[0];
 
         if (args.length > 1) {
             int nShards = Integer.parseInt(args[1]);
@@ -119,7 +119,7 @@ public class DrunkardMobForPaths implements GraphChiProgram<Integer, Boolean> {
             int walksPerSource = Integer.parseInt(args[3]);
             int maxHops = Integer.parseInt(args[4]);
 
-            System.out.println("Path-recording walks will start from " + nSources + " sources.");
+            System.out.println("Walks will start from " + nSources + " sources.");
             System.out.println("Going to start " + walksPerSource + " walks per source.");
             System.out.println("Max hops: " + maxHops);
 
@@ -130,30 +130,29 @@ public class DrunkardMobForPaths implements GraphChiProgram<Integer, Boolean> {
             }
 
             /* Initialize GraphChi engine */
-            GraphChiEngine<Integer, Boolean> engine = new GraphChiEngine<Integer, Boolean>(baseFilename, nShards);
-
+            GraphChiEngine<Integer, Float> engine = new GraphChiEngine<Integer, Float>(baseFilename, nShards);
             engine.setEdataConverter(null);
             engine.setVertexDataConverter(new IntConverter());
             engine.setModifiesInedges(false);
             engine.setModifiesOutedges(false);
             engine.setEnableScheduler(true);
             engine.setOnlyAdjacency(true);
-            engine.setDisableInedges(false); // NOTE! In-edges are enabled
+            engine.setDisableInedges(true);
             engine.setMemoryBudgetMb(1200);
             engine.setUseStaticWindowSize(false); // Disable dynamic window size detection
             engine.setEnableDeterministicExecution(false);
+            engine.setAutoLoadNext(true);
             engine.setMaxWindow(2000000); // Handle maximum 2M vertices a time.
 
             long t1 = System.currentTimeMillis();
 
             /* Initialize application object */
-            DrunkardMobForPaths mob = new DrunkardMobForPaths(maxHops, baseFilename);
+            DrunkardMob mob = new DrunkardMob();
 
             /* Initialize Random walks */
             int nVertices = engine.numVertices();
-            mob.walkManager = new WalkManagerForPaths(nVertices);
+            mob.walkManager = new WalkManager(nVertices, nSources);
 
-            /* NOTE: This starts walks from random nodes - you probably want something different */
             for(int i=0; i < nSources; i++) {
                 int source = (int) (Math.random() * nVertices);
                 mob.walkManager.addWalkBatch(source, walksPerSource);
@@ -166,24 +165,15 @@ public class DrunkardMobForPaths implements GraphChiProgram<Integer, Boolean> {
 
             /* Run */
             engine.run(mob, maxHops + 1);
-
-            /* Analyze */
-            WalkPathAnalyzer analyzer = new WalkPathAnalyzer(new File("."));
-            analyzer.analyze(0, mob.walkManager.getTotalWalks() - 1, maxHops);
-
-            System.out.println("Ready. Going to output...");
-
-            /* Output top 20 of visited vertices. */
-            TreeSet<IdInt> top20 = Toplist.topListInt(baseFilename, 20);
-            int i = 0;
-            for(IdInt vertexRank : top20) {
-                System.out.println(++i + ": " + vertexRank.getVertexId() + " = " + vertexRank.getValue());
-            }
-            System.out.println("Finished.");
-
-            long sumWalks = VertexAggregator.sumInt(engine.numVertices(), baseFilename);
-            System.out.println("Total hops (in file): " + sumWalks);
-            rep.run();
         }
+        System.out.println("Ready. Going to output...");
+
+        TreeSet<IdInt> top20 = Toplist.topListInt(baseFilename, 20);
+        int i = 0;
+        for(IdInt vertexRank : top20) {
+            System.out.println(++i + ": " + vertexRank.getVertexId() + " = " + vertexRank.getValue());
+        }
+        System.out.println("Finished.");
+
     }
 }

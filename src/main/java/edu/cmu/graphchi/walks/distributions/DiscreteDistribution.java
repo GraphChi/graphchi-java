@@ -1,10 +1,6 @@
-package com.twitter.pers.graphchi.walks.distributions;
+package edu.cmu.graphchi.walks.distributions;
 
-import edu.cmu.graphchi.aggregators.ForeachCallback;
-import edu.cmu.graphchi.aggregators.VertexAggregator;
-import edu.cmu.graphchi.datablocks.IntConverter;
 import edu.cmu.graphchi.util.IdCount;
-import edu.cmu.graphchi.util.IdInt;
 
 import java.util.*;
 
@@ -12,7 +8,7 @@ import java.util.*;
  * Presents a map from integers to frequencies.
  * Special distributions for avoidance can be used to exclude
  * certain ids from the distributions in merges.
- * @author Aapo Kyrola, akyrola@twitter.com, akyrola@cs.cmu.edu
+ * @author Aapo Kyrola, akyrola@cs.cmu.edu
  */
 public class DiscreteDistribution {
 

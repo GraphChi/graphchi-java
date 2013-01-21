@@ -1,6 +1,6 @@
-package com.twitter.pers.graphchi.walks.distributions;
+package edu.cmu.graphchi.walks.distributions;
 
-import com.twitter.pers.graphchi.walks.WalkManager;
+import edu.cmu.graphchi.walks.WalkManager;
 import edu.cmu.graphchi.LoggingInitializer;
 import edu.cmu.graphchi.util.IdCount;
 import edu.cmu.graphchi.util.IntegerBuffer;
@@ -22,6 +22,8 @@ import java.util.logging.Logger;
 /**
  * DrunkardCompanion is a remote service that receives walks from the walker
  * and maintains a distribution from each source.
+ * Done partially during internship at Twitter, Fall 2012
+ * @author Aapo Kyrola, akyrola@cs.cmu.edu
  */
 public class DrunkardCompanion extends UnicastRemoteObject implements RemoteDrunkardCompanion {
 

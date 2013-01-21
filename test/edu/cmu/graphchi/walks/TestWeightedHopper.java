@@ -1,4 +1,4 @@
-package com.twitter.pers.graphchi.walks;
+package edu.cmu.graphchi.walks;
 
 import edu.cmu.graphchi.ChiVertex;
 import edu.cmu.graphchi.engine.auxdata.VertexDegree;

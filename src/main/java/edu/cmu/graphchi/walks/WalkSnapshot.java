@@ -1,4 +1,4 @@
-package com.twitter.pers.graphchi.walks;
+package edu.cmu.graphchi.walks;
 
 /**
  * @author Aapo Kyrola
