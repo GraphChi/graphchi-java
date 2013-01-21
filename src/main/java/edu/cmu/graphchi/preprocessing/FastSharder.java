@@ -48,7 +48,7 @@ import java.util.zip.DeflaterOutputStream;
  */
 public class FastSharder <VertexValueType, EdgeValueType> {
 
-    public enum GraphInputFormat {EDGELIST, ADJACENCY};
+    public enum GraphInputFormat {EDGELIST, ADJACENCY, MATRIXMARKET};
 
     private String baseFilename;
     private int numShards;
@@ -253,7 +253,6 @@ public class FastSharder <VertexValueType, EdgeValueType> {
          * Store information on how to translate internal vertex id to the original id.
          */
         saveVertexTranslate();
-
 
         /**
          * Close / flush each shovel-file.
@@ -624,35 +623,87 @@ public class FastSharder <VertexValueType, EdgeValueType> {
         BufferedReader ins = new BufferedReader(new InputStreamReader(inputStream));
         String ln;
         long lineNum = 0;
-        while ((ln = ins.readLine()) != null) {
-            if (ln.length() > 2 && !ln.startsWith("#")) {
-                lineNum++;
-                if (lineNum % 2000000 == 0) logger.info("Reading line: " + lineNum);
 
-                String[] tok = ln.split("\t");
+        if (!format.equals(GraphInputFormat.MATRIXMARKET)) {
+            while ((ln = ins.readLine()) != null) {
+                if (ln.length() > 2 && !ln.startsWith("#")) {
+                    lineNum++;
+                    if (lineNum % 2000000 == 0) logger.info("Reading line: " + lineNum);
 
-                if (format == GraphInputFormat.EDGELIST) {
-                    if (tok.length == 2) {
-                        this.addEdge(Integer.parseInt(tok[0]), Integer.parseInt(tok[1]), null);
-                    } else if (tok.length == 3) {
-                        this.addEdge(Integer.parseInt(tok[0]), Integer.parseInt(tok[1]), tok[2]);
+                    String[] tok = ln.split("\t");
+
+                    if (format == GraphInputFormat.EDGELIST) {
+                        /* Edge list: <src> <dst> <value> */
+                        if (tok.length == 2) {
+                            this.addEdge(Integer.parseInt(tok[0]), Integer.parseInt(tok[1]), null);
+                        } else if (tok.length == 3) {
+                            this.addEdge(Integer.parseInt(tok[0]), Integer.parseInt(tok[1]), tok[2]);
+                        }
+                    } else if (format == GraphInputFormat.ADJACENCY) {
+                        /* Adjacency list: <vertex-id> <count> <neighbor-1> <neighbor-2> ... */
+                        int vertexId = Integer.parseInt(tok[0]);
+                        int len = Integer.parseInt(tok[1]);
+                        if (len != tok.length - 2) {
+                            throw new IllegalArgumentException("Error on line " + lineNum + "; number of edges does not match number of tokens:" +
+                                    len + " != " + tok.length);
+                        }
+                        for(int j=2; j < len; j++) {
+                            int dest = Integer.parseInt(tok[j]);
+                            this.addEdge(vertexId, dest, null);
+                        }
+                    } else {
+                        throw new IllegalArgumentException("Please specify graph input format");
                     }
-                } else if (format == GraphInputFormat.ADJACENCY) {
-                    int vertexId = Integer.parseInt(tok[0]);
-                    int len = Integer.parseInt(tok[1]);
-                    if (len != tok.length - 2) {
-                        throw new IllegalArgumentException("Error on line " + lineNum + "; number of edges does not match number of tokens:" +
-                          len + " != " + tok.length);
-                    }
-                    for(int j=2; j < len; j++) {
-                        int dest = Integer.parseInt(tok[j]);
-                        this.addEdge(vertexId, dest, null);
-                    }
-                } else {
-                  throw new IllegalArgumentException("Please specify graph input format");
                 }
             }
+        } else if (format.equals(GraphInputFormat.MATRIXMARKET)) {
+            /* Process matrix-market format to create a bipartite graph. */
+            boolean parsedMatrixSize = false;
+            int numLeft = 0;
+            int numRight = 0;
+            long totalEdges = 0;
+            while ((ln = ins.readLine()) != null) {
+                lineNum++;
+                if (ln.length() > 2 && !ln.startsWith("#")) {
+                    if (ln.startsWith("%%")) {
+                        if (!ln.contains(("matrix coordinate real general"))) {
+                            throw new RuntimeException("Unknown matrix market format!");
+                        }
+                    } else if (ln.startsWith("%")) {
+                        // Comment - skip
+                    } else {
+                        String[] tok = ln.split(" ");
+                        if (lineNum % 2000000 == 0) logger.info("Reading line: " + lineNum + " / " + totalEdges);
+                        if (!parsedMatrixSize) {
+                            numLeft = Integer.parseInt(tok[0]);
+                            numRight = Integer.parseInt(tok[1]);
+                            totalEdges = Long.parseLong(tok[2]);
+                            logger.info("Matrix-market: going to load total of " + totalEdges + " edges.");
+                            parsedMatrixSize = true;
+                        } else {
+                            /* The ids start from 1, so we take 1 off. */
+                            /* Vertex - ids on the right side of the bipartite graph have id numLeft + originalId */
+                            try {
+                                String lastTok = tok[tok.length - 1];
+                                this.addEdge(Integer.parseInt(tok[0]) - 1, numLeft + Integer.parseInt(tok[1]), lastTok);
+                            } catch (NumberFormatException nfe) {
+                                logger.severe("Could not parse line: " + ln);
+                                throw nfe;
+                            }
+                        }
+                    }
+                }
+            }
+
+            /* Store matrix dimensions */
+            String matrixMarketInfoFile = baseFilename + ".matrixinfo";
+            FileOutputStream fos = new FileOutputStream(new File(matrixMarketInfoFile));
+            fos.write((numLeft + "\t" + numRight + "\t" + totalEdges + "\n").getBytes());
+            fos.close();
         }
+
+
+
         this.process();
     }
 

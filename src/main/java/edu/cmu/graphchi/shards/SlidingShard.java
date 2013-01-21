@@ -287,6 +287,11 @@ public class SlidingShard <EdgeDataType> {
         this.onlyAdjacency = onlyAdjacency;
     }
 
+    public long getNumEdges() {
+        if (converter == null) return 0; // TODO: fix.
+        return edataFilesize / converter.sizeOf();
+    }
+
     class Block {
         String blockFileName;
         int offset;

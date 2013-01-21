@@ -26,11 +26,11 @@ public class ChiFilenames {
     public static String vertexDataSuffix = "";
 
     public static String getFilenameOfVertexData(String baseFilename, BytesToValueConverter valueConv, boolean sparse) {
-        return baseFilename + "." + valueConv.sizeOf() + "B.vout" + vertexDataSuffix  + (sparse ? ".sparse" : "");
+        return baseFilename + "." + valueConv.sizeOf() + "Bj.vout" + vertexDataSuffix  + (sparse ? ".sparse" : "");
     }
 
     public static String getFilenameOfDegreeData(String baseFilename, boolean sparse) {
-        return baseFilename + "_degs.bin" + (sparse ? ".sparse" : "");
+        return baseFilename + "_degsj.bin" + (sparse ? ".sparse" : "");
     }
 
     public static String getPartStr(int p, int nShards) {
@@ -54,15 +54,15 @@ public class ChiFilenames {
     }
 
     public static String getFilenameShardEdata(String baseFilename, BytesToValueConverter valueConv, int p, int nShards) {
-        return baseFilename + ".edata_azv.e" + valueConv.sizeOf() + "B." + p + "_" + nShards;
+        return baseFilename + ".edata_java.e" + valueConv.sizeOf() + "B." + p + "_" + nShards;
     }
 
     public static String getFilenameShardsAdj(String baseFilename, int p, int nShards) {
-        return baseFilename + ".edata_azv." + p + "_" + nShards + ".adj";
+        return baseFilename + ".edata_java." + p + "_" + nShards + ".adj";
     }
 
     public static String getFilenameIntervals(String baseFilename, int nShards) {
-        return baseFilename + "." + nShards + ".intervals";
+        return baseFilename + "." + nShards + ".intervalsjava";
     }
 
     public static String getVertexTranslateDefFile(String baseFilename, int nshards) {

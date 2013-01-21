@@ -100,11 +100,18 @@ public class GraphChiContext {
         return threadId;
     }
 
+    public boolean isLastIteration() {
+        return (this.iteration == this.getNumIterations() - 1);
+    }
 
     public Object getThreadLocal() {
         return threadLocal;
     }
 
+    /**
+     * Advanced use - do not use.
+     * @param threadLocal
+     */
     public void setThreadLocal(Object threadLocal) {
         this.threadLocal = threadLocal;
     }
@@ -141,4 +148,6 @@ public class GraphChiContext {
         ctx.vertexIdTranslate = vertexIdTranslate;
         return ctx;
     }
+
+
 }

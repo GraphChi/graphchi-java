@@ -681,6 +681,15 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
         return chiContext;
     }
 
+    public long numEdges() {
+        long numEdges = 0;
+        for(SlidingShard shard : slidingShards) {
+            numEdges += shard.getNumEdges();
+        }
+        return numEdges;
+
+    }
+
     class IntervalData {
         private VertexInterval subInterval;
         private ChiVertex<VertexDataType, EdgeDataType>[] vertices;

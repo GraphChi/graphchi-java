@@ -8,14 +8,14 @@ import java.util.Random;
  * in keeping all vertex-values in memory efficiently.
  * @author akyrola
  */
-public class HugeFloatMatrix implements Cloneable {
+public class HugeDoubleMatrix implements Cloneable {
 
     private int BLOCKSIZE = 1024 * 1024 * 16; // 16M * 4 = 64 megabytes
     private long nrows, ncols;
-    private float[][] data;
+    private double[][] data;
 
 
-    public HugeFloatMatrix(long nrows, long ncols, float initialValue) {
+    public HugeDoubleMatrix(long nrows, long ncols, double initialValue) {
         this.nrows = (long)nrows;
         this.ncols = (long)ncols;
 
@@ -23,14 +23,14 @@ public class HugeFloatMatrix implements Cloneable {
 
         long elements = nrows * ncols;
         int nblocks = (int) (elements / (long)BLOCKSIZE + (elements % BLOCKSIZE == 0 ? 0 : 1));
-        data = new float[nblocks][];
+        data = new double[nblocks][];
 
         System.out.println("Creating " + nblocks + " blocks");
         for(int i=0; i<nblocks; i++) {
-            data[i] = new float[BLOCKSIZE];
+            data[i] = new double[BLOCKSIZE];
 
             if (initialValue != 0.0f) {
-                float[] mat = data[i];
+                double[] mat = data[i];
                 for(int j=0; j<BLOCKSIZE; j++) {
                     mat[j] = initialValue;
                 }
@@ -38,8 +38,8 @@ public class HugeFloatMatrix implements Cloneable {
         }
     }
 
-    public HugeFloatMatrix(long nrows, long ncols) {
-        this(nrows, ncols, 0.0f);
+    public HugeDoubleMatrix(long nrows, long ncols) {
+        this(nrows, ncols, 0.0);
     }
 
     public long size() {
@@ -50,21 +50,21 @@ public class HugeFloatMatrix implements Cloneable {
         return nrows;
     }
 
-    public float getValue(int row, int col) {
+    public double getValue(int row, int col) {
         long idx = (long)row * ncols + (long)col;
         int block = (int) (idx / BLOCKSIZE);
         int blockidx = (int) (idx % BLOCKSIZE);
         return data[block][blockidx];
     }
 
-    public void setValue(int row, int col, float val) {
+    public void setValue(int row, int col, double val) {
         long idx = (long)row * ncols + (long)col;
         int block = (int) (idx / BLOCKSIZE);
         int blockidx = (int) (idx % BLOCKSIZE);
         data[block][blockidx] = val;
     }
 
-    public void add(int row, int col, float delta) {
+    public void add(int row, int col, double delta) {
         long idx = (long)row * ncols + (long)col;
         int block = (int) (idx / BLOCKSIZE);
         int blockidx = (int) (idx % BLOCKSIZE);
@@ -72,7 +72,7 @@ public class HugeFloatMatrix implements Cloneable {
     }
 
     // Premature optimization
-    public float[] getRowBlock(int row) {
+    public double[] getRowBlock(int row) {
         long idx = (long)row * ncols;
         int block = (int) (idx / BLOCKSIZE);
         return data[block];
@@ -84,8 +84,8 @@ public class HugeFloatMatrix implements Cloneable {
         return blockidx;
     }
 
-    public float[] getEmptyRow() {
-        float[] arr = new float[(int)ncols];
+    public double[] getEmptyRow() {
+        double[] arr = new double[(int)ncols];
         return arr;
     }
 
@@ -95,7 +95,7 @@ public class HugeFloatMatrix implements Cloneable {
         }
     }
 
-    public void getRow(int row, float[] arr) {
+    public void getRow(int row, double[] arr) {
         long idx = (long)row * ncols;
         int block = (int) (idx / BLOCKSIZE);
         int blockidx = (int) (idx % BLOCKSIZE);
@@ -119,13 +119,13 @@ public class HugeFloatMatrix implements Cloneable {
 
         if (sqr == 0.0f) throw new IllegalArgumentException("Column was all-zeros!");
         for(int j=0; j < nrows; j++) {
-            float x = getValue(j, col);
+            double x = getValue(j, col);
             setValue(j, col, x / div);
         }
     }
 
 
-    public void setColumn(int col, float val) {
+    public void setColumn(int col, double val) {
         for(int j=0; j < nrows; j++) {
             this.setValue(j, col, val);
         }
@@ -137,7 +137,7 @@ public class HugeFloatMatrix implements Cloneable {
      */
     public void zeroLessThan(float cutOff) {
         for(int i=0; i < data.length; i++) {
-            float[] block = data[i];
+            double[] block = data[i];
             for(int j=0; j < block.length; j++) {
                 if (block[j] != 0.0f && block[j] < cutOff) block[j] = 0.0f;
             }
@@ -149,26 +149,26 @@ public class HugeFloatMatrix implements Cloneable {
      * @param cutOff
      * @param value
      */
-    public void binaryFilter(float cutOff, float value) {
+    public void binaryFilter(double cutOff, double value) {
         for(int i=0; i < data.length; i++) {
-            float[] block = data[i];
+            double[] block = data[i];
             for(int j=0; j < block.length; j++) {
-                block[j] = (block[j] >= cutOff ? 1.0f : 0.0f) * value;
+                block[j] = (block[j] >= cutOff ? 1.0 : 0.0) * value;
             }
         }
     }
 
-     /**
-      * Randomize the content with numbers between from and to
-      * @param from min value
-      * @param to max value
-      */
-    public void randomize(float from, float to) {
+    /**
+     * Randomize the content with numbers between from and to
+     * @param from min value
+     * @param to max value
+     */
+    public void randomize(double from, double to) {
         Random r = new Random();
         for(int i=0; i < data.length; i++) {
-            float[] block = data[i];
+            double[] block = data[i];
             for(int j=0; j < block.length; j++) {
-                block[j] = from + (to - from) * r.nextFloat();
+                block[j] = from + (to - from) * r.nextDouble();
             }
         }
     }
