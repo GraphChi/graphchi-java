@@ -29,10 +29,20 @@ public class VertexIdTranslate {
         this.numShards = numShards;
     }
 
+    /**
+     * Translates original vertex id to internal vertex id
+     * @param origId
+     * @return
+     */
     public int forward(int origId) {
         return (origId % numShards) * vertexIntervalLength + origId / numShards;
     }
 
+    /**
+     * Translates internal id to original id
+     * @param transId
+     * @return
+     */
     public int backward(int transId) {
         final int shard = transId / vertexIntervalLength;
         final int off = transId % vertexIntervalLength;

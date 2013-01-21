@@ -220,7 +220,7 @@ public class ALSMatrixFactorization implements GraphChiProgram<Integer, Float> {
         engine.setModifiesInedges(false); // Important optimization
         engine.setModifiesOutedges(false); // Important optimization
 
-        engine.run(als, 4);
+        engine.run(als, 5);
 
         /* Output RMSE */
         double trainRMSE = Math.sqrt(als.rmse / (1.0 * engine.numEdges()));
