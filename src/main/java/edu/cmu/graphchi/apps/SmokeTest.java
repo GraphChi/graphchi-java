@@ -31,26 +31,26 @@ public class SmokeTest implements GraphChiProgram<Integer, Integer> {
             int curval = vertex.getValue();
             int vexpected = vertex.getId() + context.getIteration() - 1;
             if (curval != vexpected) {
-            	throw new RuntimeException("Mismatch (vertex). Expected: " + vexpected + " but had " +
-               curval);
-            		
+                throw new RuntimeException("Mismatch (vertex). Expected: " + vexpected + " but had " +
+                        curval);
+
             }
             for(int i=0; i<vertex.numInEdges(); i++) {
-                 int has = vertex.inEdge(i).getValue();
-                 int correction = vertex.getId() > vertex.inEdge(i).getVertexId() ? +1 : 0;
-                 int expected = vertex.inEdge(i).getVertexId() + context.getIteration() - 1 + correction;
-                 if (expected != has) 
-                	 throw new RuntimeException("Mismatch (edge): " + expected + " expected but had "+ has +
-                			 	". Iteration:" + context.getIteration() + ", edge:" + vertex.inEdge(i).getVertexId() 
-                			 		+ " -> " + vertex.getId());
+                int has = vertex.inEdge(i).getValue();
+                int correction = vertex.getId() > vertex.inEdge(i).getVertexId() ? +1 : 0;
+                int expected = vertex.inEdge(i).getVertexId() + context.getIteration() - 1 + correction;
+                if (expected != has)
+                    throw new RuntimeException("Mismatch (edge): " + expected + " expected but had "+ has +
+                            ". Iteration:" + context.getIteration() + ", edge:" + vertex.inEdge(i).getVertexId()
+                            + " -> " + vertex.getId());
             }
             vertex.setValue(vertex.getId() + context.getIteration());
 
         }
-         int val = vertex.getValue();
-         for(int i=0; i<vertex.numOutEdges(); i++) {
+        int val = vertex.getValue();
+        for(int i=0; i<vertex.numOutEdges(); i++) {
             vertex.outEdge(i).setValue(val);
-         }
+        }
     }
 
 
@@ -99,11 +99,7 @@ public class SmokeTest implements GraphChiProgram<Integer, Integer> {
         if (baseFilename.equals("pipein")) {     // Allow piping graph in
             sharder.shard(System.in);
         } else {
-            if (!new File(ChiFilenames.getFilenameIntervals(baseFilename, nShards)).exists()) {
-                sharder.shard(new FileInputStream(new File(baseFilename)));
-            } else {
-                logger.info("Found shards -- no need to preprocess");
-            }
+            sharder.shard(new FileInputStream(new File(baseFilename)));
         }
 
         /* Run engine */
@@ -114,6 +110,5 @@ public class SmokeTest implements GraphChiProgram<Integer, Integer> {
         engine.run(new SmokeTest(), 5);
 
         logger.info("Ready.");
-
     }
 }

@@ -6,34 +6,46 @@ import edu.cmu.graphchi.util.IdFloat
 import edu.cmu.graphchi.util.Toplist
 import java.util.TreeSet
 import scala.collection.JavaConversions._
+import edu.cmu.graphchi.preprocessing.{VertexProcessor, FastSharder}
+import java.io.FileInputStream
 
+/**
+ * Scala version of Pagerank. For illustration only --- needs cleanup.
+ */
 object PagerankScala {
-   
-    def main(args: Array[String]): Unit = {
-        val filename = "/Users/akyrola/graphs/soc-LiveJournal1.txt"
-        val niters = 5
-        val nshards = 3
-        
-        val graphchi = new GraphChiScala[java.lang.Float, java.lang.Float, java.lang.Float](filename, nshards)
-        graphchi.setEdataConverter(new FloatConverter())
-        graphchi.setVertexDataConverter(new FloatConverter())
-        
-        graphchi.initializeVertices(v => 1.0f)
-        graphchi.foreach(niters, 
-            gatherDirection = INEDGES(),
-            gatherInit = 0.0f,
-            gather =  (v, edgeval, iter, gather) => gather + edgeval,
-            apply = (gather, v) => 0.15f + 0.85f * gather,
-        	scatterDirection = OUTEDGES(),
-        	scatter = (v) => v.value() / v.outDegree
-        )
-        
-        /* Print top (this is just Java code)*/
-        val top20 = Toplist.topListFloat(filename, 20);
-        var i : Int = 0;
-        top20.foreach( vertexRank => {
-            i = i + 1
-            System.out.println(i + ": " + vertexRank.getVertexId() + " = " + vertexRank.getValue());
-        } )
-    }
+
+  def main(args: Array[String]): Unit = {
+    val filename = args(0)
+    val nshards = args(1).toInt
+    val niters = 4
+
+    /* Preprocessing */
+    val sharder = new FastSharder(filename, nshards,  null, null, new FloatConverter(), new FloatConverter())
+    sharder.shard(new FileInputStream(filename))
+
+    /* Run GraphChi */
+    val graphchi = new GraphChiScala[java.lang.Float, java.lang.Float, java.lang.Float](filename, nshards)
+    graphchi.setEdataConverter(new FloatConverter())
+    graphchi.setVertexDataConverter(new FloatConverter())
+
+    /* Notice different interface compared to the java version */
+    graphchi.initializeVertices(v => 1.0f)
+    graphchi.foreach(niters,
+      gatherDirection = INEDGES(),
+      gatherInit = 0.0f,
+      gather =  (v, edgeval, iter, gather) => gather + edgeval,
+      apply = (gather, v) => 0.15f + 0.85f * gather,
+      scatterDirection = OUTEDGES(),
+      scatter = (v) => v.value() / v.outDegree
+    )
+
+    /* Print top (this is just Java code)*/
+    val top20 = Toplist.topListFloat(filename, graphchi.numVertices, 20);
+    var i : Int = 0;
+    top20.foreach( vertexRank => {
+      i = i + 1
+      System.out.println(i + ": " +
+        graphchi.vertexTranslate.backward(vertexRank.getVertexId()) + " = " + vertexRank.getValue());
+    } )
+  }
 }

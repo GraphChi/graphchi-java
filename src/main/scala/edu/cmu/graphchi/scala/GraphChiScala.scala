@@ -81,6 +81,9 @@ extends GraphChiProgram[VertexDataType, EdgeDataType] {
 			engine.setVertexDataConverter(conv) 
 	}
 
+  def numVertices = engine.numVertices()
+  def vertexTranslate = engine.getVertexIdTranslate
+
 	var initializer : Option[ScalaChiVertex[VertexDataType, EdgeDataType] => VertexDataType] = None
 
 			def initializeVertices(initfunc : ScalaChiVertex[VertexDataType, EdgeDataType] => VertexDataType) = {

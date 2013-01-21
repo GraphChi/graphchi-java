@@ -113,7 +113,7 @@ public class FastSharder <VertexValueType, EdgeValueType> {
     }
 
 
-    private void addEdge(int from, int to, String edgeValueToken) throws IOException {
+    public void addEdge(int from, int to, String edgeValueToken) throws IOException {
         if (from == to) {
             if (vertexProcessor != null && edgeValueToken != null) {
                 VertexValueType value = vertexProcessor.receiveVertexValue(from, edgeValueToken);
@@ -164,10 +164,10 @@ public class FastSharder <VertexValueType, EdgeValueType> {
     }
 
     /**
-     * Final processing.
+     * Final processing. You should not call this.
      * @throws IOException
      */
-    private void process() throws  IOException {
+    public void process() throws IOException {
         /* Check if we have enough memory to keep track of
            vertex degree in memory
          */
