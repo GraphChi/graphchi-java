@@ -21,8 +21,31 @@ import java.util.zip.GZIPOutputStream;
 
 /**
  * New version of sharder that requires predefined number of shards
- * and translates the vertex ids in order to randomize the order.
- * Need to use VertexIdTranslate.  Requires enough memory to store vertex degrees (TODO, fix).
+ * and translates the vertex ids in order to randomize the order, thus
+ * requiring no additional step to divide the number of edges for
+ * each shard equally (it is assumed that probablistically the number
+ * of edges is roughly even).
+ *
+ * Since the vertex ids are translated to internal-ids, you need to use
+ * VertexIdTranslate class to obtain the original id-numbers.
+ *
+ * Usage:
+ * <code>
+ *     FastSharder sharder = new FastSharder(graphName, numShards, ....)
+ *     sharder.shard(new FileInputStream())
+ * </code>
+ *
+ * To use a pipe to feed a graph, use
+ * <code>
+ *     sharder.shard(System.in);
+ * </code>
+ *
+ * <b>Note:</b> Reads only edge-lists of format
+ *    from TAB to TAB value.
+ *
+ * If from and to vertex ids equal, the line is assumed to contain vertex-value.
+ *
+ * @author Aapo Kyrola
  */
 public class FastSharder <VertexValueType, EdgeValueType> {
 
@@ -90,7 +113,7 @@ public class FastSharder <VertexValueType, EdgeValueType> {
     }
 
 
-    public void addEdge(int from, int to, String edgeValueToken) throws IOException {
+    private void addEdge(int from, int to, String edgeValueToken) throws IOException {
         if (from == to) {
             if (vertexProcessor != null && edgeValueToken != null) {
                 VertexValueType value = vertexProcessor.receiveVertexValue(from, edgeValueToken);
@@ -140,8 +163,11 @@ public class FastSharder <VertexValueType, EdgeValueType> {
         return (int) (l & 0x00000000ffffffffl);
     }
 
-
-    public void process() throws  IOException {
+    /**
+     * Final processing.
+     * @throws IOException
+     */
+    private void process() throws  IOException {
         /* Check if we have enough memory to keep track of
            vertex degree in memory
          */
@@ -423,7 +449,7 @@ public class FastSharder <VertexValueType, EdgeValueType> {
 
     // http://www.algolist.net/Algorithms/Sorting/Quicksort
     // TODO: implement faster
-    static int partition(long arr[], byte[] values, int sizeOf, int left, int right)
+    private static int partition(long arr[], byte[] values, int sizeOf, int left, int right)
     {
         int i = left, j = right;
         long tmp;
@@ -467,6 +493,12 @@ public class FastSharder <VertexValueType, EdgeValueType> {
     }
 
 
+    /**
+     * Execute sharding. Currently only edge-list format is supported.
+     * See <a href="http://code.google.com/p/graphchi/wiki/EdgeListFormat">EdgeListFormat</a>
+     * @param inputStream
+     * @throws IOException
+     */
     public void shard(InputStream inputStream) throws IOException {
         BufferedReader ins = new BufferedReader(new InputStreamReader(inputStream));
         String ln;
@@ -487,9 +519,9 @@ public class FastSharder <VertexValueType, EdgeValueType> {
     }
 
     /**
-     * Compute vertex degrees by running a special graphchi program
+     * Compute vertex degrees by running a special graphchi program.
      */
-    public void computeVertexDegrees() {
+    private void computeVertexDegrees() {
         try {
             logger.info("Use sparse degrees: " + useSparseDegrees);
 
