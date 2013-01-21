@@ -44,15 +44,15 @@ public class VertexData <VertexDataType> {
     private final static Logger logger = LoggingInitializer.getLogger("vertex-data");
 
     public VertexData(int nvertices, String baseFilename,
-                      BytesToValueConverter<VertexDataType> converter, boolean sparse) throws IOException {
+                      BytesToValueConverter<VertexDataType> converter, boolean _sparse) throws IOException {
         this.baseFilename = baseFilename;
         this.converter = converter;
-        this.sparse = sparse;
+        this.sparse = _sparse;
 
         File sparseDegreeFile = new File(ChiFilenames.getFilenameOfDegreeData(baseFilename, true));
         if (sparse && !sparseDegreeFile.exists()) {
             sparse = false;
-            logger.warning("Sparse vertex data was allowed but sparse degree file did not exist  using dense");
+            logger.info("Sparse vertex data was allowed but sparse degree file did not exist  using dense");
         }
         File vertexfile = new File(ChiFilenames.getFilenameOfVertexData(baseFilename, converter, sparse));
 
@@ -130,7 +130,7 @@ public class VertexData <VertexDataType> {
     }
 
     /**
-     * Load vertices
+     * Load vertices' data
      * @param _vertexSt
      * @param _vertexEn inclusive
      * @return

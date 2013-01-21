@@ -42,6 +42,7 @@ public class Pagerank implements GraphChiProgram<Float, Float> {
         for(int i=0; i<vertex.numOutEdges(); i++) {
             vertex.outEdge(i).setValue(outValue);
         }
+
     }
 
 
@@ -107,13 +108,15 @@ public class Pagerank implements GraphChiProgram<Float, Float> {
         engine.setEdataConverter(new FloatConverter());
         engine.setVertexDataConverter(new FloatConverter());
         engine.setModifiesInedges(false); // Important optimization
+
         engine.run(new Pagerank(), 4);
 
         logger.info("Ready.");
 
-        TreeSet<IdFloat> top20 = Toplist.topListFloat(baseFilename, engine.numVertices(), 20);
         int i = 0;
         VertexIdTranslate trans = engine.getVertexIdTranslate();
+        TreeSet<IdFloat> top20 = Toplist.topListFloat(baseFilename, engine.numVertices(), 20);
+        System.out.println("Result: " + top20);
         for(IdFloat vertexRank : top20) {
             System.out.println(++i + ": " + trans.backward(vertexRank.getVertexId()) + " = " + vertexRank.getValue());
         }

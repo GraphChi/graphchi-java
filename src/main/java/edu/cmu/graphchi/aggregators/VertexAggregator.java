@@ -34,7 +34,7 @@ import java.util.Iterator;
 public class VertexAggregator {
 
 
-    public static <VertexDataType> void  foreach(int numVertices, String baseFilename, BytesToValueConverter<VertexDataType> conv,
+    public static <VertexDataType> void foreach(int numVertices, String baseFilename, BytesToValueConverter<VertexDataType> conv,
                                                  ForeachCallback<VertexDataType> callback) throws IOException {
 
         VertexData<VertexDataType> vertexData = new VertexData<VertexDataType>(numVertices, baseFilename, conv, true);

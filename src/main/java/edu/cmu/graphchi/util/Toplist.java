@@ -1,11 +1,16 @@
 package edu.cmu.graphchi.util;
 
+import edu.cmu.graphchi.ChiFilenames;
 import edu.cmu.graphchi.aggregators.ForeachCallback;
 import edu.cmu.graphchi.aggregators.VertexAggregator;
 import edu.cmu.graphchi.datablocks.FloatConverter;
 import edu.cmu.graphchi.datablocks.IntConverter;
+import edu.cmu.graphchi.engine.VertexInterval;
+import edu.cmu.graphchi.preprocessing.VertexIdTranslate;
 
+import java.io.File;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.TreeSet;
 
@@ -88,5 +93,20 @@ public class Toplist {
         }
 
         return topList;
+    }
+
+
+    public static void main(String[] args) throws Exception {
+        String baseFilename = args[0];
+        int nShards = Integer.parseInt(args[1]);
+
+        ArrayList<VertexInterval> intervals = ChiFilenames.loadIntervals(baseFilename, nShards);
+        TreeSet<IdFloat> top20 = Toplist.topListFloat(baseFilename, intervals.get(intervals.size() - 1).getLastVertex(), 20);
+        VertexIdTranslate trans = VertexIdTranslate.fromFile(new File(ChiFilenames.getVertexTranslateDefFile(baseFilename, nShards)));
+        System.out.println("Result: " + top20);
+        int i = 0;
+        for(IdFloat vertexRank : top20) {
+            System.out.println(++i + ": " + trans.backward(vertexRank.getVertexId()) + " = " + vertexRank.getValue());
+        }
     }
 }
