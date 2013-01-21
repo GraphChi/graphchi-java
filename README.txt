@@ -6,7 +6,7 @@ BUILDING
 
 You can build GraphChi with any IDE, or using Ant. Just
 write on the command-line:
-    ant
+    mvn package
 
 
 RUNNING GRAPHCHI & PREPARING SHARDS
