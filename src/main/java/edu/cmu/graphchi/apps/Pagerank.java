@@ -1,8 +1,6 @@
 package edu.cmu.graphchi.apps;
 
-import edu.cmu.graphchi.ChiVertex;
-import edu.cmu.graphchi.GraphChiContext;
-import edu.cmu.graphchi.GraphChiProgram;
+import edu.cmu.graphchi.*;
 import edu.cmu.graphchi.datablocks.FloatConverter;
 import edu.cmu.graphchi.datablocks.FloatPair;
 import edu.cmu.graphchi.datablocks.FloatPairConverter;
@@ -19,6 +17,7 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.util.TreeSet;
+import java.util.logging.Logger;
 
 /**
  * @author akyrola
@@ -26,6 +25,7 @@ import java.util.TreeSet;
  */
 public class Pagerank implements GraphChiProgram<Float, Float> {
 
+    private static Logger logger = LoggingInitializer.getLogger("pagerank");
 
     public void update(ChiVertex<Float, Float> vertex, GraphChiContext context)  {
         if (context.getIteration() == 0) {
@@ -96,8 +96,11 @@ public class Pagerank implements GraphChiProgram<Float, Float> {
         if (baseFilename.equals("pipein")) {     // Allow piping graph in
             sharder.shard(System.in);
         } else {
-            sharder.shard(new FileInputStream(new File(baseFilename)));
-
+            if (!new File(ChiFilenames.getFilenameIntervals(baseFilename, nShards)).exists()) {
+                sharder.shard(new FileInputStream(new File(baseFilename)));
+            } else {
+                logger.info("Found shards -- no need to preprocess");
+            }
         }
 
         GraphChiEngine<Float, Float> engine = new GraphChiEngine<Float, Float>(baseFilename, nShards);
@@ -106,7 +109,7 @@ public class Pagerank implements GraphChiProgram<Float, Float> {
         engine.setModifiesInedges(false); // Important optimization
         engine.run(new Pagerank(), 4);
 
-        System.out.println("Ready.");
+        logger.info("Ready.");
 
         TreeSet<IdFloat> top20 = Toplist.topListFloat(baseFilename, engine.numVertices(), 20);
         int i = 0;
