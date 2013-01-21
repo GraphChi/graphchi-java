@@ -1,11 +1,10 @@
 package edu.cmu.graphchi;
 
 import edu.cmu.graphchi.datablocks.BytesToValueConverter;
+import edu.cmu.graphchi.engine.VertexInterval;
 
-import java.io.BufferedReader;
-import java.io.File;
-import java.io.FileReader;
-import java.io.IOException;
+import java.io.*;
+import java.util.ArrayList;
 
 /**
  * Copyright [2012] [Aapo Kyrola, Guy Blelloch, Carlos Guestrin / Carnegie Mellon University]
@@ -91,5 +90,22 @@ public class ChiFilenames {
             throw new RuntimeException(err);
         }
     }
+
+    public static ArrayList<VertexInterval> loadIntervals(String baseFilename, int nShards)  throws FileNotFoundException, IOException {
+        String intervalFilename = ChiFilenames.getFilenameIntervals(baseFilename, nShards);
+
+        BufferedReader rd = new BufferedReader(new FileReader(new File(intervalFilename)));
+        String line;
+        int lastId = 0;
+        ArrayList<VertexInterval> intervals = new ArrayList<VertexInterval>(nShards);
+        while((line = rd.readLine()) != null) {
+            int vid = Integer.parseInt(line);
+            intervals.add(new VertexInterval(lastId, vid));
+            lastId = vid + 1;
+        }
+        return intervals;
+    }
+
+
 }
 

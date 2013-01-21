@@ -60,14 +60,6 @@ public class VertexAggregator {
 
     }
 
-    public static <VertexDataType> void  foreach( String baseFilename, BytesToValueConverter<VertexDataType> conv,
-                                                 ForeachCallback<VertexDataType> callback) throws IOException {
-
-        try {
-            VertexAggregator.foreach(Integer.MAX_VALUE, baseFilename, conv, callback);
-        } catch (EOFException eo) {} // Ugly!
-
-    }
 
     private static class SumCallbackInt implements ForeachCallback<Integer> {
         long sum = 0;

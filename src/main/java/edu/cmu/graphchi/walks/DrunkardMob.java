@@ -165,15 +165,16 @@ public class DrunkardMob implements GraphChiProgram<Integer, Float> {
 
             /* Run */
             engine.run(mob, maxHops + 1);
-        }
-        System.out.println("Ready. Going to output...");
 
-        TreeSet<IdInt> top20 = Toplist.topListInt(baseFilename, 20);
-        int i = 0;
-        for(IdInt vertexRank : top20) {
-            System.out.println(++i + ": " + vertexRank.getVertexId() + " = " + vertexRank.getValue());
+            System.out.println("Ready. Going to output...");
+
+            TreeSet<IdInt> top20 = Toplist.topListInt(baseFilename, engine.numVertices(), 20);
+            int i = 0;
+            for(IdInt vertexRank : top20) {
+                System.out.println(++i + ": " + vertexRank.getVertexId() + " = " + vertexRank.getValue());
+            }
+            System.out.println("Finished.");
         }
-        System.out.println("Finished.");
 
     }
 }

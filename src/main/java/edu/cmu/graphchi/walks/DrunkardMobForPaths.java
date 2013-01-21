@@ -173,7 +173,7 @@ public class DrunkardMobForPaths implements GraphChiProgram<Integer, Boolean> {
             System.out.println("Ready. Going to output...");
 
             /* Output top 20 of visited vertices. */
-            TreeSet<IdInt> top20 = Toplist.topListInt(baseFilename, 20);
+            TreeSet<IdInt> top20 = Toplist.topListInt(baseFilename, engine.numVertices(), 20);
             int i = 0;
             for(IdInt vertexRank : top20) {
                 System.out.println(++i + ": " + vertexRank.getVertexId() + " = " + vertexRank.getValue());

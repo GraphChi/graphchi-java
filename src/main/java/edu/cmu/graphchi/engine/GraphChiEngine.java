@@ -111,21 +111,7 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
     }
 
     protected void loadIntervals() throws FileNotFoundException, IOException {
-        String intervalFilename = ChiFilenames.getFilenameIntervals(baseFilename, nShards);
-
-        BufferedReader rd = new BufferedReader(new FileReader(new File(intervalFilename)));
-        String line;
-        int lastId = 0;
-        intervals = new ArrayList<VertexInterval>(nShards);
-        while((line = rd.readLine()) != null) {
-            int vid = Integer.parseInt(line);
-            intervals.add(new VertexInterval(lastId, vid));
-            lastId = vid + 1;
-        }
-
-        assert(intervals.size() == nShards);
-
-        logger.info("Loaded: " + intervals);
+        intervals = ChiFilenames.loadIntervals(baseFilename, nShards);
     }
 
 

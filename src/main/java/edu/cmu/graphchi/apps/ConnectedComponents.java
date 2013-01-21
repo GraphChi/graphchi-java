@@ -75,7 +75,7 @@ public class ConnectedComponents implements GraphChiProgram<Integer, Integer> {
 
         System.out.println("Ready. Going to output...");
 
-        LabelAnalysis.computeLabels(baseFilename);
+        LabelAnalysis.computeLabels(baseFilename, engine.numVertices(), engine.getVertexIdTranslate());
 
         System.out.println("Finished. See file: " + baseFilename + ".components");
     }

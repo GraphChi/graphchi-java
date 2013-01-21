@@ -108,7 +108,7 @@ public class Pagerank implements GraphChiProgram<Float, Float> {
 
         System.out.println("Ready.");
 
-        TreeSet<IdFloat> top20 = Toplist.topListFloat(baseFilename, 20);
+        TreeSet<IdFloat> top20 = Toplist.topListFloat(baseFilename, engine.numVertices(), 20);
         int i = 0;
         VertexIdTranslate trans = engine.getVertexIdTranslate();
         for(IdFloat vertexRank : top20) {
