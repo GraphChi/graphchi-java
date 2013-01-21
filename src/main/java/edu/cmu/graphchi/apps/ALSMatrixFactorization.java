@@ -183,14 +183,14 @@ public class ALSMatrixFactorization implements GraphChiProgram<Integer, Float> {
 
 
     /**
-     * Usage: java edu.cmu.graphchi.ALSMatrixFactorization <input-file> <nshards>
+     * Usage: java edu.cmu.graphchi.ALSMatrixFactorization <input-file> <nshards> <D>
      * Normally nshards of 10 or so is fine.
      * @param args
      * @throws Exception
      */
     public static void main(String[] args) throws Exception {
-        if (args.length != 2) {
-            throw new IllegalArgumentException("Usage: java edu.cmu.graphchi.ALSMatrixFactorization <input-file> <nshards>");
+        if (args.length < 2) {
+            throw new IllegalArgumentException("Usage: java edu.cmu.graphchi.ALSMatrixFactorization <input-file> <nshards> <D>");
         }
         String baseFilename = args[0];
         int nShards = Integer.parseInt(args[1]);
@@ -205,7 +205,12 @@ public class ALSMatrixFactorization implements GraphChiProgram<Integer, Float> {
         }
 
         /* Init */
-        ALSMatrixFactorization als = new ALSMatrixFactorization(5);
+        int D = 5;
+        if (args.length == 3) {
+            D = Integer.parseInt(args[2]);
+        }
+        ALSMatrixFactorization als = new ALSMatrixFactorization(D);
+        logger.info("Set latent factor dimension to: " + als.D);
 
         /* Run GraphChi */
         GraphChiEngine<Integer, Float> engine = new GraphChiEngine<Integer, Float>(baseFilename, nShards);
