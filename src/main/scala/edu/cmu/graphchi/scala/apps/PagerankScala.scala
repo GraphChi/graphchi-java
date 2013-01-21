@@ -6,7 +6,7 @@ import edu.cmu.graphchi.util.IdFloat
 import edu.cmu.graphchi.util.Toplist
 import java.util.TreeSet
 import scala.collection.JavaConversions._
-import edu.cmu.graphchi.preprocessing.{VertexProcessor, FastSharder}
+import edu.cmu.graphchi.preprocessing.{EdgeProcessor, VertexProcessor, FastSharder}
 import java.io.FileInputStream
 
 /**
@@ -20,7 +20,11 @@ object PagerankScala {
     val niters = 4
 
     /* Preprocessing */
-    val sharder = new FastSharder(filename, nshards,  null, null, new FloatConverter(), new FloatConverter())
+    val sharder = new FastSharder(filename, nshards,   new VertexProcessor[java.lang.Float] {
+      def receiveVertexValue(vertexId: Int, token: String) = 1.0f
+    }, new EdgeProcessor[java.lang.Float] {
+      def receiveEdge(from: Int, to: Int, token: String) = 1.0f
+    }, new FloatConverter(), new FloatConverter())
     sharder.shard(new FileInputStream(filename))
 
     /* Run GraphChi */
