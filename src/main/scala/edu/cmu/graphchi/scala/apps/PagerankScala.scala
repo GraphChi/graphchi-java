@@ -17,6 +17,7 @@ object PagerankScala {
   def main(args: Array[String]): Unit = {
     val filename = args(0)
     val nshards = args(1).toInt
+    val filetype = args(2)
     val niters = 4
 
     /* Preprocessing */
@@ -25,7 +26,7 @@ object PagerankScala {
     }, new EdgeProcessor[java.lang.Float] {
       def receiveEdge(from: Int, to: Int, token: String) = 1.0f
     }, new FloatConverter(), new FloatConverter())
-    sharder.shard(new FileInputStream(filename))
+    sharder.shard(new FileInputStream(filename), filetype)
 
     /* Run GraphChi */
     val graphchi = new GraphChiScala[java.lang.Float, java.lang.Float, java.lang.Float](filename, nshards)

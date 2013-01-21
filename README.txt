@@ -12,10 +12,13 @@ write on the command-line:
 RUNNING GRAPHCHI
 
 To run the pagerank example:
-   java -Xmx4096m -cp target/graphchi-java-0.2.jar  edu.cmu.graphchi.apps.Pagerank [GRAPH-FILENAME] [NUM-OF-SHARDS]
+   java -Xmx4096m -cp target/graphchi-java-0.2.jar  edu.cmu.graphchi.apps.Pagerank [GRAPH-FILENAME] [NUM-OF-SHARDS] [FILETYPE]
 
 or Connected Components:
-   java -Xmx4096m -cp target/graphchi-java-0.2.jar  edu.cmu.graphchi.apps.ConnectedComponents [GRAPH-FILENAME] [NUM-OF-SHARDS]
+   java -Xmx4096m -cp target/graphchi-java-0.2.jar  edu.cmu.graphchi.apps.ConnectedComponents [GRAPH-FILENAME] [NUM-OF-SHARDS] [FILETYPE]
+
+Above, FILETYPE can be "edgelist" or "adjlist". See http://code.google.com/p/graphchi/wiki/EdgeListFormat and http://code.google.com/p/graphchi/wiki/AdjacencyListFormat for descriptions.
+
 
 
 

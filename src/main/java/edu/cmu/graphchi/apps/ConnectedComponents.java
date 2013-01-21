@@ -107,14 +107,15 @@ public class ConnectedComponents implements GraphChiProgram<Integer, Integer> {
     public static void main(String[] args) throws  Exception {
         String baseFilename = args[0];
         int nShards = Integer.parseInt(args[1]);
+        String fileType = (args.length >= 3 ? args[2] : null);
 
         /* Create shards */
         FastSharder sharder = createSharder(baseFilename, nShards);
         if (baseFilename.equals("pipein")) {     // Allow piping graph in
-            sharder.shard(System.in);
+            sharder.shard(System.in, fileType);
         } else {
             if (!new File(ChiFilenames.getFilenameIntervals(baseFilename, nShards)).exists()) {
-                sharder.shard(new FileInputStream(new File(baseFilename)));
+                sharder.shard(new FileInputStream(new File(baseFilename)), fileType);
             } else {
                 logger.info("Found shards -- no need to preprocess");
             }

@@ -1,5 +1,6 @@
 package edu.cmu.graphchi.preprocessing;
 
+import com.twitter.pers.graph_generator.EdgeListOutput;
 import edu.cmu.graphchi.ChiFilenames;
 import edu.cmu.graphchi.ChiVertex;
 import edu.cmu.graphchi.LoggingInitializer;
@@ -37,17 +38,20 @@ import java.util.zip.GZIPOutputStream;
  *
  * To use a pipe to feed a graph, use
  * <code>
- *     sharder.shard(System.in);
+ *     sharder.shard(System.in, "edgelist");
  * </code>
  *
- * <b>Note:</b> Reads only edge-lists of format
- *    from TAB to TAB value.
+ * <b>Note:</b> <a href="http://code.google.com/p/graphchi/wiki/EdgeListFormat">Edge list</a>
+ * and <a href="http://code.google.com/p/graphchi/wiki/AdjacencyListFormat">adjacency list</a>
+ * formats are supported.
  *
- * If from and to vertex ids equal, the line is assumed to contain vertex-value.
+ * <b>Note:</b>If from and to vertex ids equal (applies only to edge list format), the line is assumed to contain vertex-value.
  *
  * @author Aapo Kyrola
  */
 public class FastSharder <VertexValueType, EdgeValueType> {
+
+    public enum GraphInputFormat {EDGELIST, ADJACENCY};
 
     private String baseFilename;
     private int numShards;
@@ -300,7 +304,7 @@ public class FastSharder <VertexValueType, EdgeValueType> {
                         System.arraycopy(vertexValues, iterIdx * sizeOf, vertexValueTemplate, 0, sizeOf);
                         dataBlockManager.writeValue(pointer, vertexValueTemplate);
                     } else {
-                       // No vertex data for that vertex.
+                        // No vertex data for that vertex.
                     }
 
                 }
@@ -497,9 +501,10 @@ public class FastSharder <VertexValueType, EdgeValueType> {
      * Execute sharding. Currently only edge-list format is supported.
      * See <a href="http://code.google.com/p/graphchi/wiki/EdgeListFormat">EdgeListFormat</a>
      * @param inputStream
+     * @param format graph input format
      * @throws IOException
      */
-    public void shard(InputStream inputStream) throws IOException {
+    public void shard(InputStream inputStream, GraphInputFormat format) throws IOException {
         BufferedReader ins = new BufferedReader(new InputStreamReader(inputStream));
         String ln;
         long lineNum = 0;
@@ -507,15 +512,56 @@ public class FastSharder <VertexValueType, EdgeValueType> {
             if (ln.length() > 2 && !ln.startsWith("#")) {
                 lineNum++;
                 if (lineNum % 2000000 == 0) logger.info("Reading line: " + lineNum);
+
                 String[] tok = ln.split("\t");
-                if (tok.length == 2) {
-                    this.addEdge(Integer.parseInt(tok[0]), Integer.parseInt(tok[1]), null);
-                } else if (tok.length == 3) {
-                    this.addEdge(Integer.parseInt(tok[0]), Integer.parseInt(tok[1]), tok[2]);
+
+                if (format == GraphInputFormat.EDGELIST) {
+                    if (tok.length == 2) {
+                        this.addEdge(Integer.parseInt(tok[0]), Integer.parseInt(tok[1]), null);
+                    } else if (tok.length == 3) {
+                        this.addEdge(Integer.parseInt(tok[0]), Integer.parseInt(tok[1]), tok[2]);
+                    }
+                } else if (format == GraphInputFormat.ADJACENCY) {
+                    int vertexId = Integer.parseInt(tok[0]);
+                    int len = Integer.parseInt(tok[1]);
+                    if (len != tok.length - 2) {
+                        throw new IllegalArgumentException("Error on line " + lineNum + "; number of edges does not match number of tokens:" +
+                          len + " != " + tok.length);
+                    }
+                    for(int j=2; j < len; j++) {
+                        int dest = Integer.parseInt(tok[j]);
+                        this.addEdge(vertexId, dest, null);
+                    }
+                } else {
+                  throw new IllegalArgumentException("Please specify graph input format");
                 }
             }
         }
         this.process();
+    }
+
+    /**
+     * Shard a graph
+     * @param inputStream
+     * @param format "edgelist" or "adjlist" / "adjacency"
+     * @throws IOException
+     */
+    public void shard(InputStream inputStream, String format) throws IOException {
+        if (format == null || format.equals("edgelist")) {
+            shard(inputStream, GraphInputFormat.EDGELIST);
+        }
+        else if (format.equals("adjlist") || format.startsWith("adjacency")) {
+            shard(inputStream, GraphInputFormat.ADJACENCY);
+        }
+    }
+
+    /**
+     * Shard an input graph with edge list format.
+     * @param inputStream
+     * @throws IOException
+     */
+    public void shard(InputStream inputStream) throws IOException {
+        shard(inputStream, GraphInputFormat.EDGELIST);
     }
 
     /**
