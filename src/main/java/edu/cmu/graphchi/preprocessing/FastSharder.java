@@ -76,6 +76,16 @@ public class FastSharder <VertexValueType, EdgeValueType> {
 
     private static final Logger logger = ChiLogger.getLogger("fast-sharder");
 
+    /**
+     * Constructor
+     * @param baseFilename input-file
+     * @param numShards the number of shards to be created
+     * @param vertexProcessor user-provided function for translating strings to vertex value type
+     * @param edgeProcessor user-provided function for translating strings to edge value type
+     * @param vertexValConterter translator  byte-arrays to/from vertex-value
+     * @param edgeValConverter   translator  byte-arrays to/from edge-value
+     * @throws IOException  if problems reading the data
+     */
     public FastSharder(String baseFilename, int numShards,
 
                        VertexProcessor<VertexValueType> vertexProcessor,
@@ -91,6 +101,12 @@ public class FastSharder <VertexValueType, EdgeValueType> {
         this.edgeValueTypeBytesToValueConverter = edgeValConverter;
         this.vertexValueTypeBytesToValueConverter = vertexValConterter;
 
+        /**
+         * In the first phase of processing, the edges are "shoveled" to
+         * the corresponding shards. The interim shards are called "shovel-files",
+         * and the final shards are created by sorting the edges in the shovel-files.
+         * See processShovel()
+         */
         shovelStreams = new DataOutputStream[numShards];
         vertexShovelStreams = new DataOutputStream[numShards];
         for(int i=0; i < numShards; i++) {
@@ -99,6 +115,10 @@ public class FastSharder <VertexValueType, EdgeValueType> {
                 vertexShovelStreams[i] = new DataOutputStream(new BufferedOutputStream(new FileOutputStream(vertexShovelFileName(i))));
             }
         }
+
+        /** Byte-array template used as a temporary value for performance (instead of
+         *  always reallocating it).
+         **/
         valueTemplate =  new byte[edgeValueTypeBytesToValueConverter.sizeOf()];
 
         if (vertexValueTypeBytesToValueConverter != null)
@@ -114,7 +134,17 @@ public class FastSharder <VertexValueType, EdgeValueType> {
     }
 
 
+    /**
+     * Adds an edge to the preprocessing.
+     * @param from
+     * @param to
+     * @param edgeValueToken
+     * @throws IOException
+     */
     public void addEdge(int from, int to, String edgeValueToken) throws IOException {
+        /* If the from and to ids are same, this entry is assumed to contain value
+           for the vertex, and it is passed to the vertexProcessor.
+         */
         if (from == to) {
             if (vertexProcessor != null && edgeValueToken != null) {
                 VertexValueType value = vertexProcessor.receiveVertexValue(from, edgeValueToken);
@@ -137,6 +167,18 @@ public class FastSharder <VertexValueType, EdgeValueType> {
     private byte[] valueTemplate;
     private byte[] vertexValueTemplate;
 
+
+    /**
+     * Adds n edge to the shovel.  At this stage, the vertex-ids are "pretranslated"
+     * to a temporary internal ids. In the last phase, each vertex-id is assigned its
+     * final id. The pretranslation is requried because at this point we do not know
+     * the total number of vertices.
+     * @param shard
+     * @param preTranslatedIdFrom internal from-id
+     * @param preTranslatedTo internal to-id
+     * @param value
+     * @throws IOException
+     */
     private void addToShovel(int shard, int preTranslatedIdFrom, int preTranslatedTo,
                              EdgeValueType value) throws IOException {
         DataOutputStream strm = shovelStreams[shard];
@@ -145,6 +187,14 @@ public class FastSharder <VertexValueType, EdgeValueType> {
         strm.write(valueTemplate);
     }
 
+
+    /**
+     * We keep separate shovel-file for vertex-values.
+     * @param shard
+     * @param pretranslatedVertexId
+     * @param value
+     * @throws IOException
+     */
     private void addVertexValue(int shard, int pretranslatedVertexId, VertexValueType value) throws IOException{
         DataOutputStream strm = vertexShovelStreams[shard];
         strm.writeInt(pretranslatedVertexId);
@@ -152,25 +202,33 @@ public class FastSharder <VertexValueType, EdgeValueType> {
         strm.write(vertexValueTemplate);
     }
 
-    public static long packEdges(int a, int b) {
+
+    /**
+     * Bit arithmetic for packing two 32-bit vertex-ids into one 64-bit long.
+     * @param a
+     * @param b
+     * @return
+     */
+    static long packEdges(int a, int b) {
         return ((long) a << 32) + b;
     }
 
-    public static int getFirst(long l) {
+    static int getFirst(long l) {
         return  (int)  (l >> 32);
     }
 
-    public static int getSecond(long l) {
+    static int getSecond(long l) {
         return (int) (l & 0x00000000ffffffffl);
     }
 
     /**
-     * Final processing. You should not call this.
+     * Final processing after all edges have been received.
      * @throws IOException
      */
     public void process() throws IOException {
         /* Check if we have enough memory to keep track of
-           vertex degree in memory
+           vertex degree in memory. If not, we need to run a special
+           graphchi-program to create the degree-file.
          */
 
         // Ad-hoc: require that degree vertices won't take more than 5th of memory
@@ -184,34 +242,69 @@ public class FastSharder <VertexValueType, EdgeValueType> {
             inDegrees = new int[maxVertexId + numShards];
             outDegrees = new int[maxVertexId + numShards];
         }
+
+        /**
+         * Now when we have the total number of vertices known, we can
+         * construct the final translator.
+         */
         finalIdTranslate = new VertexIdTranslate((1 + maxVertexId) / numShards + 1, numShards);
+
+        /**
+         * Store information on how to translate internal vertex id to the original id.
+         */
         saveVertexTranslate();
 
+
+        /**
+         * Close / flush each shovel-file.
+         */
         for(int i=0; i < numShards; i++) {
             shovelStreams[i].close();
         }
         shovelStreams = null;
 
+        /**
+         *  Store the vertex intervals.
+         */
         writeIntervals();
 
+        /**
+         * Process each shovel to create a final shard.
+         */
         for(int i=0; i<numShards; i++) {
             processShovel(i);
         }
 
+        /**
+         * If we have more vertices than edges, it makes sense to use sparse representation
+         * for the auxilliary degree-data and vertex-data files.
+         */
         useSparseDegrees = (maxVertexId > numEdges) || "1".equals(System.getProperty("sparsedeg"));
         logger.info("Use sparse output: " + useSparseDegrees);
 
+        /**
+         * Construct the degree-data file which stores the in- and out-degree
+         * of each vertex. See edu.cmu.graphchi.engine.auxdata.DegreeData
+         */
         if (!memoryEfficientDegreeCount) {
             writeDegrees();
         } else {
             computeVertexDegrees();
         }
 
+        /**
+         * Write the vertex-data file.
+         */
         if (vertexProcessor != null) {
             processVertexValues(useSparseDegrees);
         }
     }
 
+
+    /**
+     * Consteuct the degree-file if we had degrees computed in-memory,
+     * @throws IOException
+     */
     private void writeDegrees() throws IOException {
         DataOutputStream degreeOut = new DataOutputStream(new BufferedOutputStream(
                 new FileOutputStream(ChiFilenames.getFilenameOfDegreeData(baseFilename, useSparseDegrees))));
@@ -244,7 +337,11 @@ public class FastSharder <VertexValueType, EdgeValueType> {
         wr.close();
     }
 
-    // Import to do after degrees have been computed
+    /**
+     * Initializes the vertex-data file. Similar process as sharding for edges.
+     * @param sparse
+     * @throws IOException
+     */
     private void processVertexValues(boolean sparse) throws IOException {
         DataBlockManager dataBlockManager = new DataBlockManager();
         VertexData<VertexValueType> vertexData = new VertexData<VertexValueType>(maxVertexId - 1, baseFilename,
@@ -310,6 +407,11 @@ public class FastSharder <VertexValueType, EdgeValueType> {
         }
     }
 
+    /**
+     * Converts a shovel-file into a shard.
+     * @param shardNum
+     * @throws IOException
+     */
     private void processShovel(int shardNum) throws IOException {
         File shovelFile = new File(shovelFilename(shardNum));
         int sizeOf = edgeValueTypeBytesToValueConverter.sizeOf();
@@ -325,6 +427,9 @@ public class FastSharder <VertexValueType, EdgeValueType> {
 
         logger.info("Processing shovel " + shardNum);
 
+        /**
+         * Read the edges into memory.
+         */
         BufferedDataInputStream in = new BufferedDataInputStream(new FileInputStream(shovelFile));
         for(int i=0; i<shoveled.length; i++) {
             long l = in.readLong();
@@ -348,15 +453,25 @@ public class FastSharder <VertexValueType, EdgeValueType> {
 
         in.close();
 
+        /* Delete the shovel-file */
         shovelFile.delete();
 
         logger.info("Processing shovel " + shardNum + " ... sorting");
 
+        /* Sort the edges */
         sortWithValues(shoveled, edgeValues, sizeOf);  // The source id is  higher order, so sorting the longs will produce right result
 
         logger.info("Processing shovel " + shardNum + " ... writing shard");
 
 
+        /*
+         Now write the final shard in a compact form. Note that there is separate shard
+         for adjacency and the edge-data. The edge-data is split and stored into 4-megabyte compressed blocks.
+         */
+
+        /**
+         * Step 1: ADJACENCY SHARD
+         */
         File adjFile = new File(ChiFilenames.getFilenameShardsAdj(baseFilename, shardNum, numShards));
         DataOutputStream adjOut = new DataOutputStream(new BufferedOutputStream(new FileOutputStream(adjFile)));
         int curvid = 0;
@@ -396,6 +511,11 @@ public class FastSharder <VertexValueType, EdgeValueType> {
         }
         adjOut.close();
 
+
+        /**
+         * Step 2: EDGE DATA
+         */
+
         /* Create compressed edge data directories */
         int blockSize = ChiFilenames.getBlocksize(edgeValueTypeBytesToValueConverter.sizeOf());
 
@@ -424,7 +544,7 @@ public class FastSharder <VertexValueType, EdgeValueType> {
         sizeWr.write(edatasize + "");
         sizeWr.close();
 
-        /* Create blocks */
+        /* Create compressed blocks */
         int blockIdx = 0;
         int edgeIdx= 0;
         for(long idx=0; idx < edatasize; idx += blockSize) {
@@ -495,8 +615,7 @@ public class FastSharder <VertexValueType, EdgeValueType> {
 
 
     /**
-     * Execute sharding. Currently only edge-list format is supported.
-     * See <a href="http://code.google.com/p/graphchi/wiki/EdgeListFormat">EdgeListFormat</a>
+     * Execute sharding by reading edges from a inputstream
      * @param inputStream
      * @param format graph input format
      * @throws IOException
@@ -563,6 +682,8 @@ public class FastSharder <VertexValueType, EdgeValueType> {
 
     /**
      * Compute vertex degrees by running a special graphchi program.
+     * This is done only if we do not have enough memory to keep track of
+     * vertex degrees in-memory.
      */
     private void computeVertexDegrees() {
         try {
