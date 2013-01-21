@@ -41,6 +41,9 @@ import java.util.logging.Logger;
  *
  * The algorithm starts with the right side, and the edges have initial
  * values for the left side vertices (authorities).
+ *
+ * @author Aapo Kyrola, akyrola@cs.cmu.edu
+ * @copyright Twitter  (done during internship, Fall 2012)
  */
 public class HITSSmallMem extends PigGraphChiBase implements GraphChiProgram<FloatPair, Float>  {
 
