@@ -20,6 +20,7 @@ import java.util.TreeSet;
 import java.util.logging.Logger;
 
 /**
+ * Example application: PageRank (http://en.wikipedia.org/wiki/Pagerank)
  * @author akyrola
  *         Date: 7/11/12
  */
@@ -29,8 +30,12 @@ public class Pagerank implements GraphChiProgram<Float, Float> {
 
     public void update(ChiVertex<Float, Float> vertex, GraphChiContext context)  {
         if (context.getIteration() == 0) {
+            /* Initialize on first iteration */
             vertex.setValue(1.0f);
         } else {
+            /* On other iterations, set my value to be the weighted
+               average of my in-coming neighbors pageranks.
+             */
             float sum = 0.f;
             for(int i=0; i<vertex.numInEdges(); i++) {
                 sum += vertex.inEdge(i).getValue();
@@ -38,6 +43,7 @@ public class Pagerank implements GraphChiProgram<Float, Float> {
             vertex.setValue(0.15f + 0.85f * sum);
         }
 
+        /* Write my value (divided by my out-degree) to my out-edges so neighbors can read it. */
         float outValue = vertex.getValue() / vertex.numOutEdges();
         for(int i=0; i<vertex.numOutEdges(); i++) {
             vertex.outEdge(i).setValue(outValue);
@@ -104,6 +110,7 @@ public class Pagerank implements GraphChiProgram<Float, Float> {
             }
         }
 
+        /* Run GraphChi */
         GraphChiEngine<Float, Float> engine = new GraphChiEngine<Float, Float>(baseFilename, nShards);
         engine.setEdataConverter(new FloatConverter());
         engine.setVertexDataConverter(new FloatConverter());
@@ -113,6 +120,7 @@ public class Pagerank implements GraphChiProgram<Float, Float> {
 
         logger.info("Ready.");
 
+        /* Output results */
         int i = 0;
         VertexIdTranslate trans = engine.getVertexIdTranslate();
         TreeSet<IdFloat> top20 = Toplist.topListFloat(baseFilename, engine.numVertices(), 20);

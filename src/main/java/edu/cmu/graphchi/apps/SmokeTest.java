@@ -1,13 +1,18 @@
 package edu.cmu.graphchi.apps;
 
-import edu.cmu.graphchi.ChiVertex;
-import edu.cmu.graphchi.GraphChiContext;
-import edu.cmu.graphchi.GraphChiProgram;
+import edu.cmu.graphchi.*;
 import edu.cmu.graphchi.datablocks.IntConverter;
 import edu.cmu.graphchi.engine.GraphChiEngine;
 import edu.cmu.graphchi.engine.VertexInterval;
+import edu.cmu.graphchi.preprocessing.EdgeProcessor;
+import edu.cmu.graphchi.preprocessing.FastSharder;
+import edu.cmu.graphchi.preprocessing.VertexProcessor;
 
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.IOException;
 import java.util.TreeSet;
+import java.util.logging.Logger;
 
 /**
  * Tests that the system works.
@@ -15,6 +20,8 @@ import java.util.TreeSet;
  *         Date: 7/11/12
  */
 public class SmokeTest implements GraphChiProgram<Integer, Integer> {
+
+    private static Logger logger = LoggingInitializer.getLogger("smoketest");
 
 
     public void update(ChiVertex<Integer, Integer> vertex, GraphChiContext context) {
@@ -64,17 +71,49 @@ public class SmokeTest implements GraphChiProgram<Integer, Integer> {
     public void endSubInterval(GraphChiContext ctx, VertexInterval interval) {
     }
 
+    /**
+     * Initialize the sharder-program.
+     * @param graphName
+     * @param numShards
+     * @return
+     * @throws java.io.IOException
+     */
+    protected static FastSharder createSharder(String graphName, int numShards) throws IOException {
+        return new FastSharder<Integer, Integer>(graphName, numShards, new VertexProcessor<Integer>() {
+            public Integer receiveVertexValue(int vertexId, String token) {
+                return 0;
+            }
+        }, new EdgeProcessor<Integer>() {
+            public Integer receiveEdge(int from, int to, String token) {
+                return 0;
+            }
+        }, new IntConverter(), new IntConverter());
+    }
+
     public static void main(String[] args) throws  Exception {
         String baseFilename = args[0];
         int nShards = Integer.parseInt(args[1]);
 
+        /* Create shards */
+        FastSharder sharder = createSharder(baseFilename, nShards);
+        if (baseFilename.equals("pipein")) {     // Allow piping graph in
+            sharder.shard(System.in);
+        } else {
+            if (!new File(ChiFilenames.getFilenameIntervals(baseFilename, nShards)).exists()) {
+                sharder.shard(new FileInputStream(new File(baseFilename)));
+            } else {
+                logger.info("Found shards -- no need to preprocess");
+            }
+        }
+
+        /* Run engine */
         GraphChiEngine<Integer, Integer> engine = new GraphChiEngine<Integer, Integer>(baseFilename, nShards);
         engine.setEdataConverter(new IntConverter());
         engine.setVertexDataConverter(new IntConverter());
         engine.setModifiesInedges(false); // Important optimization
         engine.run(new SmokeTest(), 5);
 
-        System.out.println("Ready.");
+        logger.info("Ready.");
 
     }
 }
