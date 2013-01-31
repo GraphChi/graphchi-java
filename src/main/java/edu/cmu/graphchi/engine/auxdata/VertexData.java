@@ -44,6 +44,11 @@ public class VertexData <VertexDataType> {
     private final static Logger logger = ChiLogger.getLogger("vertex-data");
 
     public VertexData(int nvertices, String baseFilename,
+                      BytesToValueConverter<VertexDataType> converter) throws IOException {
+        this(nvertices, baseFilename, converter, true);
+    }
+
+    public VertexData(int nvertices, String baseFilename,
                       BytesToValueConverter<VertexDataType> converter, boolean _sparse) throws IOException {
         this.baseFilename = baseFilename;
         this.converter = converter;

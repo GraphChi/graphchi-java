@@ -51,16 +51,14 @@ public class Pagerank implements GraphChiProgram<Float, Float> {
     }
 
 
+    /**
+     * Callbacks (not needed for Pagerank)
+     */
     public void beginIteration(GraphChiContext ctx) {}
-
     public void endIteration(GraphChiContext ctx) {}
-
     public void beginInterval(GraphChiContext ctx, VertexInterval interval) {}
-
     public void endInterval(GraphChiContext ctx, VertexInterval interval) {}
-
     public void beginSubInterval(GraphChiContext ctx, VertexInterval interval) {}
-
     public void endSubInterval(GraphChiContext ctx, VertexInterval interval) {}
 
     /**

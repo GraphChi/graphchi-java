@@ -89,8 +89,6 @@ public abstract class PigGraphChiBase  extends LoadFunc implements LoadMetadata 
 
     protected abstract void runGraphChi() throws Exception;
 
-
-
     protected abstract FastSharder createSharder(String graphName, int numShards) throws IOException;
 
     @Override

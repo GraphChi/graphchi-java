@@ -22,6 +22,7 @@ import edu.cmu.graphchi.datablocks.ChiPointer;
 import edu.cmu.graphchi.datablocks.DataBlockManager;
 import edu.cmu.graphchi.datablocks.IntConverter;
 import edu.cmu.graphchi.engine.auxdata.VertexData;
+import edu.cmu.graphchi.preprocessing.VertexIdTranslate;
 
 import java.io.*;
 import java.util.Iterator;
@@ -67,9 +68,66 @@ public class VertexAggregator {
                 callback.callback(j, value);
             }
         }
-
     }
 
+    /**
+     * Returns an iterator to vertices. Vertices are iterated in their internal-order,
+     * but the iterator elements have the original ids.
+     * @param numVertices number of vertices in the graph (hint: use engine.numVertices())
+     * @param baseFilename name of the input graph
+     * @param conv converter object for converting bytes to vertex's value type
+     * @param idTranslate translates ids from internal id to original id (use engine.getVertexIdTranslate())
+     * @param <VertexDataType>
+     * @return
+     */
+    public static <VertexDataType> Iterator<VertexIdValue<VertexDataType> > vertexIterator(final int numVertices,
+                                                                                            String baseFilename,
+                                                                                            final BytesToValueConverter<VertexDataType> conv,
+                                                                                            final VertexIdTranslate idTranslate) throws IOException {
+        final VertexData<VertexDataType> vertexData = new VertexData<VertexDataType>(numVertices, baseFilename, conv, true);
+
+        final DataBlockManager blockManager = new DataBlockManager();
+        vertexData.setBlockManager(blockManager);
+
+        final int CHUNK = 1000000;
+
+        return new Iterator<VertexIdValue<VertexDataType>>() {
+
+            int i=0, blockId;
+            Iterator<Integer> curIter;
+
+            @Override
+            public boolean hasNext() {
+                if (i >= numVertices - 1) return false;
+                if (curIter == null || !curIter.hasNext()) {
+                    int en = i + CHUNK;
+                    if (en >= numVertices) en = numVertices - 1;
+
+                    try {
+                        blockId =  vertexData.load(i, en);
+                    } catch (IOException e) {
+                        throw new RuntimeException(e);
+                    }
+                    this.curIter = vertexData.currentIterator();
+                }
+                return true;
+            }
+
+            @Override
+            public VertexIdValue next() {
+                if (hasNext()) {
+                    i = curIter.next();
+                    ChiPointer ptr = vertexData.getVertexValuePtr(i, blockId);
+                    return new VertexIdValue<VertexDataType>(idTranslate.backward(i), blockManager.dereference(ptr, conv));
+                } else throw new IllegalStateException("No more elements in the iterator!");
+            }
+
+            @Override
+            public void remove() {
+                throw new RuntimeException("Remove() not implemented");
+            }
+        };
+    }
 
     private static class SumCallbackInt implements ForeachCallback<Integer> {
         long sum = 0;

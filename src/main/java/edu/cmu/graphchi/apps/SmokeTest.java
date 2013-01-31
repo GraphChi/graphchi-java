@@ -7,10 +7,13 @@ import edu.cmu.graphchi.engine.VertexInterval;
 import edu.cmu.graphchi.preprocessing.EdgeProcessor;
 import edu.cmu.graphchi.preprocessing.FastSharder;
 import edu.cmu.graphchi.preprocessing.VertexProcessor;
+import edu.cmu.graphchi.vertexdata.VertexAggregator;
+import edu.cmu.graphchi.vertexdata.VertexIdValue;
 
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
+import java.util.Iterator;
 import java.util.logging.Logger;
 
 /**
@@ -93,13 +96,14 @@ public class SmokeTest implements GraphChiProgram<Integer, Integer> {
     public static void main(String[] args) throws  Exception {
         String baseFilename = args[0];
         int nShards = Integer.parseInt(args[1]);
+        String fileType = (args.length >= 3 ? args[2] : null);
 
         /* Create shards */
         FastSharder sharder = createSharder(baseFilename, nShards);
         if (baseFilename.equals("pipein")) {     // Allow piping graph in
             sharder.shard(System.in);
         } else {
-            sharder.shard(new FileInputStream(new File(baseFilename)));
+            sharder.shard(new FileInputStream(new File(baseFilename)), fileType);
         }
 
         /* Run engine */
@@ -108,6 +112,26 @@ public class SmokeTest implements GraphChiProgram<Integer, Integer> {
         engine.setVertexDataConverter(new IntConverter());
         engine.setModifiesInedges(false); // Important optimization
         engine.run(new SmokeTest(), 5);
+
+        /* Test vertex iterator */
+        Iterator<VertexIdValue<Integer>> iter = VertexAggregator.vertexIterator(engine.numVertices(),
+                baseFilename, new IntConverter(), engine.getVertexIdTranslate());
+
+        int i=0;
+        while(iter.hasNext()) {
+            VertexIdValue<Integer> x = iter.next();
+            int internalId = engine.getVertexIdTranslate().forward(x.getVertexId());
+            int expectedValue = internalId + 4;
+            if (expectedValue != x.getValue()) {
+                throw new IllegalStateException("Expected internal value to be " + expectedValue + ", but it was " + x.getValue());
+            }
+            if (i % 10000 == 0) {
+                logger.info("Scanning vertices: " + i);
+            }
+            i++;
+        }
+
+        if (i != engine.numVertices()) throw new IllegalStateException("Error in iterator: did not have numVertices vertices");
 
         logger.info("Ready.");
     }
