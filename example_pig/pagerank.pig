@@ -4,7 +4,7 @@
 #  http://snap.stanford.edu/data/soc-LiveJournal1.html
 #
 #  Author: Aapo Kyrola, akyrola@cs.cmu.edu
-#  Acknoledgements: Pig-integration was developed during author's internship at Twitter, Fall 2012.
+#  Acknowledgements: Pig-integration was developed during author's internship at Twitter, Fall 2012.
 #  Special thanks to Pankaj Gupta and Dong Wang.
 
 
