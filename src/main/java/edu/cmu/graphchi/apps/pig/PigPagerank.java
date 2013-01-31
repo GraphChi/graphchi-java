@@ -1,17 +1,14 @@
 package edu.cmu.graphchi.apps.pig;
 
-import edu.cmu.graphchi.ChiLogger;
 import edu.cmu.graphchi.ChiVertex;
 import edu.cmu.graphchi.GraphChiContext;
 import edu.cmu.graphchi.GraphChiProgram;
 import edu.cmu.graphchi.datablocks.FloatConverter;
 import edu.cmu.graphchi.engine.GraphChiEngine;
 import edu.cmu.graphchi.engine.VertexInterval;
-import edu.cmu.graphchi.engine.auxdata.VertexData;
 import edu.cmu.graphchi.hadoop.PigGraphChiBase;
 import edu.cmu.graphchi.preprocessing.EdgeProcessor;
 import edu.cmu.graphchi.preprocessing.FastSharder;
-import edu.cmu.graphchi.preprocessing.VertexIdTranslate;
 import edu.cmu.graphchi.preprocessing.VertexProcessor;
 import edu.cmu.graphchi.vertexdata.VertexAggregator;
 import edu.cmu.graphchi.vertexdata.VertexIdValue;
@@ -29,6 +26,18 @@ import java.util.logging.Logger;
  * of in-neighbors pageranks.
  *
  * This version can be used with <a href="http://pig.apache.org">Pig</a> in a Hadoop cluster.
+ *
+ * Example PIG script for running this:
+ *
+ * <pre>
+ *     REGISTER graphchi-java-0.2-jar-with-dependencies.jar;
+ *
+ *     pagerank = LOAD 'graphs/soc-LiveJournal1.txt' USING edu.cmu.graphchi.apps.pig.PigPagerank as (vertex:int, rank:float);
+ *
+ *     STORE pagerank INTO 'pagerank-livejournal';
+ * </pre>
+ *
+ * (To get the livejournal graph, visit: http://snap.stanford.edu/data/soc-LiveJournal1.html)
  *
  * @see edu.cmu.graphchi.hadoop.PigGraphChiBase
  * @author Aapo Kyrola, akyrola@cs.cmu.edu
@@ -80,6 +89,9 @@ public class PigPagerank extends PigGraphChiBase implements GraphChiProgram<Floa
 
 
     @Override
+    /**
+     * Pig column names
+     */
     protected String getSchemaString() {
         return "(vertex:int, weight:float)";
     }
@@ -90,6 +102,9 @@ public class PigPagerank extends PigGraphChiBase implements GraphChiProgram<Floa
     }
 
     @Override
+    /**
+     * Runs the GraphChi program
+     */
     protected void runGraphChi() throws Exception {
         /* Run GraphChi */
         GraphChiEngine<Float, Float> engine = new GraphChiEngine<Float, Float>(getGraphName(), getNumShards());

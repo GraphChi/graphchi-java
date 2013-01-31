@@ -30,7 +30,7 @@ import java.util.logging.Logger;
  *   STORE mydata INTO '$GRAPH'
  *
  * For an example, see
- * @see com.twitter.pers.bipartite.HITSSmallMem
+ * @see edu.cmu.graphchi.apps.pig.PigPagerank
  */
 public abstract class PigGraphChiBase  extends LoadFunc implements LoadMetadata {
 
