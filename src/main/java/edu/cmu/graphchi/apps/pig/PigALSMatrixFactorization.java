@@ -72,7 +72,7 @@ public class PigALSMatrixFactorization extends PigGraphChiBase
     double LAMBDA = 0.065;
     double rmse = 0.0;
 
-    private PigALSMatrixFactorization() {
+    public PigALSMatrixFactorization() {
     }
 
 
