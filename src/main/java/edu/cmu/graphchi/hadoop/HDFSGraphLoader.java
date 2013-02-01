@@ -56,7 +56,7 @@ public class HDFSGraphLoader {
         String ln;
         while ((ln = rd.readLine()) != null) {
             if (ln.startsWith("#")) continue;
-            String[] tok = ln.split("\t");
+            String[] tok = ln.split("\t| |,");
             if (tok.length >= 2) {
                 try {
                     int from = Integer.parseInt(tok[0]);
