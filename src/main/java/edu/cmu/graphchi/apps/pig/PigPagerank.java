@@ -112,7 +112,7 @@ public class PigPagerank extends PigGraphChiBase implements GraphChiProgram<Floa
         engine.setVertexDataConverter(new FloatConverter());
         engine.setModifiesInedges(false); // Important optimization
 
-        engine.run(new PigPagerank(), 4);
+        engine.run(this, 4);
 
         logger.info("Ready.");
 
