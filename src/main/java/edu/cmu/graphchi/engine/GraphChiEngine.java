@@ -9,6 +9,7 @@ import edu.cmu.graphchi.datablocks.DataBlockManager;
 import edu.cmu.graphchi.engine.auxdata.DegreeData;
 import edu.cmu.graphchi.engine.auxdata.VertexData;
 import edu.cmu.graphchi.engine.auxdata.VertexDegree;
+import edu.cmu.graphchi.hadoop.PigGraphChiBase;
 import edu.cmu.graphchi.preprocessing.VertexIdTranslate;
 import edu.cmu.graphchi.shards.MemoryShard;
 import edu.cmu.graphchi.shards.SlidingShard;
@@ -291,6 +292,12 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
                 int intervalEn = intervals.get(execInterval).getLastVertex();
 
                 logger.info((System.currentTimeMillis() - startTime) * 0.001 + "s: iteration: " + iter + ", interval: " + intervalSt + " -- " + intervalEn);
+
+                if (program instanceof PigGraphChiBase) {
+                    ((PigGraphChiBase) program).setStatusString("GraphChi iteration " + iter + " / " + (niters - 1) + ";" +
+                            "  vertex interval:" + intervalSt + " -- " + intervalEn);
+
+                }
 
                 program.beginInterval(chiContext, intervals.get(execInterval));
 

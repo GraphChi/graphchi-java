@@ -110,7 +110,7 @@ public class PigALSMatrixFactorization extends PigGraphChiBase
             try {
                 double[] neighborLatent = new double[D];
 
-                int ne = (side == LEFTSIDE ? vertex.numOutEdges() : vertex.numOutEdges());
+                int ne = (side == LEFTSIDE ? vertex.numOutEdges() : vertex.numInEdges());
                 // Compute XtX and Xty (NOTE: unweighted)
                 for(int e=0; e < ne; e++) {
                     ChiEdge<Float> edge = (side == LEFTSIDE ? vertex.outEdge(e) : vertex.inEdge(e));

@@ -39,6 +39,7 @@ public abstract class PigGraphChiBase  extends LoadFunc implements LoadMetadata 
     private boolean activeNode = false;
     private Job job;
     private boolean ready = false;
+    private String status = "initializing";
 
     protected PigGraphChiBase() {
     }
@@ -86,6 +87,10 @@ public abstract class PigGraphChiBase  extends LoadFunc implements LoadMetadata 
     }
 
 
+    public void setStatusString(String status) {
+         this.status = status;
+    }
+
     protected abstract void runGraphChi() throws Exception;
 
     protected abstract FastSharder createSharder(String graphName, int numShards) throws IOException;
@@ -108,7 +113,7 @@ public abstract class PigGraphChiBase  extends LoadFunc implements LoadMetadata 
                     int i = 0;
                     while(!ready) {
                         PigStatusReporter.getInstance().progress();
-                        PigStatusReporter.getInstance().setStatus("GraphChi running, keep-alive index: " + i++);
+                        PigStatusReporter.getInstance().setStatus("GraphChi running (" + i + "): " + getStatusString());
                         try {
                             Thread.sleep(5000);
                         } catch (InterruptedException ioe) {}
@@ -120,6 +125,7 @@ public abstract class PigGraphChiBase  extends LoadFunc implements LoadMetadata 
             progressThread.start();
 
             if (pigSplit.getSplitIndex() > 0) {
+                PigStatusReporter.getInstance().setStatus("Redundant GraphChi-mapper - will die");
                 throw new RuntimeException("Split index > 0 -- this mapper will die (expected, not an error).");
             }
 
@@ -128,13 +134,20 @@ public abstract class PigGraphChiBase  extends LoadFunc implements LoadMetadata 
             Thread chiThread = new Thread(new Runnable() {
                 public void run() {
                     try {
+                        setStatusString("Preprocessing: reading data from HDFS: " + location);
                         final FastSharder sharder = createSharder(getGraphName(), getNumShards());
 
+
                         HDFSGraphLoader hdfsLoader = new HDFSGraphLoader(location, new EdgeProcessor<Float>() {
-                            @Override
+                            long counter = 0;
+
                             public Float receiveEdge(int from, int to, String token) {
                                 try {
                                     sharder.addEdge(from, to, token);
+                                    counter++;
+                                    if (counter % 100000 == 0) {
+                                        setStatusString("Preprocessing, read " + counter + " edges");
+                                    }
                                 } catch (IOException e) {
                                     throw new RuntimeException(e);
                                 }
@@ -143,9 +156,12 @@ public abstract class PigGraphChiBase  extends LoadFunc implements LoadMetadata 
                         });
 
                         hdfsLoader.load(pigSplit.getConf());
+
+                        setStatusString("Sharding...");
                         sharder.process();
 
                         logger.info("Starting to run GraphChi");
+                        setStatusString("Start GraphChi engine");
                         runGraphChi();
                         logger.info("Ready.");
                     } catch (Exception err) {
@@ -161,7 +177,7 @@ public abstract class PigGraphChiBase  extends LoadFunc implements LoadMetadata 
     }
 
     protected String getStatusString() {
-        return "(updated " + new java.util.Date() + " )";
+        return this.status;
     }
 
     protected abstract Tuple getNextResult(TupleFactory tupleFactory) throws ExecException;
@@ -170,7 +186,7 @@ public abstract class PigGraphChiBase  extends LoadFunc implements LoadMetadata 
     public Tuple getNext() throws IOException {
         if (!activeNode) return null;
         while (!ready) {
-            logger.info("GraphChi-Java running: waiting for graphchi-engine to finish");
+            logger.info("GraphChi-Java running: waiting for graphchi-engine to finish: " + this.getStatusString());
             PigStatusReporter.getInstance().setStatus(getStatusString());
             PigStatusReporter.getInstance().progress();
             try {
