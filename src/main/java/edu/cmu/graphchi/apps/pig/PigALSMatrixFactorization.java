@@ -92,7 +92,12 @@ public class PigALSMatrixFactorization extends PigGraphChiBase
         VertexIdTranslate idTranslate = context.getVertexIdTranslate();
 
         for(int side=LEFTSIDE; side<=RIGHTSIDE; side++) {
-            HugeDoubleMatrix vertexValueMatrix = (side == LEFTSIDE ? leftSideMatrix : rightSideMatrix);
+            /* The latent factors for both sides of the graph are kept in memory,
+               but in separate matrices. This chooses which one matrix has the value
+               of the vertex in question, and which has neighbors.
+             */
+            HugeDoubleMatrix thisSideMatrix = (side == LEFTSIDE ? leftSideMatrix : rightSideMatrix);
+            HugeDoubleMatrix otherSideMatrix = (side == LEFTSIDE ? rightSideMatrix : leftSideMatrix);
 
             /* Check if this vertex is active on the given side (left or right) */
             if (side == LEFTSIDE && vertex.numOutEdges() == 0) continue;
@@ -110,7 +115,7 @@ public class PigALSMatrixFactorization extends PigGraphChiBase
                 for(int e=0; e < ne; e++) {
                     ChiEdge<Float> edge = (side == LEFTSIDE ? vertex.outEdge(e) : vertex.inEdge(e));
                     float observation = edge.getValue();
-                    vertexValueMatrix.getRow(idTranslate.backward(edge.getVertexId()), neighborLatent);
+                    otherSideMatrix.getRow(idTranslate.backward(edge.getVertexId()), neighborLatent);
 
                     for(int i=0; i < D; i++) {
                         Xty.setEntry(i, Xty.getEntry(i) + neighborLatent[i] * observation);
@@ -133,10 +138,10 @@ public class PigALSMatrixFactorization extends PigGraphChiBase
 
                 // Set the new latent factor for this vector
                 for(int i=0; i < D; i++) {
-                    vertexValueMatrix.setValue(idTranslate.backward(vertex.getId()), i, newLatentFactor.getEntry(i));
+                    thisSideMatrix.setValue(idTranslate.backward(vertex.getId()), i, newLatentFactor.getEntry(i));
                 }
 
-                if (context.isLastIteration()) {
+                if (context.isLastIteration() && side == RIGHTSIDE) {
                     /* On the last iteration - compute the RMSE error. But only for
                       vertices on the right side of the matrix, i.e vectors
                       that have only in-edges.
@@ -148,7 +153,7 @@ public class PigALSMatrixFactorization extends PigGraphChiBase
                             // Compute RMSE
                             ChiEdge<Float> edge = vertex.inEdge(e);
                             float observation = edge.getValue();
-                            vertexValueMatrix.getRow(idTranslate.backward(edge.getVertexId()), neighborLatent);
+                            otherSideMatrix.getRow(idTranslate.backward(edge.getVertexId()), neighborLatent);
                             double prediction = new ArrayRealVector(neighborLatent).dotProduct(newLatentFactor);
                             squaredError += (prediction - observation) * (prediction - observation);
                         }
@@ -162,6 +167,7 @@ public class PigALSMatrixFactorization extends PigGraphChiBase
             } catch (NotPositiveDefiniteMatrixException npdme) {
                 logger.warning("Matrix was not positive definite: " + XtX);
             } catch (Exception err) {
+                err.printStackTrace();
                 throw new RuntimeException(err);
             }
         }
@@ -251,9 +257,12 @@ public class PigALSMatrixFactorization extends PigGraphChiBase
         engine.setModifiesInedges(false); // Important optimization
         engine.setModifiesOutedges(false); // Important optimization
 
+        /* Run for 5 iterations */
         engine.run(this, 5);
 
-        logger.info("Finished with RMSE: " + rmse);
+        /* Output RMSE */
+        double trainRMSE = Math.sqrt(als.rmse / (1.0 * engine.numEdges()));
+        logger.info("Train RMSE: " + trainRMSE + ", total edges:" + engine.numEdges());
     }
 
     @Override
