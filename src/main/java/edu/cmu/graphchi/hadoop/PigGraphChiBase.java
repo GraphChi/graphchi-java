@@ -79,8 +79,7 @@ public abstract class PigGraphChiBase  extends LoadFunc implements LoadMetadata 
     @Override
     public void setLocation(String location, Job job)
             throws IOException {
-        logger.info("Set location: " + location);
-        logger.info("Job: " + job);
+        logger.info("Set HDFS location for GraphChi Pig: " + location);
         PigTextInputFormat.setInputPaths(job, location);
         this.location = location;
         this.job = job;
@@ -93,7 +92,6 @@ public abstract class PigGraphChiBase  extends LoadFunc implements LoadMetadata 
 
     @Override
     public void prepareToRead(final RecordReader recordReader, final PigSplit pigSplit) throws IOException {
-
         try {
 
             int j = 0;
@@ -110,7 +108,7 @@ public abstract class PigGraphChiBase  extends LoadFunc implements LoadMetadata 
                     int i = 0;
                     while(!ready) {
                         PigStatusReporter.getInstance().progress();
-                        PigStatusReporter.getInstance().setStatus("Status idx: " + i++);
+                        PigStatusReporter.getInstance().setStatus("GraphChi running, keep-alive index: " + i++);
                         try {
                             Thread.sleep(5000);
                         } catch (InterruptedException ioe) {}
@@ -147,9 +145,9 @@ public abstract class PigGraphChiBase  extends LoadFunc implements LoadMetadata 
                         hdfsLoader.load(pigSplit.getConf());
                         sharder.process();
 
-                        logger.info("Starting to run");
+                        logger.info("Starting to run GraphChi");
                         runGraphChi();
-                        logger.info("Ready");
+                        logger.info("Ready.");
                     } catch (Exception err) {
                         err.printStackTrace();
                     }
@@ -163,7 +161,7 @@ public abstract class PigGraphChiBase  extends LoadFunc implements LoadMetadata 
     }
 
     protected String getStatusString() {
-        return "Still running: " + System.currentTimeMillis();
+        return "(updated " + new java.util.Date() + " )";
     }
 
     protected abstract Tuple getNextResult(TupleFactory tupleFactory) throws ExecException;
@@ -172,7 +170,7 @@ public abstract class PigGraphChiBase  extends LoadFunc implements LoadMetadata 
     public Tuple getNext() throws IOException {
         if (!activeNode) return null;
         while (!ready) {
-            logger.info("Still waiting in getNext()");
+            logger.info("GraphChi-Java running: waiting for graphchi-engine to finish");
             PigStatusReporter.getInstance().setStatus(getStatusString());
             PigStatusReporter.getInstance().progress();
             try {
