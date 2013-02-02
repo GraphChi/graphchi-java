@@ -261,7 +261,7 @@ public class PigALSMatrixFactorization extends PigGraphChiBase
         engine.run(this, 5);
 
         /* Output RMSE */
-        double trainRMSE = Math.sqrt(als.rmse / (1.0 * engine.numEdges()));
+        double trainRMSE = Math.sqrt(this.rmse / (1.0 * engine.numEdges()));
         logger.info("Train RMSE: " + trainRMSE + ", total edges:" + engine.numEdges());
     }
 
