@@ -173,8 +173,7 @@ public class ALSMatrixFactorization implements GraphChiProgram<Integer, Float> {
      * @throws java.io.IOException
      */
     protected static FastSharder createSharder(String graphName, int numShards) throws IOException {
-        return new FastSharder<Integer, Float>(graphName, numShards, null
-                , new EdgeProcessor<Float>() {
+        return new FastSharder<Integer, Float>(graphName, numShards, null, new EdgeProcessor<Float>() {
             public Float receiveEdge(int from, int to, String token) {
                 return (token == null ? 0.0f : Float.parseFloat(token));
             }

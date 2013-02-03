@@ -115,6 +115,8 @@ public class PigALSMatrixFactorization extends PigGraphChiBase
                 for(int e=0; e < ne; e++) {
                     ChiEdge<Float> edge = (side == LEFTSIDE ? vertex.outEdge(e) : vertex.inEdge(e));
                     float observation = edge.getValue();
+                    if (observation < 1.0) throw new RuntimeException("Had invalid observation: " + observation + " on edge " + idTranslate.backward(vertex.getId()) + "->" +
+                                idTranslate.backward(edge.getVertexId()));
                     otherSideMatrix.getRow(idTranslate.backward(edge.getVertexId()), neighborLatent);
 
                     for(int i=0; i < D; i++) {
