@@ -12,6 +12,7 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.util.logging.Logger;
+import java.util.regex.Pattern;
 
 /**
  * Loads a graph from HDFS edge by edge and calls
@@ -53,10 +54,11 @@ public class HDFSGraphLoader {
         FSDataInputStream in = fs.open(inputPath);
         BufferedReader rd = new BufferedReader(new InputStreamReader(in));
 
+        Pattern tokenPattern = Pattern.compile("(\t)+|( )+|(,)+");
         String ln;
         while ((ln = rd.readLine()) != null) {
             if (ln.startsWith("#")) continue;
-            String[] tok = ln.split("\t| |,");
+            String[] tok = tokenPattern.split(ln);
             if (tok.length >= 2) {
                 try {
                     int from = Integer.parseInt(tok[0]);
