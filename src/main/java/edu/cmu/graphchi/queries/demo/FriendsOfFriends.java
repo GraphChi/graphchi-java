@@ -181,6 +181,8 @@ public class FriendsOfFriends {
             }
             if (ln.startsWith("b")) {
                 // Benchmark
+                fof.queryEngine.shutdown();
+                fof = new FriendsOfFriends(baseFilename, numShards, false);
                 int numVertices = ChiFilenames.numVertices(baseFilename, numShards);
 
                 Random r = new Random();
