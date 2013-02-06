@@ -10,7 +10,7 @@ public class VertexIdValue <VertexValueType> {
     private int vertexId;
     private VertexValueType value;
 
-    VertexIdValue(int vertexId, VertexValueType value) {
+    public VertexIdValue(int vertexId, VertexValueType value) {
         this.vertexId = vertexId;
         this.value = value;
     }
