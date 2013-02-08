@@ -148,7 +148,7 @@ public class FriendsOfFriends {
     }
 
     private String namify(Integer value) throws IOException {
-        File f = new File(new File(baseFilename).getParent(), "twitter_names.dat");
+        File f = new File(new File(baseFilename).getParent(), baseFilename + "_names.dat");
         if (!f.exists()) {
             return value+"";
         }
