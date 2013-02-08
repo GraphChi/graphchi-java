@@ -84,8 +84,7 @@ public class FriendsOfFriends {
 
         long t = System.currentTimeMillis() - stTime;
         logger.info("Found " + friends.size() + " friends  in " + t + " ms.");
-
-
+        int origFriendsSize = friends.size();
 
         Random r = new Random();
         if (friends.size() > fanOut) {
@@ -113,9 +112,11 @@ public class FriendsOfFriends {
             return;
         }
 
+
         stTime = System.currentTimeMillis();
 
         friendsOfFriends = queryEngine.queryOutNeighbors(friends);
+        friendsOfFriends.remove(internalId);
 
         long t2 = (System.currentTimeMillis() - stTime);
 
@@ -142,7 +143,7 @@ public class FriendsOfFriends {
             System.out.println(namify(top.getValue()) + " : " + (-top.getKey()));
         }
 
-        logWriter.write(friends.size() + "," + t + "," + t2 + "\n");
+        logWriter.write(origFriendsSize + "," + t + "," + t2 + "\n");
 
     }
 
@@ -188,7 +189,12 @@ public class FriendsOfFriends {
                 Random r = new Random();
                 for(int i=0; i<1000000; i++) {
                     int vId = r.nextInt(numVertices);
-                    fof.recommendFriends(vId, 100);
+
+                    if (vId % 10 <= 4) {    // 50% of time look for lower ids which have higher degree
+                        vId = r.nextInt(numVertices % 100000);
+                    }
+
+                    fof.recommendFriends(vId, 4000);
 
                     if (i % 1000 == 0) {
                         logger.info("Benchmark round " + i);
