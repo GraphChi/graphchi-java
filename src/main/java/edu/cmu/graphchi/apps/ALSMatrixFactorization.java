@@ -261,7 +261,7 @@ public class ALSMatrixFactorization implements GraphChiProgram<Integer, Float> {
         wr.write("%%MatrixMarket matrix array real general\n");
         wr.write(this.D + " " + numRight + "\n");
 
-        for(int j=0; j < numLeft; j++) {
+        for(int j=0; j < numRight; j++) {
             int vertexId = vertexIdTranslate.forward(numLeft + j);   // Translate to internal vertex id
             for(int i=0; i < D; i++) {
                 wr.write(vertexValueMatrix.getValue(vertexId, i) + "\n");
