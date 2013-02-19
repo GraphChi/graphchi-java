@@ -100,6 +100,7 @@ public class SmokeTest implements GraphChiProgram<Integer, Integer> {
 
         /* Create shards */
         FastSharder sharder = createSharder(baseFilename, nShards);
+        sharder.setAllowSparseDegreesAndVertexData(false);
         if (baseFilename.equals("pipein")) {     // Allow piping graph in
             sharder.shard(System.in);
         } else {
@@ -123,7 +124,8 @@ public class SmokeTest implements GraphChiProgram<Integer, Integer> {
             int internalId = engine.getVertexIdTranslate().forward(x.getVertexId());
             int expectedValue = internalId + 4;
             if (expectedValue != x.getValue()) {
-                throw new IllegalStateException("Expected internal value to be " + expectedValue + ", but it was " + x.getValue());
+                throw new IllegalStateException("Expected internal value to be " + expectedValue
+                        + ", but it was " + x.getValue() + "; internal id=" + internalId + "; orig=" + x.getVertexId());
             }
             if (i % 10000 == 0) {
                 logger.info("Scanning vertices: " + i);

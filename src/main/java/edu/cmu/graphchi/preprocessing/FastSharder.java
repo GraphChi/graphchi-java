@@ -66,6 +66,7 @@ public class FastSharder <VertexValueType, EdgeValueType> {
     private boolean memoryEfficientDegreeCount = false;
     private long numEdges = 0;
     private boolean useSparseDegrees = false;
+    private boolean allowSparseDegreesAndVertexData = false;
 
     private BytesToValueConverter<EdgeValueType> edgeValueTypeBytesToValueConverter;
     private BytesToValueConverter<VertexValueType> vertexValueTypeBytesToValueConverter;
@@ -188,6 +189,20 @@ public class FastSharder <VertexValueType, EdgeValueType> {
     }
 
 
+    public boolean isAllowSparseDegreesAndVertexData() {
+        return allowSparseDegreesAndVertexData;
+    }
+
+    /**
+     * If set true, GraphChi will use sparse file for vertices and the degree data
+     * if the number of edges is smaller than the number of vertices. Default false.
+     * Note: if you use this, you probably want to set engine.setSkipZeroDegreeVertices(true)
+     * @param allowSparseDegreesAndVertexData
+     */
+    public void setAllowSparseDegreesAndVertexData(boolean allowSparseDegreesAndVertexData) {
+        this.allowSparseDegreesAndVertexData = allowSparseDegreesAndVertexData;
+    }
+
     /**
      * We keep separate shovel-file for vertex-values.
      * @param shard
@@ -278,7 +293,11 @@ public class FastSharder <VertexValueType, EdgeValueType> {
          * If we have more vertices than edges, it makes sense to use sparse representation
          * for the auxilliary degree-data and vertex-data files.
          */
-        useSparseDegrees = (maxVertexId > numEdges) || "1".equals(System.getProperty("sparsedeg"));
+        if (allowSparseDegreesAndVertexData) {
+            useSparseDegrees = (maxVertexId > numEdges) || "1".equals(System.getProperty("sparsedeg"));
+        } else {
+            useSparseDegrees = false;
+        }
         logger.info("Use sparse output: " + useSparseDegrees);
 
         /**
