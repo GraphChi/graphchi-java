@@ -444,7 +444,9 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
 
         parallelExecutor.shutdown();
         loadingExecutor.shutdown();
-        vertexDataHandler.close();
+
+        if (vertexDataHandler != null)
+            vertexDataHandler.close();
         logger.info("Engine finished in: " + (System.currentTimeMillis() - startTime) * 0.001 + " secs.");
         logger.info("Updates: " + nupdates);
     }
