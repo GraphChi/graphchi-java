@@ -146,6 +146,7 @@ public class FastSharder <VertexValueType, EdgeValueType> {
         /* If the from and to ids are same, this entry is assumed to contain value
            for the vertex, and it is passed to the vertexProcessor.
          */
+
         if (from == to) {
             if (vertexProcessor != null && edgeValueToken != null) {
                 VertexValueType value = vertexProcessor.receiveVertexValue(from, edgeValueToken);
@@ -494,10 +495,12 @@ public class FastSharder <VertexValueType, EdgeValueType> {
         DataOutputStream adjOut = new DataOutputStream(new BufferedOutputStream(new FileOutputStream(adjFile)));
         int curvid = 0;
         int istart = 0;
-        for(int i=0; i < shoveled.length; i++) {
-            int from = getFirst(shoveled[i]);
-            if (from != curvid || i == shoveled.length - 1) {
+        for(int i=0; i <= shoveled.length; i++) {
+            int from = (i < shoveled.length ? getFirst(shoveled[i]) : -1);
+
+            if (from != curvid) {
                 int count = i - istart;
+
                 if (count > 0) {
                     if (count < 255) {
                         adjOut.writeByte(count);
@@ -513,16 +516,18 @@ public class FastSharder <VertexValueType, EdgeValueType> {
                 istart = i;
 
                 // Handle zeros
-                if (from - curvid > 1 || (i == 0 && from > 0)) {
-                    int nz = from - curvid - 1;
-                    if (i ==0 && from >0) nz = from;
-                    do {
-                        adjOut.writeByte(0);
-                        nz--;
-                        int tnz = Math.min(254, nz);
-                        adjOut.writeByte(tnz);
-                        nz -= tnz;
-                    } while (nz > 0);
+                if (from != (-1)) {
+                    if (from - curvid > 1 || (i == 0 && from > 0)) {
+                        int nz = from - curvid - 1;
+                        if (i ==0 && from >0) nz = from;
+                        do {
+                            adjOut.writeByte(0);
+                            nz--;
+                            int tnz = Math.min(254, nz);
+                            adjOut.writeByte(tnz);
+                            nz -= tnz;
+                        } while (nz > 0);
+                    }
                 }
                 curvid = from;
             }
