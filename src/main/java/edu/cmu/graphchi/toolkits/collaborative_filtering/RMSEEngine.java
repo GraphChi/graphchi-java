@@ -60,8 +60,7 @@ public class RMSEEngine extends ProblemSetup implements GraphChiProgram<Integer,
     public void endIteration(GraphChiContext ctx) {
     	 /* Output RMSE */
         double validationRMSE = Math.sqrt(validation_rmse / (1.0 * 545000 /*ctx.getNumEdges()*/));
-        logger.info("Training RMSE: " + ProblemSetup.train_rmse + " Validation RMSE: " + validationRMSE);
-
+        logger.info("Training RMSE: " + String.format("%.5f", ProblemSetup.train_rmse) + " Validation RMSE: " + String.format("%.5f", validationRMSE));
     }
 
     @Override

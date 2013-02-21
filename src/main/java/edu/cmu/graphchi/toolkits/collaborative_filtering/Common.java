@@ -2,6 +2,8 @@ package edu.cmu.graphchi.toolkits.collaborative_filtering;
 
 import java.util.logging.Level;
 
+import edu.cmu.graphchi.ChiLogger;
+
 public class Common {
 
 	public static void parse_command_line_arguments(String [] args){
@@ -30,8 +32,10 @@ public class Common {
 			System.exit(1);
 		}
 	
-		if (ProblemSetup.quiet > 0)
-			ProblemSetup.logger.setLevel(Level.SEVERE);
+		if (ProblemSetup.quiet > 0){
+			ChiLogger.getLogger("engine").setLevel(Level.SEVERE);
+		    ChiLogger.getLogger("memoryshard").setLevel(Level.SEVERE);
+		}
 		
 	}
 }
