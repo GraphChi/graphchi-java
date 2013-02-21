@@ -267,6 +267,9 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
             vertexDataHandler.setBlockManager(blockManager);
         }
 
+        chiContext.setNumEdges(numEdges());
+
+
         for(int iter=0; iter < niters; iter++) {
             /* Wait for executor have finished all writes */
             while (!blockManager.empty()) {
