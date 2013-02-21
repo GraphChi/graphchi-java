@@ -29,17 +29,13 @@ public class RMSEEngine extends ProblemSetup implements GraphChiProgram<Integer,
     public void update(ChiVertex<Integer, Float> vertex, GraphChiContext context) {
         if (vertex.numOutEdges() == 0) return;
 
-        double [] latent_factor = new double[D];
-        ProblemSetup.vertexValueMatrix.getRow(vertex.getId(), latent_factor);
-
+        RealVector latent_factor = ProblemSetup.latent_factors_inmem.getRowAsVector(vertex.getId());
         try {
             double squaredError = 0;
             for(int e=0; e < vertex.numEdges(); e++) {
                 float observation = vertex.edge(e).getValue();
-                double[] neighbor_latent = new double[D];
-                ProblemSetup.vertexValueMatrix.getRow(vertex.edge(e).getVertexId(),neighbor_latent);
-                RealVector neighbor = new ArrayRealVector(neighbor_latent);
-                double prediction = ALS.als_predict(neighbor, new ArrayRealVector(latent_factor));
+                RealVector neighbor = ProblemSetup.latent_factors_inmem.getRowAsVector(vertex.edge(e).getVertexId());
+                double prediction = ALS.als_predict(neighbor, latent_factor);
                 squaredError += Math.pow(prediction - observation,2);    
             }
  
@@ -103,7 +99,7 @@ public class RMSEEngine extends ProblemSetup implements GraphChiProgram<Integer,
     void init_validation() {	
     	try {
     /* Run sharding (preprocessing) if the files do not exist yet */
-    sharder_validation = createSharder(training + "e", 1);
+    sharder_validation = IO.createSharder(training + "e", 1);
     if (!new File(ChiFilenames.getFilenameIntervals(training + "e", nShards)).exists() ||
             !new File(training + "e.matrixinfo").exists()) {
         sharder_validation.shard(new FileInputStream(new File(training + "e")), FastSharder.GraphInputFormat.MATRIXMARKET);

@@ -67,7 +67,7 @@ public class ALS extends ProblemSetup implements GraphChiProgram<Integer, Float>
 
         RealMatrix XtX = new BlockRealMatrix(D, D);
         RealVector Xty = new ArrayRealVector(D);
-        RealVector latent_factor = vertexValueMatrix.getRowAsVector(vertex.getId());
+        RealVector latent_factor = latent_factors_inmem.getRowAsVector(vertex.getId());
      
 
         try {
@@ -76,7 +76,7 @@ public class ALS extends ProblemSetup implements GraphChiProgram<Integer, Float>
             // Compute XtX and Xty (NOTE: unweighted)
             for(int e=0; e < vertex.numEdges(); e++) {
                 float observation = vertex.edge(e).getValue();
-                RealVector neighbor = vertexValueMatrix.getRowAsVector(vertex.edge(e).getVertexId());
+                RealVector neighbor = latent_factors_inmem.getRowAsVector(vertex.edge(e).getVertexId());
             
                 //Xty.add(neighbor * observation);
                 //XtX.add(neighbor.outerProduct(neighbor));
@@ -105,7 +105,7 @@ public class ALS extends ProblemSetup implements GraphChiProgram<Integer, Float>
 
             // Solve the least-squares optimization using Cholesky Decomposition
             RealVector newLatentFactor = new CholeskyDecompositionImpl(XtX).getSolver().solve(Xty);
-            vertexValueMatrix.setRow(vertex.getId(), newLatentFactor.getData());
+            latent_factors_inmem.setRow(vertex.getId(), newLatentFactor.getData());
 
            if (is_user){
         	   synchronized (this) {
@@ -173,20 +173,13 @@ public class ALS extends ProblemSetup implements GraphChiProgram<Integer, Float>
         Common.parse_command_line_arguments(args);
         logger.info("Set latent factor dimension to: " + als.D);
 
-        /* Run sharding (preprocessing) if the files do not exist yet */
-        FastSharder sharder = createSharder(als.training, als.nShards);
-        if (!new File(ChiFilenames.getFilenameIntervals(als.training, als.nShards)).exists() ||
-                !new File(als.training + ".matrixinfo").exists()) {
-            sharder.shard(new FileInputStream(new File(als.training)), FastSharder.GraphInputFormat.MATRIXMARKET);
-        } else {
-            logger.info("Found shards -- no need to preprocess");
-        }
+        IO.convert_matrix_market();
         
         ALS.validation_rmse_engine = new RMSEEngine();
         ALS.validation_rmse_engine.init_validation();
         
         /* Run GraphChi */
-        GraphChiEngine<Integer, Float> engine = new GraphChiEngine<Integer, Float>(als.training, als.nShards);
+        GraphChiEngine<Integer, Float> engine = new GraphChiEngine<Integer, Float>(ProblemSetup.training, ProblemSetup.nShards);
         
         engine.setEdataConverter(new FloatConverter());
         engine.setEnableDeterministicExecution(false);
@@ -221,7 +214,7 @@ public class ALS extends ProblemSetup implements GraphChiProgram<Integer, Float>
         for(int j=0; j < numLeft; j++) {
             int vertexId = vertexIdTranslate.forward(j);  // Translate to internal vertex id
             for(int i=0; i < D; i++) {
-                wr.write(vertexValueMatrix.getValue(vertexId, i) + "\n");
+                wr.write(latent_factors_inmem.getValue(vertexId, i) + "\n");
             }
         }
         wr.close();
@@ -235,7 +228,7 @@ public class ALS extends ProblemSetup implements GraphChiProgram<Integer, Float>
         for(int j=0; j < numRight; j++) {
             int vertexId = vertexIdTranslate.forward(numLeft + j);   // Translate to internal vertex id
             for(int i=0; i < D; i++) {
-                wr.write(vertexValueMatrix.getValue(vertexId, i) + "\n");
+                wr.write(latent_factors_inmem.getValue(vertexId, i) + "\n");
             }
         }
         wr.close();

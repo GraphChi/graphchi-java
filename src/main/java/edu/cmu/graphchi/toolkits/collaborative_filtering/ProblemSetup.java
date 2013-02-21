@@ -15,7 +15,7 @@ import edu.cmu.graphchi.util.HugeDoubleMatrix;
 
 public class ProblemSetup {
 
-        static HugeDoubleMatrix vertexValueMatrix;
+        static HugeDoubleMatrix latent_factors_inmem;
 		static long M,N,L;
         static int D = 10;
         static double minval = -1e100;
@@ -28,29 +28,16 @@ public class ProblemSetup {
         static String validation;
         static String test;
         static int nShards;
+        static int quiet;
         
         void init_feature_vectors(long size){
           logger.info("Initializing latent factors for " + size + " vertices");
-          vertexValueMatrix = new HugeDoubleMatrix(size, D);
+          latent_factors_inmem = new HugeDoubleMatrix(size, D);
 
           /* Fill with random data */
-          vertexValueMatrix.randomize(0f, 1.0f);
+          latent_factors_inmem.randomize(0f, 1.0f);
         }
         
-        /**
-         * Initialize the sharder-program.
-         * @param graphName
-         * @param numShards
-         * @return
-         * @throws java.io.IOException
-         */
-        protected static FastSharder createSharder(String graphName, int numShards) throws IOException {
-            return new FastSharder<Integer, Float>(graphName, numShards, null, new EdgeProcessor<Float>() {
-                public Float receiveEdge(int from, int to, String token) {
-                    return (token == null ? 0.0f : Float.parseFloat(token));
-                }
-            }, new IntConverter(), new FloatConverter());
-        }
-        
+       
       
 }
