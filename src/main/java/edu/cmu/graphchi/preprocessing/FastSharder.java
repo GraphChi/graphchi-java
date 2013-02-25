@@ -162,8 +162,6 @@ public class FastSharder <VertexValueType, EdgeValueType> {
         int preTranslatedIdFrom = preIdTranslate.forward(from);
         int preTranslatedTo = preIdTranslate.forward(to);
 
-
-
         addToShovel(to % numShards, preTranslatedIdFrom, preTranslatedTo, edgeProcessor.receiveEdge(from, to, edgeValueToken));
     }
 
@@ -365,7 +363,7 @@ public class FastSharder <VertexValueType, EdgeValueType> {
      */
     private void processVertexValues(boolean sparse) throws IOException {
         DataBlockManager dataBlockManager = new DataBlockManager();
-        VertexData<VertexValueType> vertexData = new VertexData<VertexValueType>(maxVertexId - 1, baseFilename,
+        VertexData<VertexValueType> vertexData = new VertexData<VertexValueType>(maxVertexId + 1, baseFilename,
                 vertexValueTypeBytesToValueConverter, sparse);
         vertexData.setBlockManager(dataBlockManager);
         for(int p=0; p < numShards; p++) {
