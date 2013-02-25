@@ -143,6 +143,9 @@ public class FastSharder <VertexValueType, EdgeValueType> {
      * @throws IOException
      */
     public void addEdge(int from, int to, String edgeValueToken) throws IOException {
+        if (maxVertexId < from) maxVertexId = from;
+        if (maxVertexId < to)  maxVertexId = to;
+
         /* If the from and to ids are same, this entry is assumed to contain value
            for the vertex, and it is passed to the vertexProcessor.
          */
@@ -159,8 +162,7 @@ public class FastSharder <VertexValueType, EdgeValueType> {
         int preTranslatedIdFrom = preIdTranslate.forward(from);
         int preTranslatedTo = preIdTranslate.forward(to);
 
-        if (maxVertexId < from) maxVertexId = from;
-        if (maxVertexId < to)  maxVertexId = to;
+
 
         addToShovel(to % numShards, preTranslatedIdFrom, preTranslatedTo, edgeProcessor.receiveEdge(from, to, edgeValueToken));
     }
