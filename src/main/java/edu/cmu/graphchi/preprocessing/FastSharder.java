@@ -671,7 +671,7 @@ public class FastSharder <VertexValueType, EdgeValueType> {
                             throw new IllegalArgumentException("Error on line " + lineNum + "; number of edges does not match number of tokens:" +
                                     len + " != " + tok.length);
                         }
-                        for(int j=2; j < len; j++) {
+                        for(int j=2; j < 2 + len; j++) {
                             int dest = Integer.parseInt(tok[j]);
                             this.addEdge(vertexId, dest, null);
                         }
