@@ -827,8 +827,16 @@ public class FastSharder <VertexValueType, EdgeValueType> {
     }
 
     public static void main(String[] args) throws Exception {
+        if (args.length != 3) {
+            System.err.println("usage: FastSharder <filename> <num-shards> <edgelist|adjlist>");
+            System.exit(1);
+        }
+
         String fileName = args[0];
         int numShards = Integer.parseInt(args[1]);
+
+
+
         String conversion = args[2];
         FastSharder<Integer, Integer> sharder = new FastSharder<Integer, Integer>(fileName, numShards, null, new EdgeProcessor<Integer>() {
             @Override
