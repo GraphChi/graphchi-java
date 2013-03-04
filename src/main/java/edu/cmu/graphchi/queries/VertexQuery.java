@@ -12,9 +12,12 @@ import edu.cmu.graphchi.datablocks.BytesToValueConverter;
 import edu.cmu.graphchi.datablocks.ChiPointer;
 import edu.cmu.graphchi.datablocks.DataBlockManager;
 import edu.cmu.graphchi.datablocks.FloatConverter;
+import edu.cmu.graphchi.engine.auxdata.DegreeData;
+import edu.cmu.graphchi.engine.auxdata.VertexDegree;
 import edu.cmu.graphchi.io.CompressedIO;
 import edu.cmu.graphchi.preprocessing.VertexIdTranslate;
 import edu.cmu.graphchi.vertexdata.VertexIdValue;
+import sun.jvmstat.monitor.IntegerMonitor;
 import ucar.unidata.io.RandomAccessFile;
 
 /**
@@ -28,19 +31,85 @@ public class VertexQuery {
     private static final Logger logger = ChiLogger.getLogger("vertexquery");
     private ArrayList<Shard> shards;
     private ExecutorService executor;
+    private String baseFilename;
+    private int numShards;
+    private int cacheSize;
+    private Map<Integer, int[]> highIndegreeCache;
+    private double cacheIndegreeFraction;
 
-    public VertexQuery(String baseFilename, int numShards) throws IOException{
+    public VertexQuery(String baseFilename, int numShards, int cacheSize, double cacheIndegreeFraction) throws IOException{
         shards = new ArrayList<Shard>();
         for(int i=0; i<numShards; i++) {
             shards.add(new Shard(baseFilename, i, numShards));
         }
         executor = Executors.newFixedThreadPool(NTHREADS);
+
+        this.numShards = numShards;
+        this.baseFilename = baseFilename;
+        this.cacheSize = cacheSize;
+        this.highIndegreeCache = Collections.synchronizedMap(new HashMap<Integer, int[]>(cacheSize));
+        this.cacheIndegreeFraction = cacheIndegreeFraction;
+        populateCache();
+    }
+
+    private void populateCache() throws IOException {
+        long t = System.currentTimeMillis();
+        int  numVertices = ChiFilenames.numVertices(baseFilename, numShards);
+        DegreeData deg = new DegreeData(baseFilename);
+        int chunk = 4096 * 1024;
+        int indegreeLimit = (int) (numVertices * cacheIndegreeFraction);
+        for(int i=0; i < numVertices; i += chunk) {
+            int en = Math.min(numVertices - 1, i + chunk - 1);
+            deg.load(i, en);
+            for(int vid=i; vid <= en; vid++) {
+                VertexDegree d = deg.getDegree(vid);
+                if (d.inDegree >= indegreeLimit) {
+                    // Not most efficient, but ok
+                    HashSet<Integer> outEdges = queryOutNeighbors(vid);
+                    int[] cached = new int[outEdges.size()];
+                    int j = 0;
+                    for(Integer nb : outEdges) {
+                        cached[j++] = nb;
+                    }
+                    highIndegreeCache.put(vid, cached);
+
+                    if (highIndegreeCache.size() >= cacheSize) {
+                        logger.info("Cache size exceeded, stop populating.");
+                        break;
+                    }
+                }
+            }
+        }
+        logger.info("Cache population took " + (System.currentTimeMillis() - t) + " ms");
+        logger.info("Cache size: " + highIndegreeCache.size() + ", limit was: " + indegreeLimit);
     }
 
 
-    public HashMap<Integer, Integer> queryOutNeighbors(final Collection<Integer> queryVertices) {
+    public HashMap<Integer, Integer> queryOutNeighbors(final Collection<Integer> _queryVertices) {
         HashMap<Integer, Integer> results;
         List<Future<HashMap<Integer, Integer>>> queryFutures = new ArrayList<Future<HashMap<Integer, Integer>>>();
+
+        /* Check which ones are in cache */
+        long st = System.currentTimeMillis();
+        HashMap<Integer, Integer> fromCache = new HashMap<Integer, Integer>(1000000);
+        final ArrayList<Integer> queryVertices = new ArrayList<Integer>(_queryVertices.size());
+        int cacheHits = 0;
+        for(Integer a : _queryVertices) {
+            if (highIndegreeCache.containsKey(a)) {
+                cacheHits++;
+                int[] out = highIndegreeCache.get(a);
+                for(Integer vid : out) {
+                    if (fromCache.containsKey(vid)) {
+                        fromCache.put(vid, fromCache.get(vid) + 1);
+                    } else {
+                        fromCache.put(vid, 1);
+                    }
+                }
+            } else {
+                queryVertices.add(a);
+            }
+        }
+        logger.info("Cached queries took: " + (System.currentTimeMillis() - st));
 
         /* Execute queries in parallel */
         for(Shard shard : shards) {
@@ -56,13 +125,11 @@ public class VertexQuery {
 
         /* Combine
         */
-        long combineTime = 0;
         try {
-            results = queryFutures.get(0).get();
+            results = fromCache;
 
-            for(int i=1; i < queryFutures.size(); i++) {
+            for(int i=0; i < queryFutures.size(); i++) {
                 HashMap<Integer, Integer> shardResults = queryFutures.get(i).get();
-                long st = System.currentTimeMillis();
 
                 for(Map.Entry<Integer, Integer> e : shardResults.entrySet()) {
                     if (results.containsKey(e.getKey())) {
@@ -71,7 +138,6 @@ public class VertexQuery {
                         results.put(e.getKey(), e.getValue());
                     }
                 }
-                combineTime += (System.currentTimeMillis() - st);
             }
 
         } catch (InterruptedException e) {
@@ -79,17 +145,28 @@ public class VertexQuery {
         } catch (ExecutionException e) {
             throw new RuntimeException(e);
         }
-      //  System.out.println("Combine took " + combineTime + " ms");
+
+        logger.info("From cache: " + cacheHits + " / " + _queryVertices.size());
+
         return  results;
     }
 
     public HashSet<Integer> queryOutNeighbors(final int internalId) throws IOException  {
+        if (highIndegreeCache.containsKey(internalId)) {
+            int[] cached = highIndegreeCache.get(internalId);
+            HashSet<Integer> cachedResult =  new HashSet<Integer>(cached.length);
+            for(int j : cached) {
+                cachedResult.add(j);
+            }
+            return cachedResult;
+        }
+
+
         HashSet<Integer> friends;
         List<Future<HashSet<Integer>>> queryFutures = new ArrayList<Future<HashSet<Integer>>>();
 
         /* Query from shards in parallel */
         for(Shard shard : shards) {
-
             final Shard _shard = shard;
             queryFutures.add(executor.submit(new Callable<HashSet<Integer>>() {
                 @Override
@@ -197,7 +274,7 @@ public class VertexQuery {
                             int target = adjFile.readInt();
                             Integer curCount = results.get(target);
                             if (curCount == null) {
-                                results.put(target, 0);
+                                results.put(target, 1);
                             } else {
                                 results.put(target, 1 + curCount);
                             }

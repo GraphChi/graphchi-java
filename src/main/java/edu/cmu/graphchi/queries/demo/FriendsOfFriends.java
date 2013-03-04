@@ -5,6 +5,7 @@ import edu.cmu.graphchi.ChiLogger;
 import edu.cmu.graphchi.datablocks.FloatConverter;
 import edu.cmu.graphchi.preprocessing.VertexIdTranslate;
 import edu.cmu.graphchi.queries.VertexQuery;
+import edu.cmu.graphchi.util.IdCount;
 import edu.cmu.graphchi.util.MultinomialSampler;
 import edu.cmu.graphchi.vertexdata.VertexAggregator;
 import edu.cmu.graphchi.vertexdata.VertexIdValue;
@@ -40,7 +41,7 @@ public class FriendsOfFriends {
      * @throws IOException
      */
     public FriendsOfFriends(String baseFilename, int numShards, boolean weightByPagerank) throws IOException {
-        this.queryEngine = new VertexQuery(baseFilename, numShards);
+        this.queryEngine = new VertexQuery(baseFilename, numShards, 10000, 0.0002);
         this.baseFilename = baseFilename;
         this.weightByPagerank = weightByPagerank;
         this.numShards = numShards;
@@ -64,6 +65,7 @@ public class FriendsOfFriends {
         }
         logger.info("Loaded ranks to memory in " + (System.currentTimeMillis() - st) + " ms");
     }
+
 
     /**
      * Recommend friends
@@ -126,21 +128,23 @@ public class FriendsOfFriends {
 
         /* Take only top */
         int k = 10;
-        TreeMap<Integer, Integer> counts = new TreeMap<Integer, Integer>();
+        TreeSet<IdCount> counts = new TreeSet<IdCount>();
         for(Map.Entry<Integer, Integer> e : friendsOfFriends.entrySet()) {
             if (counts.size() < k) {
-                counts.put(-e.getValue(), e.getKey());
+                counts.add(new IdCount(translator.backward(e.getKey()), e.getValue()));
             } else {
-                int smallest = counts.lastKey();
-                if (-e.getValue() < smallest) {
-                    counts.remove(counts.lastKey());
-                    counts.put(-e.getValue(), translator.backward(e.getKey()));
+                int smallest = counts.last().count;
+                if (e.getValue() > smallest) {
+                    counts.remove(counts.last());
+                    counts.add(new IdCount(translator.backward(e.getKey()), e.getValue()));
                 }
             }
         }
 
-        for(Map.Entry<Integer, Integer> top : counts.entrySet()) {
-            System.out.println(namify(top.getValue()) + " : " + (-top.getKey()));
+        System.out.println(counts);
+
+        for(IdCount top : counts) {
+            System.out.println(namify(top.id) + " : " + top.count);
         }
 
         logWriter.write(origFriendsSize + "," + t + "," + t2 + "\n");
@@ -148,7 +152,7 @@ public class FriendsOfFriends {
     }
 
     private String namify(Integer value) throws IOException {
-        File f = new File(new File(baseFilename).getParent(), baseFilename + "_names.dat");
+        File f = new File(baseFilename + "_names.dat");
         if (!f.exists()) {
             return value+"";
         }
@@ -166,7 +170,7 @@ public class FriendsOfFriends {
         String baseFilename = args[0];
         int numShards = Integer.parseInt(args[1]);
 
-        FriendsOfFriends fof = new FriendsOfFriends(baseFilename, numShards, true);
+        FriendsOfFriends fof = new FriendsOfFriends(baseFilename, numShards, false);
 
         BufferedReader cmdIn = new BufferedReader(new InputStreamReader(System.in));
         while(true) {
@@ -176,7 +180,7 @@ public class FriendsOfFriends {
 
             if (ln.startsWith("t")) {
                 for(int i=10; i < 1000; i++) {
-                    fof.recommendFriends(i, 100);
+                    fof.recommendFriends(i, 1000);
                 }
                 break;
             }
@@ -204,7 +208,7 @@ public class FriendsOfFriends {
             }
 
             int queryId = Integer.parseInt(ln);
-            fof.recommendFriends(queryId, 100);
+            fof.recommendFriends(queryId, 1000);
         }
         fof.queryEngine.shutdown();
     }

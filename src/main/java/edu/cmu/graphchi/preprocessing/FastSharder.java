@@ -829,6 +829,7 @@ public class FastSharder <VertexValueType, EdgeValueType> {
     public static void main(String[] args) throws Exception {
         String fileName = args[0];
         int numShards = Integer.parseInt(args[1]);
+        String conversion = args[2];
         FastSharder<Integer, Integer> sharder = new FastSharder<Integer, Integer>(fileName, numShards, null, new EdgeProcessor<Integer>() {
             @Override
             public Integer receiveEdge(int from, int to, String token) {
@@ -837,7 +838,7 @@ public class FastSharder <VertexValueType, EdgeValueType> {
             }
         },
                 new IntConverter(), new IntConverter());
-        sharder.shard(new FileInputStream(fileName));
+        sharder.shard(new FileInputStream(fileName), conversion);
 
     }
 }
