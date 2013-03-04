@@ -94,7 +94,7 @@ public class TestWalkManagerWithPaths {
             long[] vertexwalks = snapshot5.getWalksAtVertex(j);
             assertEquals((j % 100) + 10, vertexwalks.length);
         }
-        wmgr.dumpToFile(snapshot5, "/tmp/snapshot5");
+       // wmgr.dumpToFile(snapshot5, "snapshot5");
 
 
         WalkSnapshotForPaths snapshot6 = wmgr.grabSnapshot(1301, 3898);
