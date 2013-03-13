@@ -7,7 +7,6 @@ import edu.cmu.graphchi.GraphChiProgram;
 import edu.cmu.graphchi.datablocks.IntConverter;
 import edu.cmu.graphchi.engine.GraphChiEngine;
 import edu.cmu.graphchi.engine.VertexInterval;
-import edu.cmu.graphchi.metrics.SimpleMetricsReporter;
 import edu.cmu.graphchi.util.IdInt;
 import edu.cmu.graphchi.util.Toplist;
 
@@ -108,8 +107,6 @@ public class DrunkardMob implements GraphChiProgram<Integer, Float> {
     public void endInterval(GraphChiContext ctx, VertexInterval interval) {}
 
     public static void main(String[] args) throws  Exception {
-
-        SimpleMetricsReporter rep = SimpleMetricsReporter.enable(2, TimeUnit.MINUTES);
 
         String baseFilename = args[0];
 
