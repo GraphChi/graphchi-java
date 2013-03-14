@@ -17,7 +17,6 @@ import edu.cmu.graphchi.engine.auxdata.VertexDegree;
 import edu.cmu.graphchi.io.CompressedIO;
 import edu.cmu.graphchi.preprocessing.VertexIdTranslate;
 import edu.cmu.graphchi.vertexdata.VertexIdValue;
-import sun.jvmstat.monitor.IntegerMonitor;
 import ucar.unidata.io.RandomAccessFile;
 
 /**

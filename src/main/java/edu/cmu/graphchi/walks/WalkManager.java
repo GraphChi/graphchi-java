@@ -193,7 +193,6 @@ public class WalkManager {
     }
 
     public void initializeWalks() {
-        final TimerContext _timer = initTimer.time();
         walks = new int[1 + numVertices / bucketSize][];
         bucketLocks = new Object[walks.length];
         for(int i=0; i<bucketLocks.length; i++) bucketLocks[i] = new Object();
@@ -249,7 +248,6 @@ public class WalkManager {
         for(int i=0; i < sourceSeqIdx; i++) {
             sourceBitSet.set(sources[i], true);
         }
-        _timer.stop();
     }
 
 
