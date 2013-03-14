@@ -5,7 +5,6 @@ import edu.cmu.graphchi._
 import edu.cmu.graphchi.engine._
 import edu.cmu.graphchi.datablocks._
 import edu.cmu.graphchi.util._
-import edu.cmu.graphchi.metrics.SimpleMetricsReporter
 import java.util.concurrent.TimeUnit
 
 class VertexInfo[VT, ET](v : ChiVertex[VT, ET]) {
@@ -37,7 +36,6 @@ class GraphChiSquared[GatherType : ClassManifest](baseFilename : String, numShar
   engine.setModifiesOutedges(false)
   engine.setEnableDeterministicExecution(false);
 
-  val rep = SimpleMetricsReporter.enable(2, TimeUnit.MINUTES);
 
   val vertexMatrix = new HugeFloatMatrix(engine.numVertices(), numComputations)
 
@@ -69,7 +67,6 @@ class GraphChiSquared[GatherType : ClassManifest](baseFilename : String, numShar
     gatherInitVal = Some(gatherInit)
     println ("Starting to run with " + numComputations + " parallel computations")
     engine.run(this, iterations)
-    rep.run()
   }
 
   def compute(iterations: Int, gatherInit: GatherType, gather: OnlyAdjGatherFunctionType, apply: ApplyFunctionType,
@@ -86,7 +83,6 @@ class GraphChiSquared[GatherType : ClassManifest](baseFilename : String, numShar
     engine.setDisableOutEdges(true)   // No scatter
     engine.setAutoLoadNext(true)
     engine.run(this, iterations)
-    rep.run()
   }
 
   def compute(iterations: Int, gatherInit: GatherType, gather: OnlyAdjGatherFunctionType, gatherOut: OnlyAdjGatherFunctionType, apply: ApplyFunctionType,
@@ -103,7 +99,6 @@ class GraphChiSquared[GatherType : ClassManifest](baseFilename : String, numShar
     engine.setOnlyAdjacency(true)
     engine.setAutoLoadNext(true)
     engine.run(this, iterations)
-    rep.run()
   }
 
   def getVertexValue(computationId: Int, vertexId: Int) = vertexMatrix.getValue(vertexId, computationId)

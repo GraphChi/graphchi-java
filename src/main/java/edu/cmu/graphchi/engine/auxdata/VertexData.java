@@ -5,6 +5,7 @@ import edu.cmu.graphchi.ChiLogger;
 import edu.cmu.graphchi.datablocks.BytesToValueConverter;
 import edu.cmu.graphchi.datablocks.ChiPointer;
 import edu.cmu.graphchi.datablocks.DataBlockManager;
+import edu.cmu.graphchi.datablocks.IntConverter;
 import nom.tam.util.BufferedDataInputStream;
 import ucar.unidata.io.RandomAccessFile;
 
@@ -120,6 +121,8 @@ public class VertexData <VertexDataType> {
 
                 vertexDataFile.flush();
             }
+            logger.info("Vertex data write: " + dataStart + " -- " + (dataStart + data.length));
+
         } else {
             synchronized (vertexDataFile) {
                 vertexDataFile.seek(lastOffset);
@@ -130,6 +133,7 @@ public class VertexData <VertexDataType> {
                 }
                 blockManager.release(blockId);
                 vertexDataFile.flush();
+
             }
         }
     }
@@ -216,7 +220,9 @@ public class VertexData <VertexDataType> {
             return new ChiPointer(blockId, (vertexId - vertexSt) * converter.sizeOf());
         } else {
             int idx = Arrays.binarySearch(index, vertexId);
-            if (idx < 0) return null;
+            if (idx < 0) {
+                return null;
+            }
             return new ChiPointer(blockId, idx * converter.sizeOf());
         }
     }
@@ -269,6 +275,16 @@ public class VertexData <VertexDataType> {
                 }
             };
 
+        }
+    }
+
+    public void close() {
+        try {
+            vertexDataFile.flush();
+            vertexDataFile.getFD().sync();
+            vertexDataFile.close();
+        } catch (IOException ie) {
+            ie.printStackTrace();
         }
     }
 }

@@ -2,6 +2,9 @@ package edu.cmu.graphchi.util;
 
 import java.util.Random;
 
+import org.apache.commons.math.linear.ArrayRealVector;
+import org.apache.commons.math.linear.RealVector;
+
 /**
  * A huge dense matrix, which internally splits to many sub-blocks
  * Row-directed storage, so scanning row by row is efficient.  This is useful
@@ -100,6 +103,23 @@ public class HugeDoubleMatrix implements Cloneable {
         int block = (int) (idx / BLOCKSIZE);
         int blockidx = (int) (idx % BLOCKSIZE);
         System.arraycopy(data[block], blockidx, arr, 0, (int)ncols);
+    }
+    
+    public RealVector getRowAsVector(int row) {
+    	double [] arr = new double[(int) ncols];
+        long idx = (long)row * ncols;
+        int block = (int) (idx / BLOCKSIZE);
+        int blockidx = (int) (idx % BLOCKSIZE);
+        System.arraycopy(data[block], blockidx, arr, 0, (int)ncols);
+        return new ArrayRealVector(arr);
+    }
+    
+
+    public void setRow(int row, double[] arr) {
+        long idx = (long)row * ncols;
+        int block = (int) (idx / BLOCKSIZE);
+        int blockidx = (int) (idx % BLOCKSIZE);
+        System.arraycopy(arr, 0, data[block], blockidx, (int)ncols);
     }
 
 

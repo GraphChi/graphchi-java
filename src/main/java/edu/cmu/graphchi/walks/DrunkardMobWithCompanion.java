@@ -12,7 +12,6 @@ import edu.cmu.graphchi.datablocks.FloatConverter;
 import edu.cmu.graphchi.datablocks.IntConverter;
 import edu.cmu.graphchi.engine.GraphChiEngine;
 import edu.cmu.graphchi.engine.VertexInterval;
-import edu.cmu.graphchi.metrics.SimpleMetricsReporter;
 
 import java.io.File;
 import java.rmi.Naming;
@@ -362,8 +361,6 @@ public class DrunkardMobWithCompanion implements GraphChiProgram<Integer, Float>
 
     public static void main(String[] args) throws  Exception {
 
-        SimpleMetricsReporter rep = SimpleMetricsReporter.enable(2, TimeUnit.MINUTES);
-
         String baseFilename = args[0];
 
         if (args.length > 1) {
@@ -438,6 +435,5 @@ public class DrunkardMobWithCompanion implements GraphChiProgram<Integer, Float>
             mob.companion.outputDistributions(new File(baseFilename).getName() + "_" + firstSource);
         }
 
-        rep.run();
     }
 }

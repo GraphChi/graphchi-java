@@ -6,7 +6,6 @@ import edu.cmu.graphchi.ChiVertex;
 import edu.cmu.graphchi.datablocks.BytesToValueConverter;
 import edu.cmu.graphchi.datablocks.ChiPointer;
 import edu.cmu.graphchi.datablocks.DataBlockManager;
-import edu.cmu.graphchi.datablocks.IntConverter;
 import edu.cmu.graphchi.engine.auxdata.VertexData;
 import edu.cmu.graphchi.shards.MemoryShard;
 import edu.cmu.graphchi.shards.SlidingShard;
@@ -16,7 +15,6 @@ import java.io.*;
 import java.util.Iterator;
 import java.util.Random;
 import java.util.logging.Logger;
-import java.util.regex.Pattern;
 import java.util.zip.DeflaterOutputStream;
 
 /**
@@ -68,6 +66,7 @@ public class FastSharder <VertexValueType, EdgeValueType> {
     private boolean memoryEfficientDegreeCount = false;
     private long numEdges = 0;
     private boolean useSparseDegrees = false;
+    private boolean allowSparseDegreesAndVertexData = false;
 
     private BytesToValueConverter<EdgeValueType> edgeValueTypeBytesToValueConverter;
     private BytesToValueConverter<VertexValueType> vertexValueTypeBytesToValueConverter;
@@ -144,6 +143,9 @@ public class FastSharder <VertexValueType, EdgeValueType> {
      * @throws IOException
      */
     public void addEdge(int from, int to, String edgeValueToken) throws IOException {
+        if (maxVertexId < from) maxVertexId = from;
+        if (maxVertexId < to)  maxVertexId = to;
+
         /* If the from and to ids are same, this entry is assumed to contain value
            for the vertex, and it is passed to the vertexProcessor.
          */
@@ -159,9 +161,6 @@ public class FastSharder <VertexValueType, EdgeValueType> {
         }
         int preTranslatedIdFrom = preIdTranslate.forward(from);
         int preTranslatedTo = preIdTranslate.forward(to);
-
-        if (maxVertexId < from) maxVertexId = from;
-        if (maxVertexId < to)  maxVertexId = to;
 
         addToShovel(to % numShards, preTranslatedIdFrom, preTranslatedTo, edgeProcessor.receiveEdge(from, to, edgeValueToken));
     }
@@ -190,6 +189,20 @@ public class FastSharder <VertexValueType, EdgeValueType> {
         strm.write(valueTemplate);
     }
 
+
+    public boolean isAllowSparseDegreesAndVertexData() {
+        return allowSparseDegreesAndVertexData;
+    }
+
+    /**
+     * If set true, GraphChi will use sparse file for vertices and the degree data
+     * if the number of edges is smaller than the number of vertices. Default false.
+     * Note: if you use this, you probably want to set engine.setSkipZeroDegreeVertices(true)
+     * @param allowSparseDegreesAndVertexData
+     */
+    public void setAllowSparseDegreesAndVertexData(boolean allowSparseDegreesAndVertexData) {
+        this.allowSparseDegreesAndVertexData = allowSparseDegreesAndVertexData;
+    }
 
     /**
      * We keep separate shovel-file for vertex-values.
@@ -281,7 +294,11 @@ public class FastSharder <VertexValueType, EdgeValueType> {
          * If we have more vertices than edges, it makes sense to use sparse representation
          * for the auxilliary degree-data and vertex-data files.
          */
-        useSparseDegrees = (maxVertexId > numEdges) || "1".equals(System.getProperty("sparsedeg"));
+        if (allowSparseDegreesAndVertexData) {
+            useSparseDegrees = (maxVertexId > numEdges) || "1".equals(System.getProperty("sparsedeg"));
+        } else {
+            useSparseDegrees = false;
+        }
         logger.info("Use sparse output: " + useSparseDegrees);
 
         /**
@@ -346,7 +363,7 @@ public class FastSharder <VertexValueType, EdgeValueType> {
      */
     private void processVertexValues(boolean sparse) throws IOException {
         DataBlockManager dataBlockManager = new DataBlockManager();
-        VertexData<VertexValueType> vertexData = new VertexData<VertexValueType>(maxVertexId - 1, baseFilename,
+        VertexData<VertexValueType> vertexData = new VertexData<VertexValueType>(maxVertexId + 1, baseFilename,
                 vertexValueTypeBytesToValueConverter, sparse);
         vertexData.setBlockManager(dataBlockManager);
         for(int p=0; p < numShards; p++) {
@@ -476,27 +493,14 @@ public class FastSharder <VertexValueType, EdgeValueType> {
          */
         File adjFile = new File(ChiFilenames.getFilenameShardsAdj(baseFilename, shardNum, numShards));
         DataOutputStream adjOut = new DataOutputStream(new BufferedOutputStream(new FileOutputStream(adjFile)));
-        File indexFile = new File(adjFile.getAbsolutePath() + ".index");
-        DataOutputStream indexOut = new DataOutputStream(new BufferedOutputStream(new FileOutputStream(indexFile)));
         int curvid = 0;
         int istart = 0;
-        int edgeCounter = 0;
-        int lastIndexFlush = 0;
-        int edgesPerIndexEntry = 512;
+        for(int i=0; i <= shoveled.length; i++) {
+            int from = (i < shoveled.length ? getFirst(shoveled[i]) : -1);
 
-        for(int i=0; i < shoveled.length; i++) {
-            int from = getFirst(shoveled[i]);
-            if (from != curvid || i == shoveled.length - 1) {
-
-                /* Write index */
-                if (edgeCounter - lastIndexFlush >= edgesPerIndexEntry) {
-                    indexOut.writeInt(curvid);
-                    indexOut.writeInt(adjOut.size());
-                    indexOut.writeInt(edgeCounter);
-                    lastIndexFlush = edgeCounter;
-                }
-
+            if (from != curvid) {
                 int count = i - istart;
+
                 if (count > 0) {
                     if (count < 255) {
                         adjOut.writeByte(count);
@@ -507,30 +511,29 @@ public class FastSharder <VertexValueType, EdgeValueType> {
                 }
                 for(int j=istart; j<i; j++) {
                     adjOut.writeInt(Integer.reverseBytes(getSecond(shoveled[j])));
-                    edgeCounter++;
                 }
-
-
 
                 istart = i;
 
                 // Handle zeros
-                if (from - curvid > 1 || (i == 0 && from > 0)) {
-                    int nz = from - curvid - 1;
-                    if (i ==0 && from >0) nz = from;
-                    do {
-                        adjOut.writeByte(0);
-                        nz--;
-                        int tnz = Math.min(254, nz);
-                        adjOut.writeByte(tnz);
-                        nz -= tnz;
-                    } while (nz > 0);
+                if (from != (-1)) {
+                    if (from - curvid > 1 || (i == 0 && from > 0)) {
+                        int nz = from - curvid - 1;
+                        if (i ==0 && from >0) nz = from;
+                        do {
+                            adjOut.writeByte(0);
+                            nz--;
+                            int tnz = Math.min(254, nz);
+                            adjOut.writeByte(tnz);
+                            nz -= tnz;
+                        } while (nz > 0);
+                    }
                 }
                 curvid = from;
             }
         }
         adjOut.close();
-        indexOut.close();
+
 
         /**
          * Step 2: EDGE DATA
@@ -646,14 +649,12 @@ public class FastSharder <VertexValueType, EdgeValueType> {
         long lineNum = 0;
 
         if (!format.equals(GraphInputFormat.MATRIXMARKET)) {
-            Pattern tokenPattern = Pattern.compile("(\t)+|( )+|(,)+");
-
             while ((ln = ins.readLine()) != null) {
                 if (ln.length() > 2 && !ln.startsWith("#")) {
                     lineNum++;
-                    if (lineNum % 2000000 == 0) logger.info("Reading line: " + lineNum + ", format= " + format.name());
+                    if (lineNum % 2000000 == 0) logger.info("Reading line: " + lineNum);
 
-                    String[] tok = tokenPattern.split(ln);
+                    String[] tok = ln.split("\t");
 
                     if (format == GraphInputFormat.EDGELIST) {
                         /* Edge list: <src> <dst> <value> */
@@ -661,8 +662,6 @@ public class FastSharder <VertexValueType, EdgeValueType> {
                             this.addEdge(Integer.parseInt(tok[0]), Integer.parseInt(tok[1]), null);
                         } else if (tok.length == 3) {
                             this.addEdge(Integer.parseInt(tok[0]), Integer.parseInt(tok[1]), tok[2]);
-                        } else {
-                            logger.warning("Ignored input line: " + ln + " tok.length=" + tok.length);
                         }
                     } else if (format == GraphInputFormat.ADJACENCY) {
                         /* Adjacency list: <vertex-id> <count> <neighbor-1> <neighbor-2> ... */
@@ -672,7 +671,7 @@ public class FastSharder <VertexValueType, EdgeValueType> {
                             throw new IllegalArgumentException("Error on line " + lineNum + "; number of edges does not match number of tokens:" +
                                     len + " != " + tok.length);
                         }
-                        for(int j=2; j < len; j++) {
+                        for(int j=2; j < 2 + len; j++) {
                             int dest = Integer.parseInt(tok[j]);
                             this.addEdge(vertexId, dest, null);
                         }
@@ -824,29 +823,5 @@ public class FastSharder <VertexValueType, EdgeValueType> {
         } catch (Exception err) {
             err.printStackTrace();
         }
-    }
-
-    public static void main(String[] args) throws Exception {
-        if (args.length != 3) {
-            System.err.println("usage: FastSharder <filename> <num-shards> <edgelist|adjlist>");
-            System.exit(1);
-        }
-
-        String fileName = args[0];
-        int numShards = Integer.parseInt(args[1]);
-
-
-
-        String conversion = args[2];
-        FastSharder<Integer, Integer> sharder = new FastSharder<Integer, Integer>(fileName, numShards, null, new EdgeProcessor<Integer>() {
-            @Override
-            public Integer receiveEdge(int from, int to, String token) {
-                if (token == null) return 0;
-                return Integer.parseInt(token);
-            }
-        },
-                new IntConverter(), new IntConverter());
-        sharder.shard(new FileInputStream(fileName), conversion);
-
     }
 }

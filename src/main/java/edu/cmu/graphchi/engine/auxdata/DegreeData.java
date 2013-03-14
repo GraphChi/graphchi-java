@@ -1,6 +1,7 @@
 package edu.cmu.graphchi.engine.auxdata;
 
 import edu.cmu.graphchi.ChiFilenames;
+import edu.cmu.graphchi.ChiLogger;
 import ucar.unidata.io.RandomAccessFile;
 
 import java.io.EOFException;
@@ -93,7 +94,7 @@ public class DegreeData {
                 degreeFile.seek(dataStart);
                 degreeFile.readFully(degreeData, (int)(dataSize - adjLen), adjLen);
             } catch (EOFException eof) {
-                System.err.println("Tried to read past file: " + dataStart + " --- " + (dataStart + dataSize));
+            	ChiLogger.getLogger("engine").info("Error: Tried to read past file: " + dataStart + " --- " + (dataStart + dataSize));
                 // But continue
             }
         } else {

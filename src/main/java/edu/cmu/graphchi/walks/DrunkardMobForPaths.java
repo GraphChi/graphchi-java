@@ -8,7 +8,6 @@ import edu.cmu.graphchi.vertexdata.VertexAggregator;
 import edu.cmu.graphchi.datablocks.IntConverter;
 import edu.cmu.graphchi.engine.GraphChiEngine;
 import edu.cmu.graphchi.engine.VertexInterval;
-import edu.cmu.graphchi.metrics.SimpleMetricsReporter;
 import edu.cmu.graphchi.util.IdInt;
 import edu.cmu.graphchi.util.Toplist;
 
@@ -108,7 +107,6 @@ public class DrunkardMobForPaths implements GraphChiProgram<Integer, Boolean> {
     public void endInterval(GraphChiContext ctx, VertexInterval interval) {}
 
     public static void main(String[] args) throws  Exception {
-        SimpleMetricsReporter rep = SimpleMetricsReporter.enable(2, TimeUnit.MINUTES);
         String baseFilename = args[0];
 
 
@@ -182,7 +180,6 @@ public class DrunkardMobForPaths implements GraphChiProgram<Integer, Boolean> {
 
             long sumWalks = VertexAggregator.sumInt(engine.numVertices(), baseFilename);
             System.out.println("Total hops (in file): " + sumWalks);
-            rep.run();
         }
     }
 }

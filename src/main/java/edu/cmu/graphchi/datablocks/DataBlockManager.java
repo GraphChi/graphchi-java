@@ -42,7 +42,12 @@ public class DataBlockManager {
     }
 
     public byte[] getRawBlock(int blockId) {
-        return blocks.get(blockId);    /* Note, not synchronized! */
+        byte[] bb = blocks.get(blockId);    /* Note, not synchronized! */
+        if (bb == null) {
+            throw new IllegalStateException("Null-reference!");
+        }
+
+        return bb;
     }
 
 
@@ -74,6 +79,11 @@ public class DataBlockManager {
 
     public <T> T dereference(ChiPointer ptr, BytesToValueConverter<T> conv) {
         byte[] arr = new byte[conv.sizeOf()];
+
+        if (ptr == null) {
+            throw new IllegalStateException("Tried to dereference a null pointer!");
+        }
+
         System.arraycopy(getRawBlock(ptr.blockId), ptr.offset, arr, 0, arr.length);
         return conv.getValue(arr);
     }

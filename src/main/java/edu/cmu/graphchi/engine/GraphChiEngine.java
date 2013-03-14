@@ -263,9 +263,12 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
 
         /* Initialize vertex-data handler */
         if (vertexDataConverter != null) {
-            vertexDataHandler = new VertexData<VertexDataType>(numVertices(), baseFilename, vertexDataConverter, skipZeroDegreeVertices);
+            vertexDataHandler = new VertexData<VertexDataType>(numVertices(), baseFilename, vertexDataConverter, true);
             vertexDataHandler.setBlockManager(blockManager);
         }
+
+        chiContext.setNumEdges(numEdges());
+
 
         for(int iter=0; iter < niters; iter++) {
             /* Wait for executor have finished all writes */
@@ -444,6 +447,9 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
 
         parallelExecutor.shutdown();
         loadingExecutor.shutdown();
+
+        if (vertexDataHandler != null)
+            vertexDataHandler.close();
         logger.info("Engine finished in: " + (System.currentTimeMillis() - startTime) * 0.001 + " secs.");
         logger.info("Updates: " + nupdates);
     }
