@@ -526,6 +526,7 @@ public class FastSharder <VertexValueType, EdgeValueType> {
                 }
                 for(int j=istart; j<i; j++) {
                     adjOut.writeInt(Integer.reverseBytes(getSecond(shoveled[j])));
+                    edgeCounter++;
                 }
 
                 istart = i;
