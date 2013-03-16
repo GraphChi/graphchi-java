@@ -41,7 +41,7 @@ public class FriendsOfFriends {
      * @throws IOException
      */
     public FriendsOfFriends(String baseFilename, int numShards, boolean weightByPagerank) throws IOException {
-        this.queryEngine = new VertexQuery(baseFilename, numShards, 10000, 0.0002);
+        this.queryEngine = new VertexQuery(baseFilename, numShards, 0, 0.0002);
         this.baseFilename = baseFilename;
         this.weightByPagerank = weightByPagerank;
         this.numShards = numShards;
