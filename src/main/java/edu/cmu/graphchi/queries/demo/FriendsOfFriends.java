@@ -73,7 +73,7 @@ public class FriendsOfFriends {
      * @param fanOut maximum of query vertex's friends to consider. Selected randomly.
      * @throws IOException
      */
-    public void recommendFriends(int vertexId, int fanOut) throws IOException {
+    public String recommendFriends(int vertexId, int fanOut) throws IOException {
         int internalId = translator.forward(vertexId);
 
         logger.info("Querying for " + namify(vertexId) + " --> " + internalId);
@@ -111,7 +111,7 @@ public class FriendsOfFriends {
         }
 
         if (friends.size() == 0) {
-            return;
+            return "";
         }
 
 
@@ -127,7 +127,7 @@ public class FriendsOfFriends {
                 t2 + "ms");
 
         /* Take only top */
-        int k = 10;
+        int k = 20;
         TreeSet<IdCount> counts = new TreeSet<IdCount>();
         for(Map.Entry<Integer, Integer> e : friendsOfFriends.entrySet()) {
             if (counts.size() < k) {
@@ -135,25 +135,29 @@ public class FriendsOfFriends {
             } else {
                 int smallest = counts.last().count;
                 if (e.getValue() > smallest) {
-                    counts.remove(counts.last());
+                    //counts.remove(counts.last());
+                    counts.pollLast();
                     counts.add(new IdCount(translator.backward(e.getKey()), e.getValue()));
                 }
             }
         }
 
-        System.out.println(counts);
+        String result = "";
 
         for(IdCount top : counts) {
             System.out.println(namify(top.id) + " : " + top.count);
+            result += namify(top.id) + " : " + top.count + "\n";
         }
 
         logWriter.write(origFriendsSize + "," + t + "," + t2 + "\n");
+        return result;
 
     }
 
     private String namify(Integer value) throws IOException {
         File f = new File(baseFilename + "_names.dat");
         if (!f.exists()) {
+        	System.out.println("didn't find name file: " + f.getPath());
             return value+"";
         }
         int i = value * 16;
