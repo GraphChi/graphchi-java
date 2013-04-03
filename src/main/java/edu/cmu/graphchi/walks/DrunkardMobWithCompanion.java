@@ -1,5 +1,6 @@
 package edu.cmu.graphchi.walks;
 
+import edu.cmu.graphchi.util.IdCount;
 import edu.cmu.graphchi.walks.distributions.DrunkardCompanion;
 import edu.cmu.graphchi.walks.distributions.RemoteDrunkardCompanion;
 import com.yammer.metrics.Metrics;
@@ -31,7 +32,7 @@ import java.util.concurrent.atomic.AtomicLong;
  */
 public class DrunkardMobWithCompanion implements GraphChiProgram<Integer, Float>, GrabbedBucketConsumer {
 
-    private static final int[] DEBUGIDS = new int[] {};
+    private static final int[] DEBUGIDS = new int[] {0};
 
     private WalkManager walkManager;
     private WalkSnapshot curWalkSnapshot;
@@ -168,9 +169,10 @@ public class DrunkardMobWithCompanion implements GraphChiProgram<Integer, Float>
 
             for(int j=0; j < DEBUGIDS.length; j++) {
                 if (vertex.getId() == DEBUGIDS[j]) {
-                    for(int i=0; i<vertex.numOutEdges(); i++) {
-                        System.out.println(vertex.getId() + " " + vertex.outEdge(i).getVertexId() + " " + vertex.outEdge(i).getValue());
-                    }
+                    System.out.println(vertex.getId() + " walks: " + walksAtMe.length);
+                   // for(int i=0; i<vertex.numOutEdges(); i++) {
+                   //     System.out.println(vertex.getId() + " " + vertex.outEdge(i).getVertexId() );
+                   // }
                     break;
                 }
             }
@@ -236,7 +238,6 @@ public class DrunkardMobWithCompanion implements GraphChiProgram<Integer, Float>
                     dst = walkManager.getSourceVertex(walk);
                     atleastSecondHop = false;
                 }
-
                 localBuf.add(src, dst, atleastSecondHop);
             }
         } catch (RemoteException re) {
@@ -267,7 +268,7 @@ public class DrunkardMobWithCompanion implements GraphChiProgram<Integer, Float>
                 System.arraycopy(tmp, 0, walkBufferDests, 0, tmp.length);
             }
             walkBufferDests[idx] = dst;
-            walkSourcesAndHops[idx] = (hop ? -1 : 1) * src;
+            walkSourcesAndHops[idx] = (hop ? -1 : 1) * (1 + src); // Note +1 so zero will be handled correctly
             idx++;
         }
 
@@ -277,6 +278,7 @@ public class DrunkardMobWithCompanion implements GraphChiProgram<Integer, Float>
                 int src = walkSourcesAndHops[i];
                 boolean hop = src < 0;
                 if (src < 0) src = -src;
+                src = src - 1;  // Note, -1
                 walkManager.updateWalkUnsafe(src, dst, hop);
             }
             walkSourcesAndHops = null;
@@ -421,7 +423,6 @@ public class DrunkardMobWithCompanion implements GraphChiProgram<Integer, Float>
 
             for(int i=0; i < nSources; i++) {
                 mob.walkManager.addWalkBatch(i + firstSource, walksPerSource);
-                if (i % 100000 == 0) System.out.println("Add walk batch: " + (i + firstSource));
             }
 
             System.out.println("Initializing walks...");
@@ -438,7 +439,17 @@ public class DrunkardMobWithCompanion implements GraphChiProgram<Integer, Float>
 
             // TODO: ensure that we have sent all walks!
             mob.spinUntilFinish();
+
+            // Debug
+            IdCount[] topForZero = mob.companion.getTop(engine.getVertexIdTranslate().forward(0));
+            for(IdCount idc : topForZero) {
+                System.out.println(engine.getVertexIdTranslate().backward(idc.id) + ": " + idc.count);
+            }
+
             mob.companion.outputDistributions(new File(baseFilename).getName() + "_" + firstSource);
+
+
+
         }
 
     }
