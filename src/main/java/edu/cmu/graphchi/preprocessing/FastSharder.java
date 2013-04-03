@@ -663,6 +663,7 @@ public class FastSharder <VertexValueType, EdgeValueType> {
                     if (lineNum % 2000000 == 0) logger.info("Reading line: " + lineNum);
 
                     String[] tok = ln.split("\t");
+                    if (tok.length == 1) tok = ln.split(" ");
 
                     if (format == GraphInputFormat.EDGELIST) {
                         /* Edge list: <src> <dst> <value> */
