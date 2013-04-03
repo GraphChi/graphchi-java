@@ -107,5 +107,9 @@ public class ChiFilenames {
     }
 
 
+    public static int numVertices(String baseFilename, int numShards) throws IOException {
+        ArrayList<VertexInterval> intervals = loadIntervals(baseFilename, numShards);
+        return intervals.get(intervals.size() - 1).getLastVertex() + 1;
+    }
 }
 

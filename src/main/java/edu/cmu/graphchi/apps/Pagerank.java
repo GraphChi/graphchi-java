@@ -81,7 +81,7 @@ public class Pagerank implements GraphChiProgram<Float, Float> {
     }
 
     /**
-     * Usage: java edu.cmu.graphchi.apps.PageRank graph-name num-shards filetype(edgelist|adjlist)
+     * Usage: java edu.cmu.graphchi.demo.PageRank graph-name num-shards filetype(edgelist|adjlist)
      * For specifying the number of shards, 20-50 million edges/shard is often a good configuration.
      */
     public static void main(String[] args) throws  Exception {

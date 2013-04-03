@@ -6,6 +6,7 @@ import edu.cmu.graphchi.ChiVertex;
 import edu.cmu.graphchi.datablocks.BytesToValueConverter;
 import edu.cmu.graphchi.datablocks.ChiPointer;
 import edu.cmu.graphchi.datablocks.DataBlockManager;
+import edu.cmu.graphchi.datablocks.IntConverter;
 import edu.cmu.graphchi.engine.auxdata.VertexData;
 import edu.cmu.graphchi.shards.MemoryShard;
 import edu.cmu.graphchi.shards.SlidingShard;
@@ -499,12 +500,26 @@ public class FastSharder <VertexValueType, EdgeValueType> {
          */
         File adjFile = new File(ChiFilenames.getFilenameShardsAdj(baseFilename, shardNum, numShards));
         DataOutputStream adjOut = new DataOutputStream(new BufferedOutputStream(new FileOutputStream(adjFile)));
+        File indexFile = new File(adjFile.getAbsolutePath() + ".index");
+        DataOutputStream indexOut = new DataOutputStream(new BufferedOutputStream(new FileOutputStream(indexFile)));
         int curvid = 0;
         int istart = 0;
+        int edgeCounter = 0;
+        int lastIndexFlush = 0;
+        int edgesPerIndexEntry = 512;
+
         for(int i=0; i <= shoveled.length; i++) {
             int from = (i < shoveled.length ? getFirst(shoveled[i]) : -1);
 
-            if (from != curvid) {
+            if (from != curvid || i == shoveled.length - 1) {
+                /* Write index */
+                if (edgeCounter - lastIndexFlush >= edgesPerIndexEntry) {
+                    indexOut.writeInt(curvid);
+                    indexOut.writeInt(adjOut.size());
+                    indexOut.writeInt(edgeCounter);
+                    lastIndexFlush = edgeCounter;
+                }
+
                 int count = i - istart;
 
                 if (count > 0) {
@@ -517,6 +532,7 @@ public class FastSharder <VertexValueType, EdgeValueType> {
                 }
                 for(int j=istart; j<i; j++) {
                     adjOut.writeInt(Integer.reverseBytes(getSecond(shoveled[j])));
+                    edgeCounter++;
                 }
 
                 istart = i;
@@ -539,6 +555,8 @@ public class FastSharder <VertexValueType, EdgeValueType> {
             }
         }
         adjOut.close();
+        indexOut.close();
+
 
 
         /**
@@ -656,6 +674,7 @@ public class FastSharder <VertexValueType, EdgeValueType> {
         String ln;
         long lineNum = 0;
 
+
         if (!format.equals(GraphInputFormat.MATRIXMARKET)) {
             while ((ln = ins.readLine()) != null) {
                 if (ln.length() > 2 && !ln.startsWith("#")) {
@@ -663,7 +682,7 @@ public class FastSharder <VertexValueType, EdgeValueType> {
                     if (lineNum % 2000000 == 0) logger.info("Reading line: " + lineNum);
 
                     String[] tok = ln.split("\t");
-                    if (tok.length == 1) tok = ln.split(" ");
+                     if (tok.length == 1) tok = ln.split(" ");
 
                     if (format == GraphInputFormat.EDGELIST) {
                         /* Edge list: <src> <dst> <value> */
@@ -832,5 +851,21 @@ public class FastSharder <VertexValueType, EdgeValueType> {
         } catch (Exception err) {
             err.printStackTrace();
         }
+    }
+
+    public static void main(String[] args) throws Exception {
+        String fileName = args[0];
+        int numShards = Integer.parseInt(args[1]);
+        String conversion = args[2];
+        FastSharder<Integer, Integer> sharder = new FastSharder<Integer, Integer>(fileName, numShards, null, new EdgeProcessor<Integer>() {
+            @Override
+            public Integer receiveEdge(int from, int to, String token) {
+                if (token == null) return 0;
+                return Integer.parseInt(token);
+            }
+        },
+                new IntConverter(), new IntConverter());
+        sharder.shard(new FileInputStream(fileName), conversion);
+
     }
 }

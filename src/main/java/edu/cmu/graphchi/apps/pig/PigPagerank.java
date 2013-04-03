@@ -32,7 +32,7 @@ import java.util.logging.Logger;
  * <pre>
  *     REGISTER graphchi-java-0.2-jar-with-dependencies.jar;
  *
- *     pagerank = LOAD 'graphs/soc-LiveJournal1.txt' USING edu.cmu.graphchi.apps.pig.PigPagerank as (vertex:int, rank:float);
+ *     pagerank = LOAD 'graphs/soc-LiveJournal1.txt' USING edu.cmu.graphchi.demo.pig.PigPagerank as (vertex:int, rank:float);
  *
  *     STORE pagerank INTO 'pagerank-livejournal';
  * </pre>

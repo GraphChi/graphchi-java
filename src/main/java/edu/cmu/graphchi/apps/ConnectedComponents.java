@@ -110,7 +110,7 @@ public class ConnectedComponents implements GraphChiProgram<Integer, Integer> {
 
 
     /**
-     * Usage: java edu.cmu.graphchi.apps.ConnectedComponents graph-name num-shards filetype(edgelist|adjlist)
+     * Usage: java edu.cmu.graphchi.demo.ConnectedComponents graph-name num-shards filetype(edgelist|adjlist)
      * For specifying the number of shards, 20-50 million edges/shard is often a good configuration.
      */
     public static void main(String[] args) throws  Exception {

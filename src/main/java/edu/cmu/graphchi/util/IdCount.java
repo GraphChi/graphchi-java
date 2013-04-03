@@ -17,7 +17,7 @@ public class IdCount implements Comparable<IdCount>, Serializable {
     }
 
     public int compareTo(IdCount idCount) {
-        return (idCount.count > this.count ? 1 : (idCount.count != this.count ? -1 : 0));
+        return (idCount.count > this.count ? 1 : (idCount.count != this.count ? -1 : (idCount.id < this.id ? -1 : 1)));
     }
 
     @Override
