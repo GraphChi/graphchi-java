@@ -282,7 +282,7 @@ public class DrunkardMobEngine<VertexDataType, EdgeDataType> {
 
                     @Override
                     public void resetWalk(int walk, boolean trackBit) {
-
+                         forwardWalkTo(walk, walkManager.getSourceVertex(WalkManager.sourceIdx(walk)), false);
                     }
 
                     @Override

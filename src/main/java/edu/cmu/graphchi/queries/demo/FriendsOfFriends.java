@@ -212,7 +212,7 @@ public class FriendsOfFriends {
             }
 
             int queryId = Integer.parseInt(ln);
-            fof.recommendFriends(queryId, 1000);
+            fof.recommendFriends(queryId, 500);
         }
         fof.queryEngine.shutdown();
     }
