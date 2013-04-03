@@ -166,10 +166,11 @@ public class PersonalizedPageRank implements WalkUpdateFunction<EmptyType, Empty
             String fileType = (cmdLine.hasOption("filetype") ? cmdLine.getOptionValue("filetype") : null);
 
             /* Create shards */
-            FastSharder sharder = createSharder(baseFilename, nShards);
             if (baseFilename.equals("pipein")) {     // Allow piping graph in
+                FastSharder sharder = createSharder(baseFilename, nShards);
                 sharder.shard(System.in, fileType);
             } else {
+                FastSharder sharder = createSharder(baseFilename, nShards);
                 if (!new File(ChiFilenames.getFilenameIntervals(baseFilename, nShards)).exists()) {
                     sharder.shard(new FileInputStream(new File(baseFilename)), fileType);
                 } else {
