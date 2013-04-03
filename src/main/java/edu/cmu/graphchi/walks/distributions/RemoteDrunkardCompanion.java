@@ -22,7 +22,11 @@ public interface RemoteDrunkardCompanion extends Remote {
 
     void processWalks(int[] walks, int[] atVertices) throws RemoteException;
 
+
     void outputDistributions(String outputFile) throws RemoteException;
+
+    void outputDistributions(String outputFile, int nTop) throws RemoteException;
+
 
     IdCount[] getTop(int vertexId) throws RemoteException;
 

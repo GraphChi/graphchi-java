@@ -1,6 +1,9 @@
-package edu.cmu.graphchi.walks;
+package edu.cmu.graphchi.walks.deprecated;
 
-import edu.cmu.graphchi.util.IdCount;
+import edu.cmu.graphchi.walks.GrabbedBucketConsumer;
+import edu.cmu.graphchi.walks.WalkManager;
+import edu.cmu.graphchi.walks.WalkSnapshot;
+import edu.cmu.graphchi.walks.WeightedHopper;
 import edu.cmu.graphchi.walks.distributions.DrunkardCompanion;
 import edu.cmu.graphchi.walks.distributions.RemoteDrunkardCompanion;
 import com.yammer.metrics.Metrics;
@@ -53,7 +56,7 @@ public class DrunkardMobWithCompanion implements GraphChiProgram<Integer, Float>
         this.weighted = weighted;
 
         if (companionAddress.equals("local")) {
-            companion = new DrunkardCompanion(0.0, "./");
+            companion = new DrunkardCompanion(4, Runtime.getRuntime().maxMemory() / 3);
         } else {
             companion = (RemoteDrunkardCompanion) Naming.lookup(companionAddress);
         }
@@ -177,7 +180,7 @@ public class DrunkardMobWithCompanion implements GraphChiProgram<Integer, Float>
                 }
             }
 
-            // Very dirty memory managenet
+            // Very dirty memory management
             curWalkSnapshot.clear(vertex.getId());
 
             int mySourceIdx = -1;
@@ -440,11 +443,7 @@ public class DrunkardMobWithCompanion implements GraphChiProgram<Integer, Float>
             // TODO: ensure that we have sent all walks!
             mob.spinUntilFinish();
 
-            // Debug
-            IdCount[] topForZero = mob.companion.getTop(engine.getVertexIdTranslate().forward(0));
-            for(IdCount idc : topForZero) {
-                System.out.println(engine.getVertexIdTranslate().backward(idc.id) + ": " + idc.count);
-            }
+
 
             mob.companion.outputDistributions(new File(baseFilename).getName() + "_" + firstSource);
 

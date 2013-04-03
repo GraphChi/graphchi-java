@@ -1,4 +1,4 @@
-package edu.cmu.graphchi.walks;
+package edu.cmu.graphchi.walks.deprecated;
 
 import edu.cmu.graphchi.ChiFilenames;
 import edu.cmu.graphchi.ChiVertex;
@@ -9,10 +9,11 @@ import edu.cmu.graphchi.engine.GraphChiEngine;
 import edu.cmu.graphchi.engine.VertexInterval;
 import edu.cmu.graphchi.util.IdInt;
 import edu.cmu.graphchi.util.Toplist;
+import edu.cmu.graphchi.walks.WalkManager;
+import edu.cmu.graphchi.walks.WalkSnapshot;
 
 import java.io.File;
 import java.util.TreeSet;
-import java.util.concurrent.TimeUnit;
 
 /**
  * Launch millions (?) of random walks and record the
