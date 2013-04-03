@@ -1,5 +1,6 @@
 package edu.cmu.graphchi.walks;
 
+import edu.cmu.graphchi.walks.distributions.DrunkardCompanion;
 import edu.cmu.graphchi.walks.distributions.RemoteDrunkardCompanion;
 import com.yammer.metrics.Metrics;
 import com.yammer.metrics.core.Timer;
@@ -30,7 +31,7 @@ import java.util.concurrent.atomic.AtomicLong;
  */
 public class DrunkardMobWithCompanion implements GraphChiProgram<Integer, Float>, GrabbedBucketConsumer {
 
-    private static final int[] DEBUGIDS = new int[] {12, 14583144, 989};
+    private static final int[] DEBUGIDS = new int[] {};
 
     private WalkManager walkManager;
     private WalkSnapshot curWalkSnapshot;
@@ -49,7 +50,12 @@ public class DrunkardMobWithCompanion implements GraphChiProgram<Integer, Float>
 
     public DrunkardMobWithCompanion(String companionAddress, boolean weighted) throws Exception {
         this.weighted = weighted;
-        companion = (RemoteDrunkardCompanion) Naming.lookup(companionAddress);
+
+        if (companionAddress.equals("local")) {
+            companion = new DrunkardCompanion(0.0, "./");
+        } else {
+            companion = (RemoteDrunkardCompanion) Naming.lookup(companionAddress);
+        }
         System.out.println("Found companion: " + companion);
 
         // Launch a thread to send to the companion

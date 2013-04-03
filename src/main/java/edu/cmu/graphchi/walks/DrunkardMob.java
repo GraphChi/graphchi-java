@@ -138,7 +138,7 @@ public class DrunkardMob implements GraphChiProgram<Integer, Float> {
             engine.setMemoryBudgetMb(1200);
             engine.setUseStaticWindowSize(false); // Disable dynamic window size detection
             engine.setEnableDeterministicExecution(false);
-            engine.setAutoLoadNext(true);
+            engine.setAutoLoadNext(false);
             engine.setMaxWindow(2000000); // Handle maximum 2M vertices a time.
 
             long t1 = System.currentTimeMillis();
@@ -168,7 +168,8 @@ public class DrunkardMob implements GraphChiProgram<Integer, Float> {
             TreeSet<IdInt> top20 = Toplist.topListInt(baseFilename, engine.numVertices(), 20);
             int i = 0;
             for(IdInt vertexRank : top20) {
-                System.out.println(++i + ": " + vertexRank.getVertexId() + " = " + vertexRank.getValue());
+                System.out.println(++i + ": " +
+                        engine.getVertexIdTranslate().backward(vertexRank.getVertexId()) + " = " + vertexRank.getValue());
             }
             System.out.println("Finished.");
         }

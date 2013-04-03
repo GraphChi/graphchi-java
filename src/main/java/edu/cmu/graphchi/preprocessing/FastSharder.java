@@ -120,8 +120,11 @@ public class FastSharder <VertexValueType, EdgeValueType> {
         /** Byte-array template used as a temporary value for performance (instead of
          *  always reallocating it).
          **/
-        valueTemplate =  new byte[edgeValueTypeBytesToValueConverter.sizeOf()];
-
+        if (edgeValueTypeBytesToValueConverter != null) {
+            valueTemplate =  new byte[edgeValueTypeBytesToValueConverter.sizeOf()];
+        } else {
+            valueTemplate = new byte[0];
+        }
         if (vertexValueTypeBytesToValueConverter != null)
             vertexValueTemplate = new byte[vertexValueTypeBytesToValueConverter.sizeOf()];
     }
@@ -162,7 +165,8 @@ public class FastSharder <VertexValueType, EdgeValueType> {
         int preTranslatedIdFrom = preIdTranslate.forward(from);
         int preTranslatedTo = preIdTranslate.forward(to);
 
-        addToShovel(to % numShards, preTranslatedIdFrom, preTranslatedTo, edgeProcessor.receiveEdge(from, to, edgeValueToken));
+        addToShovel(to % numShards, preTranslatedIdFrom, preTranslatedTo,
+                (edgeProcessor != null ? edgeProcessor.receiveEdge(from, to, edgeValueToken) : null));
     }
 
 
@@ -185,7 +189,9 @@ public class FastSharder <VertexValueType, EdgeValueType> {
                              EdgeValueType value) throws IOException {
         DataOutputStream strm = shovelStreams[shard];
         strm.writeLong(packEdges(preTranslatedIdFrom, preTranslatedTo));
-        edgeValueTypeBytesToValueConverter.setValue(valueTemplate, value);
+        if (edgeValueTypeBytesToValueConverter != null) {
+            edgeValueTypeBytesToValueConverter.setValue(valueTemplate, value);
+        }
         strm.write(valueTemplate);
     }
 
@@ -433,7 +439,7 @@ public class FastSharder <VertexValueType, EdgeValueType> {
      */
     private void processShovel(int shardNum) throws IOException {
         File shovelFile = new File(shovelFilename(shardNum));
-        int sizeOf = edgeValueTypeBytesToValueConverter.sizeOf();
+        int sizeOf = (edgeValueTypeBytesToValueConverter != null ? edgeValueTypeBytesToValueConverter.sizeOf() : 0);
 
         long[] shoveled = new long[(int) (shovelFile.length() / (8 + sizeOf))];
 
@@ -540,51 +546,53 @@ public class FastSharder <VertexValueType, EdgeValueType> {
          */
 
         /* Create compressed edge data directories */
-        int blockSize = ChiFilenames.getBlocksize(edgeValueTypeBytesToValueConverter.sizeOf());
+        if (sizeOf > 0) {
+            int blockSize = ChiFilenames.getBlocksize(sizeOf);
 
 
-        String edataFileName = ChiFilenames.getFilenameShardEdata(baseFilename, new BytesToValueConverter() {
-            @Override
-            public int sizeOf() {
-                return edgeValueTypeBytesToValueConverter.sizeOf();
+            String edataFileName = ChiFilenames.getFilenameShardEdata(baseFilename, new BytesToValueConverter() {
+                @Override
+                public int sizeOf() {
+                    return edgeValueTypeBytesToValueConverter.sizeOf();
+                }
+
+                @Override
+                public Object getValue(byte[] array) {
+                    return null;
+                }
+
+                @Override
+                public void setValue(byte[] array, Object val) {
+                }
+            }, shardNum, numShards);
+            File edgeDataSizeFile = new File(edataFileName + ".size");
+            File edgeDataDir = new File(ChiFilenames.getDirnameShardEdataBlock(edataFileName, blockSize));
+            if (!edgeDataDir.exists()) edgeDataDir.mkdir();
+
+            long edatasize = shoveled.length * edgeValueTypeBytesToValueConverter.sizeOf();
+            FileWriter sizeWr = new FileWriter(edgeDataSizeFile);
+            sizeWr.write(edatasize + "");
+            sizeWr.close();
+
+            /* Create compressed blocks */
+            int blockIdx = 0;
+            int edgeIdx= 0;
+            for(long idx=0; idx < edatasize; idx += blockSize) {
+                File blockFile = new File(ChiFilenames.getFilenameShardEdataBlock(edataFileName, blockIdx, blockSize));
+                DeflaterOutputStream blockOs = new DeflaterOutputStream(new BufferedOutputStream(new FileOutputStream(blockFile)));
+                long len = Math.min(blockSize, edatasize - idx);
+                byte[] block = new byte[(int)len];
+
+                System.arraycopy(edgeValues, edgeIdx * sizeOf, block, 0, block.length);
+                edgeIdx += len / sizeOf;
+
+                blockOs.write(block);
+                blockOs.close();
+                blockIdx++;
             }
 
-            @Override
-            public Object getValue(byte[] array) {
-                return null;
-            }
-
-            @Override
-            public void setValue(byte[] array, Object val) {
-            }
-        }, shardNum, numShards);
-        File edgeDataSizeFile = new File(edataFileName + ".size");
-        File edgeDataDir = new File(ChiFilenames.getDirnameShardEdataBlock(edataFileName, blockSize));
-        if (!edgeDataDir.exists()) edgeDataDir.mkdir();
-
-        long edatasize = shoveled.length * edgeValueTypeBytesToValueConverter.sizeOf();
-        FileWriter sizeWr = new FileWriter(edgeDataSizeFile);
-        sizeWr.write(edatasize + "");
-        sizeWr.close();
-
-        /* Create compressed blocks */
-        int blockIdx = 0;
-        int edgeIdx= 0;
-        for(long idx=0; idx < edatasize; idx += blockSize) {
-            File blockFile = new File(ChiFilenames.getFilenameShardEdataBlock(edataFileName, blockIdx, blockSize));
-            DeflaterOutputStream blockOs = new DeflaterOutputStream(new BufferedOutputStream(new FileOutputStream(blockFile)));
-            long len = Math.min(blockSize, edatasize - idx);
-            byte[] block = new byte[(int)len];
-
-            System.arraycopy(edgeValues, edgeIdx * sizeOf, block, 0, block.length);
-            edgeIdx += len / sizeOf;
-
-            blockOs.write(block);
-            blockOs.close();
-            blockIdx++;
+            assert(edgeIdx == edgeValues.length);
         }
-
-        assert(edgeIdx == edgeValues.length);
     }
 
     private static Random random = new Random();
