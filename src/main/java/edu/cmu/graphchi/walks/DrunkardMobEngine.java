@@ -1,11 +1,9 @@
 package edu.cmu.graphchi.walks;
 
-import com.sun.istack.internal.NotNull;
 import com.yammer.metrics.Metrics;
 import com.yammer.metrics.core.Timer;
 import com.yammer.metrics.core.TimerContext;
 import edu.cmu.graphchi.*;
-import edu.cmu.graphchi.apps.randomwalks.PersonalizedPageRank;
 import edu.cmu.graphchi.datablocks.BytesToValueConverter;
 import edu.cmu.graphchi.engine.GraphChiEngine;
 import edu.cmu.graphchi.engine.VertexInterval;
@@ -27,8 +25,6 @@ import java.util.logging.Logger;
  */
 public class DrunkardMobEngine<VertexDataType, EdgeDataType> {
 
-    private String baseFilename;
-    private int nShards;
     private GraphChiEngine<VertexDataType, EdgeDataType> engine;
     private WalkManager walkManager;
 
@@ -36,8 +32,6 @@ public class DrunkardMobEngine<VertexDataType, EdgeDataType> {
 
 
     public DrunkardMobEngine(String baseFilename, int nShards) throws IOException {
-        this.baseFilename = baseFilename;
-        this.nShards = nShards;
         this.engine = new GraphChiEngine<VertexDataType, EdgeDataType>(baseFilename, nShards);
         this.engine.setOnlyAdjacency(true);
         this.engine.setVertexDataConverter(null);
