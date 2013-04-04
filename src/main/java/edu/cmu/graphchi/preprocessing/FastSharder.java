@@ -511,7 +511,7 @@ public class FastSharder <VertexValueType, EdgeValueType> {
         for(int i=0; i <= shoveled.length; i++) {
             int from = (i < shoveled.length ? getFirst(shoveled[i]) : -1);
 
-            if (from != curvid || i == shoveled.length - 1) {
+            if (from != curvid) {
                 /* Write index */
                 if (edgeCounter - lastIndexFlush >= edgesPerIndexEntry) {
                     indexOut.writeInt(curvid);

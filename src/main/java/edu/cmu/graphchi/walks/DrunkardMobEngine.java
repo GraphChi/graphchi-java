@@ -127,7 +127,7 @@ public class DrunkardMobEngine<VertexDataType, EdgeDataType> {
         engine.run(driver, numIterations);
         driver.spinUntilFinish();
 
-        logger.info("Driver finished -- now you can query the companion for the distributions.");
+        logger.info("Driver finished -- now you can queryAndCombine the companion for the distributions.");
     }
 
     public VertexIdTranslate getVertexIdTranslate() {

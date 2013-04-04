@@ -7,20 +7,16 @@ import java.util.logging.Logger;
 
 import edu.cmu.graphchi.ChiFilenames;
 import edu.cmu.graphchi.ChiLogger;
-import edu.cmu.graphchi.ChiVertex;
 import edu.cmu.graphchi.datablocks.BytesToValueConverter;
-import edu.cmu.graphchi.datablocks.ChiPointer;
-import edu.cmu.graphchi.datablocks.DataBlockManager;
-import edu.cmu.graphchi.datablocks.FloatConverter;
 import edu.cmu.graphchi.engine.auxdata.DegreeData;
 import edu.cmu.graphchi.engine.auxdata.VertexDegree;
 import edu.cmu.graphchi.io.CompressedIO;
-import edu.cmu.graphchi.preprocessing.VertexIdTranslate;
 import edu.cmu.graphchi.vertexdata.VertexIdValue;
 import ucar.unidata.io.RandomAccessFile;
 
 /**
  * Disk-based queries of out-edges of a vertex.
+ * <b>Note:</b> all vertex-ids in *internal* vertex id space.
  * @author Aapo Kyrola
  */
 public class VertexQuery {
@@ -30,84 +26,30 @@ public class VertexQuery {
     private static final Logger logger = ChiLogger.getLogger("vertexquery");
     private ArrayList<Shard> shards;
     private ExecutorService executor;
-    private String baseFilename;
-    private int numShards;
-    private int cacheSize;
-    private Map<Integer, int[]> highIndegreeCache;
-    private double cacheIndegreeFraction;
 
-    public VertexQuery(String baseFilename, int numShards, int cacheSize, double cacheIndegreeFraction) throws IOException{
+    public VertexQuery(String baseFilename, int numShards) throws IOException{
         shards = new ArrayList<Shard>();
         for(int i=0; i<numShards; i++) {
             shards.add(new Shard(baseFilename, i, numShards));
         }
         executor = Executors.newFixedThreadPool(NTHREADS);
-
-        this.numShards = numShards;
-        this.baseFilename = baseFilename;
-        this.cacheSize = cacheSize;
-        this.highIndegreeCache = Collections.synchronizedMap(new HashMap<Integer, int[]>(cacheSize));
-        this.cacheIndegreeFraction = cacheIndegreeFraction;
-        populateCache();
-    }
-
-    private void populateCache() throws IOException {
-        long t = System.currentTimeMillis();
-        int  numVertices = ChiFilenames.numVertices(baseFilename, numShards);
-        DegreeData deg = new DegreeData(baseFilename);
-        int chunk = 4096 * 1024;
-        int indegreeLimit = (int) (numVertices * cacheIndegreeFraction);
-        for(int i=0; i < numVertices; i += chunk) {
-            int en = Math.min(numVertices - 1, i + chunk - 1);
-            deg.load(i, en);
-            for(int vid=i; vid <= en; vid++) {
-                VertexDegree d = deg.getDegree(vid);
-                if (d.inDegree >= indegreeLimit) {
-                    // Not most efficient, but ok
-                    HashSet<Integer> outEdges = queryOutNeighbors(vid);
-                    int[] cached = new int[outEdges.size()];
-                    int j = 0;
-                    for(Integer nb : outEdges) {
-                        cached[j++] = nb;
-                    }
-                    highIndegreeCache.put(vid, cached);
-
-                    if (highIndegreeCache.size() >= cacheSize) {
-                        logger.info("Cache size exceeded, stop populating.");
-                        break;
-                    }
-                }
-            }
-        }
-        logger.info("Cache population took " + (System.currentTimeMillis() - t) + " ms");
-        logger.info("Cache size: " + highIndegreeCache.size() + ", limit was: " + indegreeLimit);
     }
 
 
-    public HashMap<Integer, Integer> queryOutNeighbors(final Collection<Integer> _queryVertices) {
+    /**
+     * Queries all out neighbors of given vertices and returns a hashmap with (vertex-id, count),
+     * where count is the number of queryAndCombine vertices who had the vertex-id as neighbor.
+     * @param queryVertices
+     * @return
+     */
+    public HashMap<Integer, Integer> queryOutNeighborsAndCombine(final Collection<Integer> queryVertices) {
         HashMap<Integer, Integer> results;
         List<Future<HashMap<Integer, Integer>>> queryFutures = new ArrayList<Future<HashMap<Integer, Integer>>>();
 
         /* Check which ones are in cache */
         long st = System.currentTimeMillis();
         HashMap<Integer, Integer> fromCache = new HashMap<Integer, Integer>(1000000);
-        final ArrayList<Integer> queryVertices = new ArrayList<Integer>(_queryVertices.size());
-        int cacheHits = 0;
-        for(Integer a : _queryVertices) {
-            if (highIndegreeCache.containsKey(a)) {
-                cacheHits++;
-                int[] out = highIndegreeCache.get(a);
-                for(Integer vid : out) {
-                    if (fromCache.containsKey(vid)) {
-                        fromCache.put(vid, fromCache.get(vid) + 1);
-                    } else {
-                        fromCache.put(vid, 1);
-                    }
-                }
-            } else {
-                queryVertices.add(a);
-            }
-        }
+
         logger.info("Cached queries took: " + (System.currentTimeMillis() - st));
 
         /* Execute queries in parallel */
@@ -116,7 +58,7 @@ public class VertexQuery {
             queryFutures.add(executor.submit(new Callable<HashMap<Integer, Integer>>() {
                 @Override
                 public HashMap<Integer, Integer> call() throws Exception {
-                    HashMap<Integer, Integer> edges = _shard.query(queryVertices);
+                    HashMap<Integer, Integer> edges = _shard.queryAndCombine(queryVertices);
                     return edges;
                 }
             }));
@@ -145,22 +87,72 @@ public class VertexQuery {
             throw new RuntimeException(e);
         }
 
-        logger.info("From cache: " + cacheHits + " / " + _queryVertices.size());
 
         return  results;
     }
 
-    public HashSet<Integer> queryOutNeighbors(final int internalId) throws IOException  {
-        if (highIndegreeCache.containsKey(internalId)) {
-            int[] cached = highIndegreeCache.get(internalId);
-            HashSet<Integer> cachedResult =  new HashSet<Integer>(cached.length);
-            for(int j : cached) {
-                cachedResult.add(j);
-            }
-            return cachedResult;
+    /**
+     * Queries out=neighbors for a given set of vertices.
+     * @param queryVertices
+     * @return
+     */
+    public HashMap<Integer, ArrayList<Integer>> queryOutNeighbors(final Collection<Integer> queryVertices) {
+        HashMap<Integer,  ArrayList<Integer>> results;
+        List<Future<HashMap<Integer, ArrayList<Integer>> >> queryFutures
+                = new ArrayList<Future<HashMap<Integer, ArrayList<Integer>> >>();
+
+        /* Check which ones are in cache */
+        long st = System.currentTimeMillis();
+        HashMap<Integer, ArrayList<Integer>> fromCache = new HashMap<Integer, ArrayList<Integer>>(1000);
+
+
+        /* Execute queries in parallel */
+        for(Shard shard : shards) {
+            final Shard _shard = shard;
+            queryFutures.add(executor.submit(new Callable<HashMap<Integer, ArrayList<Integer>>>() {
+                @Override
+                public HashMap<Integer, ArrayList<Integer>> call() throws Exception {
+                    HashMap<Integer, ArrayList<Integer>>  edges = _shard.query(queryVertices);
+                    return edges;
+                }
+            }));
         }
 
+        /* Combine
+        */
+        try {
+            results = fromCache;
 
+            for(int i=0; i < queryFutures.size(); i++) {
+                HashMap<Integer,  ArrayList<Integer>> shardResults = queryFutures.get(i).get();
+
+                for(Map.Entry<Integer,  ArrayList<Integer>> e : shardResults.entrySet()) {
+                    ArrayList<Integer> existing = results.get(e.getKey());
+                    if (existing == null) {
+                        results.put(e.getKey(), e.getValue());
+                    } else {
+                        existing.addAll(e.getValue());
+                    }
+                }
+            }
+
+        } catch (InterruptedException e) {
+            throw new RuntimeException(e);
+        } catch (ExecutionException e) {
+            throw new RuntimeException(e);
+        }
+
+        return  results;
+    }
+
+
+    /**
+     * Return out-neighbors of given vertex
+     * @param internalId
+     * @return
+     * @throws IOException
+     */
+    public HashSet<Integer> queryOutNeighbors(final int internalId) throws IOException  {
         HashSet<Integer> friends;
         List<Future<HashSet<Integer>>> queryFutures = new ArrayList<Future<HashSet<Integer>>>();
 
@@ -220,7 +212,7 @@ public class VertexQuery {
          * @return
          * @throws IOException
          */
-        public HashMap<Integer, Integer> query(Collection<Integer> queryIds) throws IOException {
+        public HashMap<Integer, Integer> queryAndCombine(Collection<Integer> queryIds) throws IOException {
             /* Sort the ids because the index-entries will be in same order */
             ArrayList<Integer> sortedIds = new ArrayList<Integer>(queryIds);
             Collections.sort(sortedIds);
@@ -287,8 +279,81 @@ public class VertexQuery {
             return results;
         }
 
+
+        public HashMap<Integer, ArrayList<Integer>> query(Collection<Integer> queryIds) throws IOException {
+            /* Sort the ids because the index-entries will be in same order */
+            ArrayList<Integer> sortedIds = new ArrayList<Integer>(queryIds);
+            Collections.sort(sortedIds);
+
+            ArrayList<IndexEntry> indexEntries = new ArrayList<IndexEntry>(sortedIds.size());
+            for(Integer a : sortedIds) {
+                indexEntries.add(index.lookup(a));
+            }
+
+            HashMap<Integer, ArrayList<Integer>> results = new HashMap<Integer, ArrayList<Integer>>(queryIds.size());
+
+            IndexEntry entry = null, lastEntry = null;
+            int curvid=0, adjOffset=0;
+            for(int qIdx=0; qIdx < sortedIds.size(); qIdx++) {
+                entry = indexEntries.get(qIdx);
+                int vertexId = sortedIds.get(qIdx);
+
+                 boolean found = false;
+
+                /* If consecutive vertices are in same indexed block, i.e their
+                   index entries are the same, then we just continue.
+                 */
+                if (qIdx == 0 || !entry.equals(lastEntry))   {
+                    curvid = entry.vertex;
+                    adjOffset = entry.fileOffset;
+                    adjFile.seek(adjOffset);
+                }
+                while(curvid <= vertexId) {
+                    int n;
+                    int ns = adjFile.readUnsignedByte();
+                    assert(ns >= 0);
+                    adjOffset++;
+
+                    if (ns == 0) {
+                        curvid++;
+                        int nz = adjFile.readUnsignedByte();
+
+                        adjOffset++;
+                        assert(nz >= 0);
+                        curvid += nz;
+                        continue;
+                    }
+
+                    if (ns == 0xff) {
+                        n = adjFile.readInt();
+                        adjOffset += 4;
+                    } else {
+                        n = ns;
+                    }
+
+                    if (curvid == vertexId) {
+                        ArrayList<Integer> nbrs = new ArrayList<Integer>(n);
+                        found = true;
+
+                        while (--n >= 0) {
+                            int target = adjFile.readInt();
+                            nbrs.add(target);
+                        }
+                        results.put(vertexId, nbrs);
+                    } else {
+                        adjFile.skipBytes(n * 4);
+                    }
+                    curvid++;
+                }
+                if (!found) {
+                    results.put(vertexId, new ArrayList<Integer>(0));
+                }
+            }
+            return results;
+        }
+
         public HashSet<Integer> query(int vertexId) throws IOException {
-            return new HashSet<Integer>(query(Collections.singletonList(vertexId)).keySet());
+            return new HashSet<Integer>(query(Collections.singletonList(vertexId)).get(vertexId));
         }
 
         public <VT> List<VertexIdValue<VT>> queryWithValues(int vertexId, BytesToValueConverter<VT> conv) throws

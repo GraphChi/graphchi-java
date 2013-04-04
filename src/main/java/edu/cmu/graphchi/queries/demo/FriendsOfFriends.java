@@ -15,7 +15,7 @@ import java.util.*;
 import java.util.logging.Logger;
 
 /**
- * Demonstration of the query capabilities of GraphChi.
+ * Demonstration of the queryAndCombine capabilities of GraphChi.
  * With this app, after you have computed PageRank for each vertex,
  * you can make simple friends-recommendations queries: querying for user X
  * will recommend the top friends (out-edges) of user X's friends (out-edges).
@@ -41,7 +41,7 @@ public class FriendsOfFriends {
      * @throws IOException
      */
     public FriendsOfFriends(String baseFilename, int numShards, boolean weightByPagerank) throws IOException {
-        this.queryEngine = new VertexQuery(baseFilename, numShards, 0, 0.0002);
+        this.queryEngine = new VertexQuery(baseFilename, numShards);
         this.baseFilename = baseFilename;
         this.weightByPagerank = weightByPagerank;
         this.numShards = numShards;
@@ -69,8 +69,8 @@ public class FriendsOfFriends {
 
     /**
      * Recommend friends
-     * @param vertexId  query vertex
-     * @param fanOut maximum of query vertex's friends to consider. Selected randomly.
+     * @param vertexId  queryAndCombine vertex
+     * @param fanOut maximum of queryAndCombine vertex's friends to consider. Selected randomly.
      * @throws IOException
      */
     public String recommendFriends(int vertexId, int fanOut) throws IOException {
@@ -117,7 +117,7 @@ public class FriendsOfFriends {
 
         stTime = System.currentTimeMillis();
 
-        friendsOfFriends = queryEngine.queryOutNeighbors(friends);
+        friendsOfFriends = queryEngine.queryOutNeighborsAndCombine(friends);
         friendsOfFriends.remove(internalId);
 
         long t2 = (System.currentTimeMillis() - stTime);
@@ -178,7 +178,7 @@ public class FriendsOfFriends {
 
         BufferedReader cmdIn = new BufferedReader(new InputStreamReader(System.in));
         while(true) {
-            System.out.print("Enter vertex id to query >> :: ");
+            System.out.print("Enter vertex id to get friends-of-friends >> :: ");
             String ln = cmdIn.readLine();
             if (ln.startsWith("q")) break;
 
