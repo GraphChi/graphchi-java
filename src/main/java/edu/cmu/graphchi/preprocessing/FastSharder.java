@@ -352,7 +352,11 @@ public class FastSharder <VertexValueType, EdgeValueType> {
     private void writeIntervals() throws IOException{
         FileWriter wr = new FileWriter(ChiFilenames.getFilenameIntervals(baseFilename, numShards));
         for(int j=1; j<=numShards; j++) {
-            wr.write((j * finalIdTranslate.getVertexIntervalLength() -1) + "\n");
+            int a =(j * finalIdTranslate.getVertexIntervalLength() -1);
+            wr.write(a + "\n");
+            if (a > maxVertexId) {
+                maxVertexId = a;
+            }
         }
         wr.close();
     }

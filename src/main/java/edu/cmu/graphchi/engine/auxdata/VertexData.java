@@ -72,7 +72,7 @@ public class VertexData <VertexDataType> {
                 if (!vertexfile.exists()) {
                     vertexfile.createNewFile();
                 }
-                System.out.println("Vertex data file did not exists, creating it. Vertices: " + nvertices);
+                logger.warning("Vertex data file did not exists, creating it. Vertices: " + nvertices);
                 FileOutputStream fos = new FileOutputStream(vertexfile);
                 byte[] tmp = new byte[32678];
                 long written = 0;
