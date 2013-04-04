@@ -27,7 +27,7 @@ import java.util.logging.Logger;
  */
 public class DrunkardCompanion extends UnicastRemoteObject implements RemoteDrunkardCompanion {
 
-    private static class WalkSubmission {
+    protected static class WalkSubmission {
         int[] walks;
         int[] atVertices;
 
@@ -37,24 +37,24 @@ public class DrunkardCompanion extends UnicastRemoteObject implements RemoteDrun
         }
     }
 
-    private static final int BUFFER_CAPACITY = 128;
-    private static final int BUFFER_MAX = 128;
+    protected static final int BUFFER_CAPACITY = 128;
+    protected static final int BUFFER_MAX = 128;
 
-    private int[] sourceVertexIds;
-    private Object[] distrLocks;
+    protected int[] sourceVertexIds;
+    protected Object[] distrLocks;
     boolean isLowInMemory = false;
 
-    private DiscreteDistribution[] distributions;
-    private IntegerBuffer[] buffers;
-    private AtomicInteger outstanding = new AtomicInteger(0);
+    protected DiscreteDistribution[] distributions;
+    protected IntegerBuffer[] buffers;
+    protected AtomicInteger outstanding = new AtomicInteger(0);
 
-    private ExecutorService parallelExecutor;
-    private long maxMemoryBytes;
+    protected ExecutorService parallelExecutor;
+    protected long maxMemoryBytes;
 
-    private LinkedBlockingQueue<WalkSubmission> pendingQueue = new LinkedBlockingQueue<WalkSubmission>();
+    protected LinkedBlockingQueue<WalkSubmission> pendingQueue = new LinkedBlockingQueue<WalkSubmission>();
 
-    private static Logger logger = ChiLogger.getLogger("drunkardcompanion");
-    private Timer timer  = new Timer(true);
+    protected static Logger logger = ChiLogger.getLogger("drunkardcompanion");
+    protected Timer timer  = new Timer(true);
 
     /**
      * Prints estimate of memory usage
@@ -272,7 +272,7 @@ public class DrunkardCompanion extends UnicastRemoteObject implements RemoteDrun
 
 
 
-    private void _processWalks(int[] walks, int[] atVertices) {
+    protected void _processWalks(int[] walks, int[] atVertices) {
         long t1 = System.currentTimeMillis();
         for(int i=0; i < walks.length; i++) {
             int w = walks[i];
@@ -311,7 +311,7 @@ public class DrunkardCompanion extends UnicastRemoteObject implements RemoteDrun
     }
 
 
-    private void drainBuffer(int sourceIdx) {
+    protected void drainBuffer(int sourceIdx) {
         synchronized (buffers[sourceIdx]) {
             int[] arr = buffers[sourceIdx].toIntArray();
             buffers[sourceIdx] = new IntegerBuffer(BUFFER_CAPACITY);
@@ -388,8 +388,7 @@ public class DrunkardCompanion extends UnicastRemoteObject implements RemoteDrun
 
     public static void main(String[] args) throws Exception {
         Double pruneFraction = Double.parseDouble(args[0]);
-        String workingDir = args[1];
-        String bindAddress = args[2];
+        String bindAddress = args[1];
         try {
             LocateRegistry.createRegistry(1099);
         } catch (Exception err) {

@@ -28,18 +28,29 @@ public class DrunkardMobEngine<VertexDataType, EdgeDataType> {
     private GraphChiEngine<VertexDataType, EdgeDataType> engine;
     private WalkManager walkManager;
 
-    private static Logger logger = ChiLogger.getLogger("drunkardmob-engine");
+    protected static Logger logger = ChiLogger.getLogger("drunkardmob-engine");
 
 
     public DrunkardMobEngine(String baseFilename, int nShards) throws IOException {
-        this.engine = new GraphChiEngine<VertexDataType, EdgeDataType>(baseFilename, nShards);
-        this.engine.setOnlyAdjacency(true);
-        this.engine.setVertexDataConverter(null);
-        this.engine.setEdataConverter(null);
+        createGraphChiEngine(baseFilename, nShards);
 
         this.walkManager = null;
     }
 
+    protected void createGraphChiEngine(String baseFilename, int nShards) throws IOException {
+        this.engine = new GraphChiEngine<VertexDataType, EdgeDataType>(baseFilename, nShards);
+        this.engine.setOnlyAdjacency(true);
+        this.engine.setVertexDataConverter(null);
+        this.engine.setEdataConverter(null);
+    }
+
+    public WalkManager getWalkManager() {
+        return walkManager;
+    }
+
+    public GraphChiEngine<VertexDataType, EdgeDataType> getEngine() {
+        return engine;
+    }
 
     /**
      * Configure edge data type converter - if you need edge values
@@ -70,11 +81,15 @@ public class DrunkardMobEngine<VertexDataType, EdgeDataType> {
      * @param walksPerSource how many walks to start from each source
      */
     public void configureSourceRangeInternalIds(int firstSourceId, int numSources, int walksPerSource) {
-        this.walkManager = new WalkManager(engine.numVertices(), numSources);
+        this.walkManager = createWalkManager(numSources);
 
         for(int i=firstSourceId; i < firstSourceId + numSources; i++) {
             this.walkManager.addWalkBatch(i, walksPerSource);
         }
+    }
+
+    protected WalkManager createWalkManager(int numSources) {
+        return new WalkManager(engine.numVertices(), numSources);
     }
 
     /**
@@ -102,6 +117,7 @@ public class DrunkardMobEngine<VertexDataType, EdgeDataType> {
             case OUT_EDGES:
                 engine.setDisableInedges(true);
                 engine.setDisableOutEdges(false);
+                break;
         }
 
         engine.setEnableScheduler(true);
@@ -138,7 +154,7 @@ public class DrunkardMobEngine<VertexDataType, EdgeDataType> {
      * Inner class to encapsulate the graphchi program running the show.
      * Due to several optimizations, it is quite complicated!
      */
-    private class DrunkardDriver implements GraphChiProgram<VertexDataType, EdgeDataType>, GrabbedBucketConsumer {
+    protected class DrunkardDriver implements GraphChiProgram<VertexDataType, EdgeDataType>, GrabbedBucketConsumer {
         private WalkSnapshot curWalkSnapshot;
         private final RemoteDrunkardCompanion companion;
 
@@ -306,7 +322,7 @@ public class DrunkardMobEngine<VertexDataType, EdgeDataType> {
         }
 
 
-        private class LocalWalkBuffer {
+        protected class LocalWalkBuffer {
             int[] walkBufferDests;
             int[] walkSourcesAndHops;
             Random random = new Random();

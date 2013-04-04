@@ -21,31 +21,30 @@ public class WalkManager {
 
     private static final int MAX_SOURCES = 16777216;
 
-    private final static int bucketSize = 128; // Store walks into buckets for faster retrieval
-    private final static int initialSize = Integer.parseInt(System.getProperty("walkmanager.initial_size", "128"));
+    protected final static int bucketSize = 128; // Store walks into buckets for faster retrieval
+    protected final static int initialSize = Integer.parseInt(System.getProperty("walkmanager.initial_size", "128"));
 
-    private int sourceSeqIdx  = 0;
-    private int[] sources;
+    protected int sourceSeqIdx  = 0;
+    protected int[] sources;
 
-    private int[] sourceWalkCounts = null;
-    private long totalWalks = 0;
+    protected int[] sourceWalkCounts = null;
+    protected long totalWalks = 0;
 
-    private int[][] walks;
-    private Object[] bucketLocks;
-    private int[] walkIndices;
-    private BitSet sourceBitSet;
+    protected int[][] walks;
+    protected Object[] bucketLocks;
+    protected int[] walkIndices;
+    protected BitSet sourceBitSet;
 
-    private int numVertices;
+    protected int numVertices;
     private final Timer grabTimer = Metrics.defaultRegistry().newTimer(WalkManager.class, "grab-walks", TimeUnit.SECONDS, TimeUnit.MINUTES);
     private final Timer dumpTimer = Metrics.defaultRegistry().newTimer(WalkManager.class, "dump-walks", TimeUnit.SECONDS, TimeUnit.MINUTES);
-    private final Timer initTimer = Metrics.defaultRegistry().newTimer(WalkManager.class, "init-walks", TimeUnit.SECONDS, TimeUnit.MINUTES);
     private final Timer schedulePopulate = Metrics.defaultRegistry().newTimer(WalkManager.class, "populate-scheduler", TimeUnit.SECONDS, TimeUnit.MINUTES);
     private final Timer restore = Metrics.defaultRegistry().newTimer(WalkManager.class, "restore", TimeUnit.SECONDS, TimeUnit.MINUTES);
 
-    private static final Logger logger = ChiLogger.getLogger("walk-manager");
-    
-    private GrabbedBucketConsumer bucketConsumer;
-    private BufferedWriter log;
+    protected static final Logger logger = ChiLogger.getLogger("walk-manager");
+
+    protected GrabbedBucketConsumer bucketConsumer;
+    protected BufferedWriter log;
 
     public WalkManager(int numVertices, int numSources) {
         this.numVertices = numVertices;
@@ -179,7 +178,7 @@ public class WalkManager {
 
 
 
-    public void expandCapacity(int bucket, int additional) {
+    protected void expandCapacity(int bucket, int additional) {
         if (walks[bucket] != null) {
             int desiredLength = walks[bucket].length + additional;
             if (walks[bucket].length < desiredLength) {
