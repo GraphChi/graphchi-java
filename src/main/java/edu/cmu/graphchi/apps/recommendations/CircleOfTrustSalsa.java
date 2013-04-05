@@ -5,9 +5,7 @@ import edu.cmu.graphchi.ChiLogger;
 import edu.cmu.graphchi.preprocessing.VertexIdTranslate;
 import edu.cmu.graphchi.queries.VertexQuery;
 
-import java.io.BufferedReader;
-import java.io.File;
-import java.io.InputStreamReader;
+import java.io.*;
 import java.util.*;
 import java.util.logging.Logger;
 
@@ -48,11 +46,13 @@ public class CircleOfTrustSalsa {
     // Cache: TODO - use LRU
     private LinkedHashMap<Integer, ArrayList<Integer>> cache;
     private int cacheSize;
+    private String graphName;
 
-    private static final int FILTER_LIMIT = 2;
+    private static final int FILTER_LIMIT = 3;
 
     public CircleOfTrustSalsa(String graphName, int numShards, final int cacheSize) throws Exception {
         queryService = new VertexQuery(graphName, numShards);
+        this.graphName = graphName;
         this.cacheSize = cacheSize;
         this.cache =  new LinkedHashMap<Integer, ArrayList<Integer>>(cacheSize, 1.0f, true) // LRU
         {
@@ -74,7 +74,9 @@ public class CircleOfTrustSalsa {
         for(int v : circleOfTrust) {
             hubs.put(v, new SalsaVertex(v));
             if (cache.containsKey(v)) {
-                hubs.get(v).neighbors = cache.get(v);
+                SalsaVertex hub = hubs.get(v);
+                hub.neighbors = cache.get(v);
+                hub.degree = hub.neighbors.size();
                 cacheHits++;
             } else {
                 querySet.add(v);
@@ -162,6 +164,95 @@ public class CircleOfTrustSalsa {
         logger.info("Filtered: " + filtered);
     }
 
+    /**
+     * Compute SALSA on graph initialized in initializeGraph() method.
+     * @param nIterations
+     */
+    public void computeSALSA(int nIterations) {
+        for(int iter=0; iter < nIterations; iter++) {
+            // Hubs: sum of authority-neighbors values divided by their degree
+            for(SalsaVertex hub: hubs.values()) {
+                double nbSum = 0.0;
+                // Update the degree because not all authorities were selected
+                int degree = 0;
+                for(int authId : hub.neighbors) {
+                    SalsaVertex auth = authorities.get(authId);
+                    if (auth != null) {
+                        nbSum += auth.value / auth.degree;
+                        degree++;
+                    }
+                }
+                hub.value = nbSum;
+                hub.degree = degree;
+            }
+
+            // Authorities: push from authority side.
+            // First: set values to zero
+            for(SalsaVertex auth: authorities.values()) {
+                auth.value = 0;
+            }
+
+            // Then, push hubs values to their auths
+            for(SalsaVertex hub: hubs.values()) {
+                double myContribution = hub.value / hub.degree;
+                for(int authId : hub.neighbors) {
+                    SalsaVertex auth = authorities.get(authId);
+                    if (auth != null) {
+                        auth.value += myContribution;
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * Return top K authorities (result from SALSA), but do not include users in the removeList
+     * @param K
+     * @param removeList
+     * @return
+     */
+    public ArrayList<SalsaVertex> topAuthorities(int K, HashSet<Integer> removeList) {
+        // TODO: faster top-K implementation
+        ArrayList<SalsaVertex> all = new ArrayList<SalsaVertex>(authorities.size());
+        all.addAll(authorities.values());
+        Collections.sort(all, new Comparator<SalsaVertex>() {
+            @Override
+            public int compare(SalsaVertex salsaVertex, SalsaVertex salsaVertex1) {
+                if (salsaVertex.value < salsaVertex1.value) return 1;
+                else return (salsaVertex.value > salsaVertex1.value ? -1 : 0);
+            }
+        });
+
+        ArrayList<SalsaVertex> result = new ArrayList<SalsaVertex>(K);
+        int i = 0;
+        while(result.size() < K) {
+            if (i < all.size()) {
+                SalsaVertex x = all.get(i);
+                if (!removeList.contains(x.id))
+                    result.add(x);
+            } else {
+                break;
+            }
+            i++;
+        }
+        return result;
+    }
+
+    private String namify(Integer value) throws IOException {
+        File f = new File(graphName + "_names.dat");
+        if (!f.exists()) {
+            System.out.println("didn't find name file: " + f.getPath());
+            return value+"";
+        }
+        int i = value * 16;
+        RandomAccessFile raf = new RandomAccessFile(f.getAbsolutePath(), "r");
+        raf.seek(i);
+        byte[] tmp = new byte[16];
+        raf.read(tmp);
+        raf.close();
+        return new String(tmp) + "(" + value + ")";
+    }
+
     public static void main(String[] args) throws  Exception {
         String graphName = args[0];
         int nShards = Integer.parseInt(args[1]);
@@ -192,6 +283,19 @@ public class CircleOfTrustSalsa {
             }
 
             csalsa.initializeGraph(circle);
+
+            long t = System.currentTimeMillis();
+            csalsa.computeSALSA(3);
+            logger.info("SALSA computation took " + (System.currentTimeMillis() - t) + "ms");
+
+            circle.add(vertexTrans.forward(vertex));
+            ArrayList<SalsaVertex> top = csalsa.topAuthorities(20, circle);
+            int j = 1;
+            for(SalsaVertex sv : top) {
+                int originalId = vertexTrans.backward(sv.id);
+                logger.info("Top " + (j++) + " = " + originalId + " " + csalsa.namify(originalId) + " (" + sv.value + ")");
+            }
+
         }
     }
 
