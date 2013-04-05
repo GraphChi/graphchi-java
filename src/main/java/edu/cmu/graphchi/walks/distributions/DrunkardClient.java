@@ -24,7 +24,7 @@ public class DrunkardClient {
             if (ln.startsWith("q")) return;
             int vertexId = Integer.parseInt(ln);
             try {
-                IdCount[] top = companion.getTop(vertexId);
+                IdCount[] top = companion.getTop(vertexId, 10);
 
                 System.out.println("Result:");
                 for(IdCount ic : top) {

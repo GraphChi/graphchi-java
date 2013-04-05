@@ -1,4 +1,5 @@
-package edu.cmu.graphchi.apps.randomwalks;
+package edu.cmu.graphchi.apps.recommendations;
+
 
 import edu.cmu.graphchi.*;
 import edu.cmu.graphchi.datablocks.FloatConverter;
@@ -19,28 +20,50 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.rmi.Naming;
+import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.Random;
 import java.util.logging.Logger;
 
 /**
- * Computes personalized pagerank using the DrunkardMobEngine.
+ *
+ * Emulates complete Twitter's Who-To-Follow (WTF) algorithm's SALSA part as described in WWW'13 paper
+ * WTF: The Who to Follow Service at Twitter: http://www.stanford.edu/~rezab/papers/wtf_overview.pdf
+ *
+ * Step 1: Compute a "circle of trust" (i.e top 500 visits of an egocentric random walk) for N users
+ * Step 2: For each user i, compute SALSA where hubs=circle of trust, authorities=their top followers
+ * Step 3: Recommend top K of the authorities of the SALSA.
+ *
+ * DrunkardMob algorithm is used for the random walks and for efficient loading of followers
+ * for the circle of trust, graph-query capabilities on edu.cmu.graphchiquerues.VertexQuery are used.
+ *
+ * Example parameters:
+ * <pre>
+ *   --graph=/Users/akyrola/graphs/twitter_rv.net --nshards=24 --niters=5 --nsources=20000 --firstsource=0 --walkspersource=3000
+ * </pre>
+ *
+ * Remember to allcoate enough memory, for example -Xmx6G
+ *
  * @author Aapo Kyrola
  */
-public class PersonalizedPageRank implements WalkUpdateFunction<EmptyType, EmptyType> {
+public class TwitterWTF implements WalkUpdateFunction<EmptyType, EmptyType> {
 
     private static double RESET_PROBABILITY = 0.15;
-    private static Logger logger = ChiLogger.getLogger("personalized-pagerank");
+    private static Logger logger = ChiLogger.getLogger("twitter-wtf");
     private DrunkardMobEngine<EmptyType, EmptyType>  drunkardMobEngine;
     private String baseFilename;
     private int firstSource;
     private int numSources;
+    private int numShards;
     private int numWalksPerSource;
+    private int salsaCacheSize = 100000;
     private String companionUrl;
 
-    public PersonalizedPageRank(String companionUrl, String baseFilename, int nShards, int firstSource, int numSources, int walksPerSource) throws Exception{
+    public TwitterWTF(String companionUrl, String baseFilename, int nShards, int firstSource, int numSources, int walksPerSource) throws Exception{
         this.baseFilename = baseFilename;
         this.drunkardMobEngine = new DrunkardMobEngine<EmptyType, EmptyType>(baseFilename, nShards);
 
+        this.numShards = nShards;
         this.companionUrl = companionUrl;
         this.firstSource = firstSource;
         this.numSources = numSources;
@@ -53,35 +76,64 @@ public class PersonalizedPageRank implements WalkUpdateFunction<EmptyType, Empty
         /** Use local drunkard mob companion. You can also pass a remote reference
          *  by using Naming.lookup("rmi://my-companion")
          */
-       RemoteDrunkardCompanion companion;
+        RemoteDrunkardCompanion companion;
         if (companionUrl.equals("local")) {
             companion = new DrunkardCompanion(4, Runtime.getRuntime().maxMemory() / 3);
         }  else {
             companion = (RemoteDrunkardCompanion) Naming.lookup(companionUrl);
         }
 
+        /* Step 1: Compute random walks */
         /* Configure walk sources. Note, GraphChi's internal ids are used. */
         this.drunkardMobEngine.configureSourceRangeInternalIds(firstSource, numSources, numWalksPerSource);
 
         this.drunkardMobEngine.run(EdgeDirection.OUT_EDGES, this, numIters, companion);
 
-        /* Ask companion to dump the results to file */
-        int nTop = 100;
-        companion.outputDistributions(baseFilename + "_ppr_" + firstSource + "_"
-                + (firstSource + numSources - 1) + ".top" + nTop, nTop);
-
-        /* For debug */
         VertexIdTranslate vertexIdTranslate = this.drunkardMobEngine.getVertexIdTranslate();
-        IdCount[] topForFirst = companion.getTop(firstSource, 10);
 
-        System.out.println("Top visits from source vertex " + vertexIdTranslate.forward(firstSource) + " (internal id=" + firstSource + ")");
-        for(IdCount idc : topForFirst) {
-            System.out.println(vertexIdTranslate.backward(idc.id) + ": " + idc.count);
-        }
+        // Empty from memory so can use cache in the SALSA
+        this.drunkardMobEngine = null;
 
-        /* If local, shutdown the companion */
-        if (companion instanceof DrunkardCompanion) {
-            ((DrunkardCompanion) companion).close();
+        /* Step 2: SALSA */
+        int circleOfTrustSize = 300;
+
+        long startTime = System.currentTimeMillis();
+        CircleOfTrustSalsa csalsa = new CircleOfTrustSalsa(baseFilename, numShards, salsaCacheSize);
+
+        // TODO: make multithreaded!
+        for(int vertexId=firstSource; vertexId < firstSource+numSources; vertexId++) {
+            /* Get circle of trust from the DrunkardCompanion */
+
+            IdCount[] topVisits = companion.getTop(vertexId, circleOfTrustSize);
+
+            HashSet<Integer> circleOfTrust = new HashSet(topVisits.length);
+            for(IdCount idc: topVisits) {
+                circleOfTrust.add(idc.id);
+            }
+
+            /* Initialize and run SALSA */
+            csalsa.initializeGraph(circleOfTrust);
+            csalsa.computeSALSA(4);
+
+            // Make a list of immediate neighbors, which should not be recommended
+            // NOTE: the companion would have that list also!
+            HashSet<Integer> doNotRecommend = csalsa.getQueryService().queryOutNeighbors(vertexId);
+            doNotRecommend.add(vertexId);
+
+            /* Get SALSA's top results and print */
+            ArrayList<CircleOfTrustSalsa.SalsaVertex> recommendations = csalsa.topAuthorities(4, doNotRecommend);
+
+            logger.info("Recommendations for " + csalsa.namify(vertexIdTranslate.backward(vertexId)) + " (" + vertexIdTranslate.backward(vertexId) + ")");
+            for(CircleOfTrustSalsa.SalsaVertex sv : recommendations) {
+                int originalId = vertexIdTranslate.backward(sv.id);
+                logger.info("  recommend: " + " = " + originalId + " " + csalsa.namify(originalId) + " (" + sv.value + ")");
+            }
+
+            if (vertexId - firstSource % 200 == 0) {
+                long t = System.currentTimeMillis() - startTime;
+                logger.info("Computed recommendations for " + (vertexId - firstSource + 1) + " users in " + t + "ms");
+                logger.info("Average: " + (double)t / (vertexId - firstSource + 1));
+            }
         }
     }
 
@@ -185,7 +237,7 @@ public class PersonalizedPageRank implements WalkUpdateFunction<EmptyType, Empty
             int nIters = Integer.parseInt(cmdLine.getOptionValue("niters"));
             String companionUrl = cmdLine.hasOption("companion") ? cmdLine.getOptionValue("companion") : "local";
 
-            PersonalizedPageRank pp = new PersonalizedPageRank(companionUrl, baseFilename, nShards,
+            TwitterWTF pp = new TwitterWTF(companionUrl, baseFilename, nShards,
                     firstSource, numSources, walksPerSource);
             pp.execute(nIters);
 
@@ -193,7 +245,7 @@ public class PersonalizedPageRank implements WalkUpdateFunction<EmptyType, Empty
             err.printStackTrace();
             // automatically generate the help statement
             HelpFormatter formatter = new HelpFormatter();
-            formatter.printHelp("PersonalizedPageRank", cmdLineOptions);
+            formatter.printHelp("TwitterWTF", cmdLineOptions);
         }
     }
 }

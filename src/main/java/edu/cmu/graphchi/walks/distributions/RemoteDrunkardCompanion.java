@@ -28,6 +28,6 @@ public interface RemoteDrunkardCompanion extends Remote {
     void outputDistributions(String outputFile, int nTop) throws RemoteException;
 
 
-    IdCount[] getTop(int vertexId) throws RemoteException;
+    IdCount[] getTop(int vertexId, int nTop) throws RemoteException;
 
 }

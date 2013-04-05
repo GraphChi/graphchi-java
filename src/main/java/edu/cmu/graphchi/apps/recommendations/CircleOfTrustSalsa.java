@@ -10,8 +10,8 @@ import java.util.*;
 import java.util.logging.Logger;
 
 /**
- * Emulates Twitter's Who-To-Follow (WTF) algorithm as described in WWW'13 paper
- * WTF: The Who to Follow Service at Twitter.
+ * Emulates Twitter's Who-To-Follow (WTF) algorithm's SALSA part as described in WWW'13 paper
+ * WTF: The Who to Follow Service at Twitter: http://www.stanford.edu/~rezab/papers/wtf_overview.pdf
  *
  * This demonstration loads the followers
  * of the "circle of trust" (top visited vertices in egocentric random walk) directly
@@ -22,12 +22,14 @@ import java.util.logging.Logger;
  * Circle of trust must be given externally to this class. <b>Note:</b> work in progress.
  * @author Aapo Kyrola
  */
+
+// TODO: Make multithreaded / thread-safe.
 public class CircleOfTrustSalsa {
 
     private static final Logger logger = ChiLogger.getLogger("circle-of-trust");
 
 
-    private static class SalsaVertex {
+   static class SalsaVertex {
         int id;
         int degree = 0;
         SalsaVertex(int id) {
@@ -48,7 +50,7 @@ public class CircleOfTrustSalsa {
     private int cacheSize;
     private String graphName;
 
-    private static final int FILTER_LIMIT = 3;
+    private static final int FILTER_LIMIT = 4;
 
     public CircleOfTrustSalsa(String graphName, int numShards, final int cacheSize) throws Exception {
         queryService = new VertexQuery(graphName, numShards);
@@ -119,10 +121,8 @@ public class CircleOfTrustSalsa {
         }
         assert(j == authEntries.length);
 
-        long tt = System.currentTimeMillis();
-        // Create map efficiently
+         // Create map efficiently
         Arrays.sort(authEntries);
-        System.out.println("Sort time:" + (System.currentTimeMillis() - tt) + ", entries:" + authEntries.length);
 
         int lastId = -1;
         int count = 0;
@@ -205,6 +205,10 @@ public class CircleOfTrustSalsa {
         }
     }
 
+    public VertexQuery getQueryService() {
+        return queryService;
+    }
+
     /**
      * Return top K authorities (result from SALSA), but do not include users in the removeList
      * @param K
@@ -238,7 +242,7 @@ public class CircleOfTrustSalsa {
         return result;
     }
 
-    private String namify(Integer value) throws IOException {
+    public String namify(Integer value) throws IOException {
         File f = new File(graphName + "_names.dat");
         if (!f.exists()) {
             System.out.println("didn't find name file: " + f.getPath());
