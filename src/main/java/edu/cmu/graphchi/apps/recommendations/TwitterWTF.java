@@ -129,7 +129,7 @@ public class TwitterWTF implements WalkUpdateFunction<EmptyType, EmptyType> {
                 logger.info("  recommend: " + " = " + originalId + " " + csalsa.namify(originalId) + " (" + sv.value + ")");
             }
 
-            if (vertexId - firstSource % 200 == 0) {
+            if (vertexId - firstSource % 40 == 0) {
                 long t = System.currentTimeMillis() - startTime;
                 logger.info("Computed recommendations for " + (vertexId - firstSource + 1) + " users in " + t + "ms");
                 logger.info("Average: " + (double)t / (vertexId - firstSource + 1));

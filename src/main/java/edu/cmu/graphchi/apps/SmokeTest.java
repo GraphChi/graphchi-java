@@ -13,6 +13,7 @@ import edu.cmu.graphchi.vertexdata.VertexIdValue;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.logging.Logger;
 
@@ -26,9 +27,22 @@ public class SmokeTest implements GraphChiProgram<Integer, Integer> {
 
     private static Logger logger = ChiLogger.getLogger("smoketest");
 
+    // Keep track of loaded vertex values to check vertex value loading works
+    private static HashMap<Integer, Integer> loadedVertexValues = new HashMap<Integer, Integer>();
 
     public void update(ChiVertex<Integer, Integer> vertex, GraphChiContext context) {
         if (context.getIteration() == 0) {
+            /* Check vertex value was loaded properly */
+            int originalId = context.getVertexIdTranslate().backward(vertex.getId());
+            if (loadedVertexValues.containsKey(originalId)) {
+                if (!vertex.getValue().equals(loadedVertexValues.get(originalId))) {
+                    throw new RuntimeException("Vertex value for vertex " + originalId + " not loaded properly:" +
+                            vertex.getValue() + " !=" + loadedVertexValues.get(originalId));
+                } else {
+                    logger.info("Loaded vertex value correctly: " + originalId + " = " + loadedVertexValues.get(originalId));
+                }
+            }
+
             vertex.setValue(vertex.getId() + context.getIteration());
         } else {
             int curval = vertex.getValue();
@@ -54,6 +68,8 @@ public class SmokeTest implements GraphChiProgram<Integer, Integer> {
         for(int i=0; i<vertex.numOutEdges(); i++) {
             vertex.outEdge(i).setValue(val);
         }
+
+
     }
 
 
@@ -84,11 +100,18 @@ public class SmokeTest implements GraphChiProgram<Integer, Integer> {
     protected static FastSharder createSharder(String graphName, int numShards) throws IOException {
         return new FastSharder<Integer, Integer>(graphName, numShards, new VertexProcessor<Integer>() {
             public Integer receiveVertexValue(int vertexId, String token) {
-                return 0;
+                if (token == null) {
+                    return 0;
+                } else {
+                    synchronized (this) {
+                       loadedVertexValues.put(vertexId, Integer.parseInt(token));
+                    }
+                    return Integer.parseInt(token);
+                }
             }
         }, new EdgeProcessor<Integer>() {
             public Integer receiveEdge(int from, int to, String token) {
-                return 0;
+                return (token == null ? 0 : Integer.parseInt(token));
             }
         }, new IntConverter(), new IntConverter());
     }
