@@ -23,7 +23,10 @@ import java.util.Random;
 import java.util.logging.Logger;
 
 /**
- * Computes personalized pagerank using the DrunkardMobEngine.
+ * Computes estimate of personalized pagerank using the DrunkardMobEngine.
+ * <b>Note:</b> this version omits walks to adjacent vertices, and thus could be a
+ * basis for recommendation engine. To remove that functionality, modify method
+ * getNotTrackedVertices()
  * @author Aapo Kyrola
  */
 public class PersonalizedPageRank implements WalkUpdateFunction<EmptyType, EmptyType> {
