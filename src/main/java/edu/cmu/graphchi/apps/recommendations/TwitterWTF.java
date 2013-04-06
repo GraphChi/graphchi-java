@@ -180,12 +180,13 @@ public class TwitterWTF implements WalkUpdateFunction<EmptyType, EmptyType> {
      */
     public int[] getNotTrackedVertices(ChiVertex<EmptyType, EmptyType> vertex) {
         int[] notCounted = new int[1 + vertex.numOutEdges()];
-        for(int i=1; i < vertex.numOutEdges(); i++) {
-            notCounted[i] = vertex.getOutEdgeId(i);
+        for(int i=0; i < vertex.numOutEdges(); i++) {
+            notCounted[i + 1] = vertex.getOutEdgeId(i);
         }
         notCounted[0] = vertex.getId();
         return notCounted;
     }
+
 
     protected static FastSharder createSharder(String graphName, int numShards) throws IOException {
         return new FastSharder<EmptyType, EmptyType>(graphName, numShards, null, null, null, null);
