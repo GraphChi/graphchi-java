@@ -443,11 +443,7 @@ public class DrunkardMobWithCompanion implements GraphChiProgram<Integer, Float>
             // TODO: ensure that we have sent all walks!
             mob.spinUntilFinish();
 
-
-
             mob.companion.outputDistributions(new File(baseFilename).getName() + "_" + firstSource);
-
-
 
         }
 

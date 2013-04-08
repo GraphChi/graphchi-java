@@ -45,17 +45,36 @@ import java.util.logging.Logger;
  */
 public class ALSMatrixFactorization implements GraphChiProgram<Integer, Float> {
 
-    private static Logger logger = ChiLogger.getLogger("ALS");
+    protected static Logger logger = ChiLogger.getLogger("ALS");
 
     /* Used for storing the vertex values in memory efficiently. */
-    private HugeDoubleMatrix vertexValueMatrix;
-    private int D;
+    protected HugeDoubleMatrix vertexValueMatrix;
+    protected int D;
 
-    double LAMBDA = 0.065;
-    double rmse = 0.0;
+    protected String baseFilename;
+    protected int numShards;
 
-    private ALSMatrixFactorization(int D) {
+    protected double LAMBDA = 0.065;
+    protected double rmse = 0.0;
+
+    protected ALSMatrixFactorization(int D, String baseFilename, int numShards) {
         this.D = D; // Dimensionality factor
+        this.numShards = numShards;
+        this.baseFilename = baseFilename;
+    }
+
+    /**
+     * Compute a prediction. Note: need to use the internal vertex-ids.
+     * @param leftVertex (often "user")
+     * @param rightVertex (often "movie")
+     * @return
+     */
+    public double predict(int leftVertex, int rightVertex) {
+        double[] leftLatent = new double[D];
+        double[] rightLatent = new double[D];
+        vertexValueMatrix.getRow(leftVertex, leftLatent);
+        vertexValueMatrix.getRow(rightVertex, rightLatent);
+        return new ArrayRealVector(leftLatent).dotProduct(new ArrayRealVector(rightLatent));
     }
 
     @Override
@@ -193,7 +212,27 @@ public class ALSMatrixFactorization implements GraphChiProgram<Integer, Float> {
         }
         String baseFilename = args[0];
         int nShards = Integer.parseInt(args[1]);
+        int D = 20;
+        if (args.length == 3) {
+            D = Integer.parseInt(args[2]);
+        }
+        ALSMatrixFactorization als = computeALS(baseFilename, nShards, D);
 
+
+        als.writeOutputMatrices();
+    }
+
+
+    /**
+     * Compute ALS and return the ALS object which can be used to
+     * compute predictions.
+     * @param baseFilename
+     * @param nShards
+     * @param D
+     * @return
+     * @throws IOException
+     */
+    public static ALSMatrixFactorization computeALS(String baseFilename, int nShards, int D) throws IOException {
         /* Run sharding (preprocessing) if the files do not exist yet */
         FastSharder sharder = createSharder(baseFilename, nShards);
         if (!new File(ChiFilenames.getFilenameIntervals(baseFilename, nShards)).exists() ||
@@ -204,11 +243,7 @@ public class ALSMatrixFactorization implements GraphChiProgram<Integer, Float> {
         }
 
         /* Init */
-        int D = 20;
-        if (args.length == 3) {
-            D = Integer.parseInt(args[2]);
-        }
-        ALSMatrixFactorization als = new ALSMatrixFactorization(D);
+        ALSMatrixFactorization als = new ALSMatrixFactorization(D, baseFilename, nShards);
         logger.info("Set latent factor dimension to: " + als.D);
 
         /* Run GraphChi */
@@ -224,22 +259,52 @@ public class ALSMatrixFactorization implements GraphChiProgram<Integer, Float> {
         /* Output RMSE */
         double trainRMSE = Math.sqrt(als.rmse / (1.0 * engine.numEdges()));
         logger.info("Train RMSE: " + trainRMSE + ", total edges:" + engine.numEdges());
+        return als;
+    }
 
-        als.writeOutputMatrices(baseFilename, engine.getVertexIdTranslate());
+    public BipartiteGraphInfo getGraphInfo() {
+        String infoFile = baseFilename + ".matrixinfo";
+        try {
+            String info = FileUtils.readToString(infoFile);
+            String[] tok = info.split("\t");
+            int numLeft = Integer.parseInt(tok[0]);
+            int numRight = Integer.parseInt(tok[1]);
+            return new BipartiteGraphInfo(numLeft, numRight);
+        } catch (IOException ioe) {
+            throw new RuntimeException("Could not load matrix info! File: " + infoFile);
+        }
+    }
+
+    public class BipartiteGraphInfo {
+        private int numLeft;
+        private int numRight;
+
+        public BipartiteGraphInfo(int numLeft, int numRight) {
+            this.numLeft = numLeft;
+            this.numRight = numRight;
+        }
+
+        public int getNumLeft() {
+            return numLeft;
+        }
+
+        public int getNumRight() {
+            return numRight;
+        }
     }
 
     /**
      * Output in matrix market format
-     * @param baseFilename
-     * @param vertexIdTranslate
      * @throws Exception
      */
-    private void writeOutputMatrices(String baseFilename, VertexIdTranslate vertexIdTranslate) throws Exception {
+    private void writeOutputMatrices() throws Exception {
         /* First read the original matrix dimensions */
-        String info = FileUtils.readToString(baseFilename + ".matrixinfo");
-        String[] tok = info.split("\t");
-        int numLeft = Integer.parseInt(tok[0]);
-        int numRight = Integer.parseInt(tok[1]);
+        BipartiteGraphInfo graphInfo = getGraphInfo();
+        int numLeft = graphInfo.getNumLeft();
+        int numRight = graphInfo.getNumRight();
+
+        VertexIdTranslate vertexIdTranslate =
+                VertexIdTranslate.fromFile(new File(ChiFilenames.getVertexTranslateDefFile(baseFilename, numShards)));
 
         /* Output left */
         String leftFileName = baseFilename + "_U.mm";

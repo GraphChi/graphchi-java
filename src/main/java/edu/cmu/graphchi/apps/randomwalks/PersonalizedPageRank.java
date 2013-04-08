@@ -64,9 +64,11 @@ public class PersonalizedPageRank implements WalkUpdateFunction<EmptyType, Empty
         }
 
         /* Configure walk sources. Note, GraphChi's internal ids are used. */
-        this.drunkardMobEngine.configureSourceRangeInternalIds(firstSource, numSources, numWalksPerSource);
+        DrunkardMobEngine.DrunkardJob drunkardJob = this.drunkardMobEngine.addJob("personalizedPageRank",
+                EdgeDirection.OUT_EDGES, this, companion);
 
-        this.drunkardMobEngine.run(EdgeDirection.OUT_EDGES, this, numIters, companion);
+        drunkardJob.configureSourceRangeInternalIds(firstSource, numSources, numWalksPerSource);
+        drunkardMobEngine.run(numIters);
 
         /* Ask companion to dump the results to file */
         int nTop = 100;

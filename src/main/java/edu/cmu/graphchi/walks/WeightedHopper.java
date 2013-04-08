@@ -1,6 +1,7 @@
 package edu.cmu.graphchi.walks;
 
 import edu.cmu.graphchi.ChiVertex;
+import edu.cmu.graphchi.EdgeDirection;
 
 import java.util.Arrays;
 import java.util.Random;
@@ -11,6 +12,7 @@ import java.util.Random;
  * not the edges themselves.
  */
 public class WeightedHopper {
+
 
 
     public static <VT> int[] generateRandomHopsOut(Random r, ChiVertex<VT, Float> vertex, int n) {
@@ -44,14 +46,35 @@ public class WeightedHopper {
     }
 
     public static <VT> int[] generateRandomHopsAliasMethodOut(Random r, ChiVertex<VT, Float> vertex, int n) {
-        int l = vertex.numOutEdges();
+        return generateRandomHopsAliasMethod(r, vertex, n, EdgeDirection.OUT_EDGES, null);
+
+    }
+
+    public static <VT> int[] generateRandomHopsAliasMethod(Random r, ChiVertex<VT, Float> vertex, int n, EdgeDirection edgeDir,
+                                                            EdgeWeightMap weightMap) {
+        int l = 0;
+        switch (edgeDir) {
+            case IN_AND_OUT_EDGES: l = vertex.numEdges(); break;
+            case OUT_EDGES: l = vertex.numOutEdges(); break;
+            case IN_EDGES: l = vertex.numInEdges(); break;
+        }
+
         float[] values = new float[l];
         int[] aliases = new int[l];
 
         // Compute average
         float sum = 0;
         for(int i=0; i < l; i++) {
-            float x = vertex.getOutEdgeValue(i);
+            float x = 0.0f;
+            switch (edgeDir) {
+                case IN_AND_OUT_EDGES: x = vertex.edge(i).getValue(); break;
+                case OUT_EDGES: x= vertex.getOutEdgeValue(i); break;
+                case IN_EDGES: x = vertex.inEdge(i).getValue(); break;
+            }
+            if (weightMap != null) {
+                x = weightMap.map(x);
+            }
+
             sum += x;
             values[i] = x;
         }
@@ -109,4 +132,9 @@ public class WeightedHopper {
         return hops;
     }
 
+
+
+    public static interface EdgeWeightMap {
+        public float map(float x);
+    }
 }

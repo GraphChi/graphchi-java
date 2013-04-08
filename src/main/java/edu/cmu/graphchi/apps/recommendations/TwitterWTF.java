@@ -85,9 +85,12 @@ public class TwitterWTF implements WalkUpdateFunction<EmptyType, EmptyType> {
 
         /* Step 1: Compute random walks */
         /* Configure walk sources. Note, GraphChi's internal ids are used. */
-        this.drunkardMobEngine.configureSourceRangeInternalIds(firstSource, numSources, numWalksPerSource);
 
-        this.drunkardMobEngine.run(EdgeDirection.OUT_EDGES, this, numIters, companion);
+        DrunkardMobEngine.DrunkardJob drunkardJob = this.drunkardMobEngine.addJob("twitterwtf",
+                EdgeDirection.OUT_EDGES, this, companion);
+
+        drunkardJob.configureSourceRangeInternalIds(firstSource, numSources, numWalksPerSource);
+        drunkardMobEngine.run(numIters);
 
         VertexIdTranslate vertexIdTranslate = this.drunkardMobEngine.getVertexIdTranslate();
 
@@ -100,13 +103,13 @@ public class TwitterWTF implements WalkUpdateFunction<EmptyType, EmptyType> {
         long startTime = System.currentTimeMillis();
         CircleOfTrustSalsa csalsa = new CircleOfTrustSalsa(baseFilename, numShards, salsaCacheSize);
 
-        // TODO: make multithreaded!
+        // TODO: make multi-threaded!
         for(int vertexId=firstSource; vertexId < firstSource+numSources; vertexId++) {
             /* Get circle of trust from the DrunkardCompanion */
 
             IdCount[] topVisits = companion.getTop(vertexId, circleOfTrustSize);
 
-            HashSet<Integer> circleOfTrust = new HashSet(topVisits.length);
+            HashSet<Integer> circleOfTrust = new HashSet<Integer>(topVisits.length);
             for(IdCount idc: topVisits) {
                 circleOfTrust.add(idc.id);
             }
@@ -212,7 +215,7 @@ public class TwitterWTF implements WalkUpdateFunction<EmptyType, EmptyType> {
             CommandLine cmdLine =  parser.parse(cmdLineOptions, args);
 
             /**
-             * Preprocess graph if needed
+             * Pre-process graph if needed
              */
             String baseFilename = cmdLine.getOptionValue("graph");
             int nShards = Integer.parseInt(cmdLine.getOptionValue("nshards"));

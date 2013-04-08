@@ -12,8 +12,7 @@ import edu.cmu.graphchi.walks.distributions.RemoteDrunkardCompanion;
 
 import java.io.IOException;
 import java.rmi.RemoteException;
-import java.util.ArrayList;
-import java.util.Random;
+import java.util.*;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
@@ -21,20 +20,27 @@ import java.util.logging.Logger;
 
 /**
  * Class for running DrunkardMob random walk applications.
+ * This can run multiple distinct random walk computations. They are executed
+ * simultaneously when iterating over the graph.
  * @author Aapo Kyrola
  */
 public class DrunkardMobEngine<VertexDataType, EdgeDataType> {
 
-    private GraphChiEngine<VertexDataType, EdgeDataType> engine;
-    private WalkManager walkManager;
+    protected GraphChiEngine<VertexDataType, EdgeDataType> engine;
+    protected List<DrunkardDriver> drivers;
 
     protected static Logger logger = ChiLogger.getLogger("drunkardmob-engine");
 
 
     public DrunkardMobEngine(String baseFilename, int nShards) throws IOException {
         createGraphChiEngine(baseFilename, nShards);
+        this.drivers = new ArrayList<DrunkardDriver>();
 
-        this.walkManager = null;
+        // Disable all edge directions by default
+        engine.setDisableInedges(true);
+        engine.setDisableOutEdges(true);
+        engine.setModifiesInedges(false);
+        engine.setModifiesOutedges(false);
     }
 
     protected void createGraphChiEngine(String baseFilename, int nShards) throws IOException {
@@ -44,12 +50,18 @@ public class DrunkardMobEngine<VertexDataType, EdgeDataType> {
         this.engine.setEdataConverter(null);
     }
 
-    public WalkManager getWalkManager() {
-        return walkManager;
-    }
 
     public GraphChiEngine<VertexDataType, EdgeDataType> getEngine() {
         return engine;
+    }
+
+    public DrunkardJob getJob(String name) {
+        for(DrunkardDriver driver : drivers) {
+            if (driver.job.getName().equals(name)) {
+                return driver.job;
+            }
+        }
+        return null;
     }
 
     /**
@@ -74,35 +86,20 @@ public class DrunkardMobEngine<VertexDataType, EdgeDataType> {
     }
 
 
-    /**
-     * Start walks from vertex firstSourceId to firstSourceId + numSources
-     * @param firstSourceId
-     * @param numSources
-     * @param walksPerSource how many walks to start from each source
-     */
-    public void configureSourceRangeInternalIds(int firstSourceId, int numSources, int walksPerSource) {
-        this.walkManager = createWalkManager(numSources);
-
-        for(int i=firstSourceId; i < firstSourceId + numSources; i++) {
-            this.walkManager.addWalkBatch(i, walksPerSource);
-        }
-    }
-
     protected WalkManager createWalkManager(int numSources) {
         return new WalkManager(engine.numVertices(), numSources);
     }
 
     /**
-     * Start a random walk process
+     * Adds a random walk job.  Use run() to run all the jobs.
      * @param edgeDirection which direction edges need to be considered
      * @param callback your walk logic
-     * @param numIterations how many iterations (i.e the minimum number of hops for each walk)
-     * @param tracker object that keeps track of the walks
+     * @param companion object that keeps track of the walks
+     * @return the job object
      */
-    public void run(EdgeDirection edgeDirection,
-                    WalkUpdateFunction<VertexDataType, EdgeDataType> callback,
-                    int numIterations,
-                    RemoteDrunkardCompanion tracker) throws IOException, RemoteException {
+    public DrunkardJob addJob(String jobName, EdgeDirection edgeDirection,
+                              WalkUpdateFunction<VertexDataType, EdgeDataType> callback,
+                              RemoteDrunkardCompanion companion) throws IOException {
 
         /* Configure engine parameters */
         switch(edgeDirection) {
@@ -112,14 +109,21 @@ public class DrunkardMobEngine<VertexDataType, EdgeDataType> {
                 break;
             case IN_EDGES:
                 engine.setDisableInedges(false);
-                engine.setDisableOutEdges(true);
                 break;
             case OUT_EDGES:
-                engine.setDisableInedges(true);
                 engine.setDisableOutEdges(false);
                 break;
         }
 
+        /**
+         * Create job object and the driver-object.
+         */
+        DrunkardJob job = new DrunkardJob(jobName, companion);
+        drivers.add(new DrunkardDriver(job, callback));
+        return job;
+    }
+
+    public void run(int numIterations) throws IOException, RemoteException {
         engine.setEnableScheduler(true);
 
         int memoryBudget = 1200;
@@ -128,37 +132,108 @@ public class DrunkardMobEngine<VertexDataType, EdgeDataType> {
         engine.setMemoryBudgetMb(memoryBudget);
         engine.setEnableDeterministicExecution(false);
         engine.setAutoLoadNext(false);
+        engine.setVertexDataConverter(null);
         engine.setMaxWindow(10000000); // Handle maximum 10M vertices a time.
 
-        /* Setup walk manager */
-        if (this.walkManager == null) {
-            throw new IllegalStateException("You need to configure walks using configureSourceRangeInternalIds()!");
+        for(DrunkardDriver driver : drivers) {
+            if (driver.job.walkManager == null) {
+                throw new IllegalStateException("You need to configure walks by calling DrunkardJob.configureXXX()");
+            }
+            driver.initWalks();
         }
-        this.walkManager.initializeWalks();
 
-        tracker.setSources(walkManager.getSources());
+        /* Run GraphChi */
+        logger.info("Starting running drunkard jobs (" + drivers.size() + " jobs)");
+        engine.run(new GraphChiDrunkardWrapper(), numIterations);
 
-        logger.info("Start the drunkard driver...");
-        DrunkardDriver driver = new DrunkardDriver(tracker, callback);
-        engine.run(driver, numIterations);
-        driver.spinUntilFinish();
-
-        logger.info("Driver finished -- now you can queryAndCombine the companion for the distributions.");
+        /* Finish up */
+        for(DrunkardDriver driver: drivers) {
+            driver.spinUntilFinish();
+        }
     }
 
     public VertexIdTranslate getVertexIdTranslate() {
         return engine.getVertexIdTranslate();
     }
 
+
+    /**
+     * Multiplex for DrunkardDrivers.
+     */
+    protected class GraphChiDrunkardWrapper implements GraphChiProgram<VertexDataType, EdgeDataType> {
+        @Override
+        public void update(ChiVertex<VertexDataType, EdgeDataType> vertex, GraphChiContext context) {
+
+            /* Buffer management. TODO: think, this is too complex after adding the multiplex */
+            if (context.getThreadLocal() == null) {
+                ArrayList<LocalWalkBuffer> multiplexedLocalBuffers = new ArrayList<LocalWalkBuffer>(drivers.size());
+                for(DrunkardDriver driver: drivers) {
+                    LocalWalkBuffer buf = new  LocalWalkBuffer();
+                    driver.addLocalBuffer(buf);
+                    multiplexedLocalBuffers.add(buf);
+                }
+                context.setThreadLocal(multiplexedLocalBuffers);
+            }
+
+            final ArrayList<LocalWalkBuffer> multiplexedLocalBuffers = (ArrayList<LocalWalkBuffer>) context.getThreadLocal();
+
+            int i = 0;
+            for(DrunkardDriver driver : drivers) {
+                driver.update(vertex, context, multiplexedLocalBuffers.get(i++));
+            }
+        }
+
+        @Override
+        public void beginIteration(GraphChiContext ctx) {
+            for(DrunkardDriver driver : drivers) {
+                driver.beginIteration(ctx);
+            }
+        }
+
+        @Override
+        public void endIteration(GraphChiContext ctx) {
+            for(DrunkardDriver driver : drivers) {
+                driver.endIteration(ctx);
+            }
+        }
+
+        @Override
+        public void beginInterval(GraphChiContext ctx, VertexInterval interval) {
+            for(DrunkardDriver driver : drivers) {
+                driver.beginInterval(ctx, interval);
+            }
+        }
+
+        @Override
+        public void endInterval(GraphChiContext ctx, VertexInterval interval) {
+            for(DrunkardDriver driver : drivers) {
+                driver.endInterval(ctx, interval);
+            }
+        }
+
+        @Override
+        public void beginSubInterval(GraphChiContext ctx, VertexInterval interval) {
+            for(DrunkardDriver driver : drivers) {
+                driver.beginSubInterval(ctx, interval);
+            }
+        }
+
+        @Override
+        public void endSubInterval(GraphChiContext ctx, VertexInterval interval) {
+            for(DrunkardDriver driver : drivers) {
+                driver.endSubInterval(ctx, interval);
+            }
+        }
+    }
+
     /**
      * Inner class to encapsulate the graphchi program running the show.
      * Due to several optimizations, it is quite complicated!
      */
-    protected class DrunkardDriver implements GraphChiProgram<VertexDataType, EdgeDataType>, GrabbedBucketConsumer {
+    protected class DrunkardDriver implements GrabbedBucketConsumer {
         private WalkSnapshot curWalkSnapshot;
-        private final RemoteDrunkardCompanion companion;
+        private final DrunkardJob job;
 
-        private final static double RESETPROB = 0.15;
         private LinkedBlockingQueue<BucketsToSend> bucketQueue = new LinkedBlockingQueue<BucketsToSend>();
         private boolean finished = false;
         private Thread dumperThread;
@@ -169,8 +244,8 @@ public class DrunkardMobEngine<VertexDataType, EdgeDataType> {
                 Metrics.defaultRegistry().newTimer(DrunkardMobEngine.class, "purge-localwalks", TimeUnit.SECONDS, TimeUnit.MINUTES);
 
 
-        DrunkardDriver(final RemoteDrunkardCompanion companion, WalkUpdateFunction<VertexDataType, EdgeDataType> callback) {
-            this.companion = companion;
+        DrunkardDriver(final DrunkardJob job, WalkUpdateFunction<VertexDataType, EdgeDataType> callback) {
+            this.job = job;
             this.callback = callback;
 
             // Setup thread for sending walks to the companion (i.e tracker)
@@ -207,7 +282,7 @@ public class DrunkardMobEngine<VertexDataType, EdgeDataType> {
 
                                 if (idx >= walks.length) {
                                     try {
-                                        companion.processWalks(walks, vertices);
+                                        job.companion.processWalks(walks, vertices);
                                     } catch (Exception err) {
                                         err.printStackTrace();
                                     }
@@ -224,7 +299,7 @@ public class DrunkardMobEngine<VertexDataType, EdgeDataType> {
                         int[] tmpVertices = new int[idx];
                         System.arraycopy(walks, 0, tmpWalks, 0, idx);
                         System.arraycopy(vertices, 0, tmpVertices, 0, idx);
-                        companion.processWalks(tmpWalks, tmpVertices);
+                        job.companion.processWalks(tmpWalks, tmpVertices);
                     } catch (Exception err) {
                         err.printStackTrace();
                     }
@@ -235,22 +310,13 @@ public class DrunkardMobEngine<VertexDataType, EdgeDataType> {
 
 
 
-        public void update(ChiVertex<VertexDataType, EdgeDataType> vertex, GraphChiContext context) {
+        public void update(ChiVertex<VertexDataType, EdgeDataType> vertex, final GraphChiContext context,
+                           final LocalWalkBuffer localBuf) {
 
-            /* Buffer management */
-            if (context.getThreadLocal() == null) {
-                LocalWalkBuffer buf = new LocalWalkBuffer();
-                context.setThreadLocal(buf);
-                synchronized (localBuffers) {
-                    localBuffers.add(buf);
-                }
-            }
-
-            final LocalWalkBuffer localBuf = (LocalWalkBuffer) context.getThreadLocal();
 
             try {
                 // Flow control
-                while (pendingWalksToSubmit.get() > walkManager.getTotalWalks() / 40) {
+                while (pendingWalksToSubmit.get() > job.walkManager.getTotalWalks() / 40) {
                     //System.out.println("Too many walks waiting for delivery: " + pendingWalksToSubmit.get());
                     try {
                         Thread.sleep(500);
@@ -267,18 +333,18 @@ public class DrunkardMobEngine<VertexDataType, EdgeDataType> {
                 // On first iteration, we ask the callback for list of vertices
                 // that should not be tracked
                 if (firstIteration) {
-                    if (walkManager.isSource(vertex.getId())) {
-                        int mySourceIdx = walkManager.getVertexSourceIdx(vertex.getId());
+                    if (job.walkManager.isSource(vertex.getId())) {
+                        int mySourceIdx = job.walkManager.getVertexSourceIdx(vertex.getId());
 
-                        companion.setAvoidList(mySourceIdx, callback.getNotTrackedVertices(vertex));
+                        job.companion.setAvoidList(mySourceIdx, callback.getNotTrackedVertices(vertex));
                     }
                 }
-                if (walksAtMe == null) return;
+                if (walksAtMe == null || walksAtMe.length == 0) return;
 
                 Random randomGenerator = localBuf.random;
 
-                final boolean  isSource = walkManager.isSource(vertex.getId());
-                final int mySourceIndex = (isSource ? walkManager.getVertexSourceIdx(vertex.getId()) : -1);
+                final boolean  isSource = job.walkManager.isSource(vertex.getId());
+                final int mySourceIndex = (isSource ? job.walkManager.getVertexSourceIdx(vertex.getId()) : -1);
 
                 callback.processWalksAtVertex(walksAtMe, vertex, new DrunkardContext() {
                     @Override
@@ -292,13 +358,18 @@ public class DrunkardMobEngine<VertexDataType, EdgeDataType> {
                     }
 
                     @Override
+                    public int getIteration() {
+                        return context.getIteration();
+                    }
+
+                    @Override
                     public void forwardWalkTo(int walk, int destinationVertex, boolean trackBit) {
                         localBuf.add(WalkManager.sourceIdx(walk), destinationVertex, trackBit);
                     }
 
                     @Override
                     public void resetWalk(int walk, boolean trackBit) {
-                         forwardWalkTo(walk, walkManager.getSourceVertex(WalkManager.sourceIdx(walk)), false);
+                        forwardWalkTo(walk, job.walkManager.getSourceVertex(WalkManager.sourceIdx(walk)), false);
                     }
 
                     @Override
@@ -321,52 +392,18 @@ public class DrunkardMobEngine<VertexDataType, EdgeDataType> {
             }
         }
 
-
-        protected class LocalWalkBuffer {
-            int[] walkBufferDests;
-            int[] walkSourcesAndHops;
-            Random random = new Random();
-
-            int idx = 0;
-            LocalWalkBuffer() {
-                walkBufferDests = new int[65536];
-                walkSourcesAndHops = new int[65536];
-            }
-
-            private void add(int src, int dst, boolean hop) {
-                if (idx == walkSourcesAndHops.length) {
-                    int[] tmp = walkSourcesAndHops;
-                    walkSourcesAndHops = new int[tmp.length * 2];
-                    System.arraycopy(tmp, 0, walkSourcesAndHops, 0, tmp.length);
-
-                    tmp = walkBufferDests;
-                    walkBufferDests = new int[tmp.length * 2];
-                    System.arraycopy(tmp, 0, walkBufferDests, 0, tmp.length);
-                }
-                walkBufferDests[idx] = dst;
-                walkSourcesAndHops[idx] = (hop ? -1 : 1) * (1 + src); // Note +1 so zero will be handled correctly
-                idx++;
-            }
-
-            private void purge() {
-                for(int i=0; i<idx; i++) {
-                    int dst = walkBufferDests[i];
-                    int src = walkSourcesAndHops[i];
-                    boolean hop = src < 0;
-                    if (src < 0) src = -src;
-                    src = src - 1;  // Note, -1
-                    walkManager.updateWalkUnsafe(src, dst, hop);
-                }
-                walkSourcesAndHops = null;
-                walkBufferDests = null;
-            }
-
+        public void initWalks() throws RemoteException{
+            job.walkManager.initializeWalks();
+            job.getCompanion().setSources(job.walkManager.getSources());
         }
+
+
+
 
         public void beginIteration(GraphChiContext ctx) {
             if (ctx.getIteration() == 0) {
                 ctx.getScheduler().removeAllTasks();
-                walkManager.populateSchedulerWithSources(ctx.getScheduler());
+                job.walkManager.populateSchedulerWithSources(ctx.getScheduler());
             }
         }
 
@@ -391,12 +428,16 @@ public class DrunkardMobEngine<VertexDataType, EdgeDataType> {
 
         private ArrayList<LocalWalkBuffer> localBuffers = new ArrayList<LocalWalkBuffer>();
 
+        synchronized void addLocalBuffer(LocalWalkBuffer buf) {
+            localBuffers.add(buf);
+        }
+
         /**
          * At the start of interval - grab the snapshot of walks
          */
         public void beginSubInterval(GraphChiContext ctx, final VertexInterval interval) {
             long t = System.currentTimeMillis();
-            curWalkSnapshot = walkManager.grabSnapshot(interval.getFirstVertex(), interval.getLastVertex());
+            curWalkSnapshot = job.walkManager.grabSnapshot(interval.getFirstVertex(), interval.getLastVertex());
             logger.info("Grab snapshot took " + (System.currentTimeMillis() - t) + " ms.");
 
             while(localBuffers.size() > 0) {
@@ -418,7 +459,7 @@ public class DrunkardMobEngine<VertexDataType, EdgeDataType> {
                     synchronized (localBuffers) {
                         final TimerContext _timer = purgeTimer.time();
                         for (LocalWalkBuffer buf : localBuffers) {
-                            buf.purge();
+                            buf.purge(job.walkManager);
                         }
                         localBuffers.clear();
                         _timer.stop();
@@ -427,17 +468,19 @@ public class DrunkardMobEngine<VertexDataType, EdgeDataType> {
             t.start();
         }
 
+
+
         public void beginInterval(GraphChiContext ctx, VertexInterval interval) {
             /* Count walks */
-            long initializedWalks = walkManager.getTotalWalks();
-            long activeWalks = walkManager.getNumOfActiveWalks();
+            long initializedWalks = job.walkManager.getTotalWalks();
+            long activeWalks = job.walkManager.getNumOfActiveWalks();
 
             System.out.println("=====================================");
             System.out.println("Active walks: " + activeWalks + ", initialized=" + initializedWalks);
             System.out.println("=====================================");
 
-            walkManager.populateSchedulerForInterval(ctx.getScheduler(), interval);
-            walkManager.setBucketConsumer(this);
+            job.walkManager.populateSchedulerForInterval(ctx.getScheduler(), interval);
+            job.walkManager.setBucketConsumer(this);
         }
 
         public void endInterval(GraphChiContext ctx, VertexInterval interval) {}
@@ -465,5 +508,108 @@ public class DrunkardMobEngine<VertexDataType, EdgeDataType> {
         }
     }
 
+    /**
+     * Encapsulates a random walk computation.
+     */
+    public class DrunkardJob {
+        private String name;
+        private WalkManager walkManager;
+        private RemoteDrunkardCompanion companion;
 
+        public DrunkardJob(String name,  RemoteDrunkardCompanion companion) {
+            this.name = name;
+            this.walkManager = walkManager;
+            this.companion = companion;
+        }
+
+
+        /**
+         * Start walks from vertex firstSourceId to firstSourceId + numSources
+         * @param firstSourceId
+         * @param numSources  how many walks to start from each source
+         * @param walksPerSource how many walks to start from each source
+         */
+        public void configureSourceRangeInternalIds(int firstSourceId, int numSources, int walksPerSource) {
+            if (this.walkManager != null) {
+                throw new IllegalStateException("You can configure walks only once!");
+            }
+            this.walkManager = createWalkManager(numSources);
+
+            for(int i=firstSourceId; i < firstSourceId + numSources; i++) {
+                this.walkManager.addWalkBatch(i, walksPerSource);
+            }
+        }
+
+        /**
+         * Configure walks starting from list of vertices
+         * @param walkSources
+         * @param walksPerSource
+         */
+        public void configureWalkSources(List<Integer> walkSources, int walksPerSource) {
+            if (this.walkManager != null) {
+                throw new IllegalStateException("You can configure walks only once!");
+            }
+            this.walkManager = createWalkManager(walkSources.size());
+            Collections.sort(walkSources);
+            for(int src : walkSources) {
+                this.walkManager.addWalkBatch(src, walksPerSource);
+            }
+        }
+
+
+        public String getName() {
+            return name;
+        }
+
+        public void setName(String name) {
+            this.name = name;
+        }
+
+
+        public RemoteDrunkardCompanion getCompanion() {
+            return companion;
+        }
+
+    }
+
+    static protected class LocalWalkBuffer {
+        int[] walkBufferDests;
+        int[] walkSourcesAndHops;
+        Random random = new Random();
+
+        int idx = 0;
+        LocalWalkBuffer() {
+            walkBufferDests = new int[65536];
+            walkSourcesAndHops = new int[65536];
+        }
+
+        private void add(int src, int dst, boolean hop) {
+            if (idx == walkSourcesAndHops.length) {
+                int[] tmp = walkSourcesAndHops;
+                walkSourcesAndHops = new int[tmp.length * 2];
+                System.arraycopy(tmp, 0, walkSourcesAndHops, 0, tmp.length);
+
+                tmp = walkBufferDests;
+                walkBufferDests = new int[tmp.length * 2];
+                System.arraycopy(tmp, 0, walkBufferDests, 0, tmp.length);
+            }
+            walkBufferDests[idx] = dst;
+            walkSourcesAndHops[idx] = (hop ? -1 : 1) * (1 + src); // Note +1 so zero will be handled correctly
+            idx++;
+        }
+
+        private void purge(WalkManager walkManager) {
+            for(int i=0; i<idx; i++) {
+                int dst = walkBufferDests[i];
+                int src = walkSourcesAndHops[i];
+                boolean hop = src < 0;
+                if (src < 0) src = -src;
+                src = src - 1;  // Note, -1
+                walkManager.updateWalkUnsafe(src, dst, hop);
+            }
+            walkSourcesAndHops = null;
+            walkBufferDests = null;
+        }
+
+    }
 }

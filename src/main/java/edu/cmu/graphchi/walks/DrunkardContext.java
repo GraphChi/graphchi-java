@@ -19,6 +19,9 @@ public interface DrunkardContext {
      */
     int sourceIndex();
 
+
+    int getIteration();
+
     /**
      * Moves walk to next vertex
      * @param walk walk identified
