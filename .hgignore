@@ -1,0 +1,5 @@
+target
+
+syntax: glob
+
+*.swp

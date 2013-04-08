@@ -10,6 +10,7 @@ import edu.cmu.graphchi.preprocessing.FastSharder;
 import edu.cmu.graphchi.preprocessing.VertexIdTranslate;
 import edu.cmu.graphchi.util.IdCount;
 import edu.cmu.graphchi.walks.DrunkardContext;
+import edu.cmu.graphchi.walks.DrunkardJob;
 import edu.cmu.graphchi.walks.DrunkardMobEngine;
 import edu.cmu.graphchi.walks.WalkUpdateFunction;
 import edu.cmu.graphchi.walks.WeightedHopper;
@@ -52,9 +53,9 @@ public class MovieRecommender {
 
         /* Initialize drunkardmob */
         DrunkardMobEngine<Integer, Float> drunkardMobEngine = new DrunkardMobEngine<Integer, Float>(baseFilename, nShards);
-        DrunkardMobEngine.DrunkardJob positiveJob = drunkardMobEngine.addJob("positive", EdgeDirection.IN_AND_OUT_EDGES,
+        DrunkardJob positiveJob = drunkardMobEngine.addJob("positive", EdgeDirection.IN_AND_OUT_EDGES,
                 new PositiveWalkUpdate(), new DrunkardCompanion(2, Runtime.getRuntime().maxMemory() / 8));
-        DrunkardMobEngine.DrunkardJob negativeJob = drunkardMobEngine.addJob("negative", EdgeDirection.IN_AND_OUT_EDGES,
+        DrunkardJob negativeJob = drunkardMobEngine.addJob("negative", EdgeDirection.IN_AND_OUT_EDGES,
                 new NegativeWalkUpdate(), new DrunkardCompanion(2, Runtime.getRuntime().maxMemory() / 8));
 
         drunkardMobEngine.setEdataConverter(new FloatConverter());
