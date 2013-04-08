@@ -9,6 +9,7 @@ import edu.cmu.graphchi.preprocessing.VertexIdTranslate;
 import edu.cmu.graphchi.preprocessing.VertexProcessor;
 import edu.cmu.graphchi.util.IdCount;
 import edu.cmu.graphchi.walks.DrunkardContext;
+import edu.cmu.graphchi.walks.DrunkardJob;
 import edu.cmu.graphchi.walks.DrunkardMobEngine;
 import edu.cmu.graphchi.walks.WalkUpdateFunction;
 import edu.cmu.graphchi.walks.WeightedHopper;
@@ -86,7 +87,7 @@ public class TwitterWTF implements WalkUpdateFunction<EmptyType, EmptyType> {
         /* Step 1: Compute random walks */
         /* Configure walk sources. Note, GraphChi's internal ids are used. */
 
-        DrunkardMobEngine.DrunkardJob drunkardJob = this.drunkardMobEngine.addJob("twitterwtf",
+        DrunkardJob drunkardJob = this.drunkardMobEngine.addJob("twitterwtf",
                 EdgeDirection.OUT_EDGES, this, companion);
 
         drunkardJob.configureSourceRangeInternalIds(firstSource, numSources, numWalksPerSource);

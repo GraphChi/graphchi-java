@@ -8,6 +8,7 @@ import edu.cmu.graphchi.preprocessing.VertexIdTranslate;
 import edu.cmu.graphchi.preprocessing.VertexProcessor;
 import edu.cmu.graphchi.util.IdCount;
 import edu.cmu.graphchi.walks.DrunkardContext;
+import edu.cmu.graphchi.walks.DrunkardJob;
 import edu.cmu.graphchi.walks.DrunkardMobEngine;
 import edu.cmu.graphchi.walks.WalkUpdateFunction;
 import edu.cmu.graphchi.walks.WeightedHopper;
@@ -64,7 +65,7 @@ public class PersonalizedPageRank implements WalkUpdateFunction<EmptyType, Empty
         }
 
         /* Configure walk sources. Note, GraphChi's internal ids are used. */
-        DrunkardMobEngine.DrunkardJob drunkardJob = this.drunkardMobEngine.addJob("personalizedPageRank",
+        DrunkardJob drunkardJob = this.drunkardMobEngine.addJob("personalizedPageRank",
                 EdgeDirection.OUT_EDGES, this, companion);
 
         drunkardJob.configureSourceRangeInternalIds(firstSource, numSources, numWalksPerSource);
