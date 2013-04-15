@@ -58,7 +58,7 @@ public class MemoryShard <EdgeDataType> {
     private DataBlockManager dataBlockManager;
     private BytesToValueConverter<EdgeDataType> converter;
     private int streamingOffset, streamingOffsetEdgePtr, streamingOffsetVid;
-    private int blocksize;
+    private int blocksize = 0;
 
     private final Timer loadAdjTimer = Metrics.defaultRegistry().newTimer(MemoryShard.class, "load-adj", TimeUnit.SECONDS, TimeUnit.MINUTES);
     private final Timer loadVerticesTimers = Metrics.defaultRegistry().newTimer(MemoryShard.class, "load-vertices", TimeUnit.SECONDS, TimeUnit.MINUTES);
@@ -79,8 +79,11 @@ public class MemoryShard <EdgeDataType> {
     public void commitAndRelease(boolean modifiesInedges, boolean modifiesOutedges) throws IOException {
         int nblocks = blockIds.length;
 
-        if (!onlyAdjacency) {
+        if (!onlyAdjacency && loaded) {
             if (modifiesInedges) {
+                if (blocksize == 0) {
+                    blocksize = ChiFilenames.getBlocksize(converter.sizeOf());
+                }
                 int startStreamBlock = rangeStartEdgePtr / blocksize;
                 for(int i=0; i < nblocks; i++) {
                     String blockFilename = ChiFilenames.getFilenameShardEdataBlock(edgeDataFilename, i, blocksize);
