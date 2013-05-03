@@ -686,7 +686,7 @@ public class FastSharder <VertexValueType, EdgeValueType> {
                     if (lineNum % 2000000 == 0) logger.info("Reading line: " + lineNum);
 
                     String[] tok = ln.split("\t");
-                     if (tok.length == 1) tok = ln.split(" ");
+                    if (tok.length == 1) tok = ln.split(" ");
 
                     if (format == GraphInputFormat.EDGELIST) {
                         /* Edge list: <src> <dst> <value> */
@@ -700,8 +700,14 @@ public class FastSharder <VertexValueType, EdgeValueType> {
                         int vertexId = Integer.parseInt(tok[0]);
                         int len = Integer.parseInt(tok[1]);
                         if (len != tok.length - 2) {
-                            throw new IllegalArgumentException("Error on line " + lineNum + "; number of edges does not match number of tokens:" +
-                                    len + " != " + tok.length);
+                            if (lineNum < 10) {
+                                throw new IllegalArgumentException("Error on line " + lineNum + "; number of edges does not match number of tokens:" +
+                                        len + " != " + tok.length);
+                            } else {
+                                logger.warning("Error on line " + lineNum + "; number of edges does not match number of tokens:" +
+                                        len + " != " + tok.length);
+                                break;
+                            }
                         }
                         for(int j=2; j < 2 + len; j++) {
                             int dest = Integer.parseInt(tok[j]);
