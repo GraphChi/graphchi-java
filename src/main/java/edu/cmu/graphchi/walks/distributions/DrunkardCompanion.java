@@ -56,6 +56,8 @@ public class DrunkardCompanion extends UnicastRemoteObject implements RemoteDrun
     protected static Logger logger = ChiLogger.getLogger("drunkardcompanion");
     protected Timer timer  = new Timer(true);
 
+    private boolean closed = false;
+
     /**
      * Prints estimate of memory usage
      */
@@ -151,7 +153,7 @@ public class DrunkardCompanion extends UnicastRemoteObject implements RemoteDrun
                     try {
 
                         long unpurgedWalks = 0;
-                        while(true) {
+                        while(!closed) {
 
                             WalkSubmission subm = pendingQueue.poll(2000, TimeUnit.MILLISECONDS);
                             if (subm != null) {
@@ -166,7 +168,7 @@ public class DrunkardCompanion extends UnicastRemoteObject implements RemoteDrun
                                     // Loop to see what to drain. Every thread looks for
                                     // different buffers.
                                     for(int i=_threadId; i < sourceVertexIds.length; i+=numThreads) {
-                                        if (buffers[i].size() >= BUFFER_MAX) {
+                                        if (buffers[i].size() >= BUFFER_MAX || closed) {
                                             // Drain asynchronously
                                             outstanding.incrementAndGet();
                                             final IntegerBuffer toDrain = buffers[i];
@@ -378,7 +380,7 @@ public class DrunkardCompanion extends UnicastRemoteObject implements RemoteDrun
     }
 
     public void close() {
-        parallelExecutor.shutdown();
+        closed = true;
         timer.cancel();
     }
 

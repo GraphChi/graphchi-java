@@ -1,12 +1,10 @@
 package edu.cmu.graphchi.apps.recommendations;
 
-import edu.cmu.graphchi.ChiFilenames;
 import edu.cmu.graphchi.ChiLogger;
 import edu.cmu.graphchi.ChiVertex;
 import edu.cmu.graphchi.EdgeDirection;
 import edu.cmu.graphchi.apps.ALSMatrixFactorization;
 import edu.cmu.graphchi.datablocks.FloatConverter;
-import edu.cmu.graphchi.preprocessing.FastSharder;
 import edu.cmu.graphchi.preprocessing.VertexIdTranslate;
 import edu.cmu.graphchi.util.IdCount;
 import edu.cmu.graphchi.walks.DrunkardContext;
@@ -17,8 +15,6 @@ import edu.cmu.graphchi.walks.WeightedHopper;
 import edu.cmu.graphchi.walks.distributions.DrunkardCompanion;
 import org.apache.commons.cli.*;
 
-import java.io.File;
-import java.io.FileInputStream;
 import java.util.ArrayList;
 import java.util.Random;
 import java.util.logging.Logger;

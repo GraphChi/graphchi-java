@@ -1,5 +1,6 @@
 package edu.cmu.graphchi.walks;
 
+import edu.cmu.akyrolaresearch.ExperimentTiming;
 import edu.cmu.graphchi.*;
 import edu.cmu.graphchi.datablocks.BytesToValueConverter;
 import edu.cmu.graphchi.engine.GraphChiEngine;
@@ -113,7 +114,15 @@ public class DrunkardMobEngine<VertexDataType, EdgeDataType> {
     }
 
     public void run(int numIterations) throws IOException, RemoteException {
+        run(numIterations, null);
+    }
+
+    public void run(int numIterations, ExperimentTiming expTiming) throws IOException, RemoteException {
         engine.setEnableScheduler(true);
+
+        if (expTiming == null) {
+            expTiming = new ExperimentTiming();
+        }
 
         int memoryBudget = 1200;
         if (System.getProperty("membudget") != null) memoryBudget = Integer.parseInt(System.getProperty("membudget"));
@@ -124,16 +133,23 @@ public class DrunkardMobEngine<VertexDataType, EdgeDataType> {
         engine.setVertexDataConverter(null);
         engine.setMaxWindow(10000000); // Handle maximum 10M vertices a time.
 
+        long t = System.currentTimeMillis();
         for(DrunkardDriver driver : drivers) {
             if (driver.getJob().getWalkManager() == null) {
                 throw new IllegalStateException("You need to configure walks by calling DrunkardJob.configureXXX()");
             }
             driver.initWalks();
         }
+        long initTime = System.currentTimeMillis() - t;
+        expTiming.setInitTime(initTime * 0.001);
 
         /* Run GraphChi */
         logger.info("Starting running drunkard jobs (" + drivers.size() + " jobs)");
-        engine.run(new GraphChiDrunkardWrapper(), numIterations);
+        engine.run(new GraphChiDrunkardWrapper(expTiming), numIterations);
+
+            expTiming.configure(this);
+
+        expTiming.setRunTimeTotal((System.currentTimeMillis() - t) * 0.001);
 
         /* Finish up */
         for(DrunkardDriver driver: drivers) {
@@ -150,6 +166,14 @@ public class DrunkardMobEngine<VertexDataType, EdgeDataType> {
      * Multiplex for DrunkardDrivers.
      */
     protected class GraphChiDrunkardWrapper implements GraphChiProgram<VertexDataType, EdgeDataType> {
+
+        private ExperimentTiming timing;
+        long iterationStart;
+
+        public GraphChiDrunkardWrapper(ExperimentTiming timing) {
+            this.timing = timing;
+        }
+
         @Override
         public void update(ChiVertex<VertexDataType, EdgeDataType> vertex, GraphChiContext context) {
 
@@ -174,6 +198,7 @@ public class DrunkardMobEngine<VertexDataType, EdgeDataType> {
 
         @Override
         public void beginIteration(GraphChiContext ctx) {
+            iterationStart = System.currentTimeMillis();
             for(DrunkardDriver driver : drivers) {
                 driver.beginIteration(ctx);
             }
@@ -184,6 +209,9 @@ public class DrunkardMobEngine<VertexDataType, EdgeDataType> {
             for(DrunkardDriver driver : drivers) {
                 driver.endIteration(ctx);
             }
+
+            long iterationTime = System.currentTimeMillis() - iterationStart;
+            timing.getIterationRuntimes().add(iterationTime * 0.001);
         }
 
         @Override

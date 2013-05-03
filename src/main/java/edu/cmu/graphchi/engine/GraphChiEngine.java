@@ -918,6 +918,10 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
         this.disableInEdges = b;
     }
 
+    public boolean isDisableInEdges() {
+        return disableInEdges;
+    }
+
     public int getMaxWindow() {
         return maxWindow;
     }
