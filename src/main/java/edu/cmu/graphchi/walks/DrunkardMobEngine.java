@@ -147,7 +147,7 @@ public class DrunkardMobEngine<VertexDataType, EdgeDataType> {
         logger.info("Starting running drunkard jobs (" + drivers.size() + " jobs)");
         engine.run(new GraphChiDrunkardWrapper(expTiming), numIterations);
 
-            expTiming.configure(this);
+        expTiming.configure(this);
 
         expTiming.setRunTimeTotal((System.currentTimeMillis() - t) * 0.001);
 
@@ -176,23 +176,26 @@ public class DrunkardMobEngine<VertexDataType, EdgeDataType> {
 
         @Override
         public void update(ChiVertex<VertexDataType, EdgeDataType> vertex, GraphChiContext context) {
-
+            try {
             /* Buffer management. TODO: think, this is too complex after adding the multiplex */
-            if (context.getThreadLocal() == null) {
-                ArrayList<LocalWalkBuffer> multiplexedLocalBuffers = new ArrayList<LocalWalkBuffer>(drivers.size());
-                for(DrunkardDriver driver: drivers) {
-                    LocalWalkBuffer buf = new  LocalWalkBuffer();
-                    driver.addLocalBuffer(buf);
-                    multiplexedLocalBuffers.add(buf);
+                if (context.getThreadLocal() == null) {
+                    ArrayList<LocalWalkBuffer> multiplexedLocalBuffers = new ArrayList<LocalWalkBuffer>(drivers.size());
+                    for(DrunkardDriver driver: drivers) {
+                        LocalWalkBuffer buf = new  LocalWalkBuffer();
+                        driver.addLocalBuffer(buf);
+                        multiplexedLocalBuffers.add(buf);
+                    }
+                    context.setThreadLocal(multiplexedLocalBuffers);
                 }
-                context.setThreadLocal(multiplexedLocalBuffers);
-            }
 
-            final ArrayList<LocalWalkBuffer> multiplexedLocalBuffers = (ArrayList<LocalWalkBuffer>) context.getThreadLocal();
+                final ArrayList<LocalWalkBuffer> multiplexedLocalBuffers = (ArrayList<LocalWalkBuffer>) context.getThreadLocal();
 
-            int i = 0;
-            for(DrunkardDriver driver : drivers) {
-                driver.update(vertex, context, multiplexedLocalBuffers.get(i++));
+                int i = 0;
+                for(DrunkardDriver driver : drivers) {
+                    driver.update(vertex, context, multiplexedLocalBuffers.get(i++));
+                }
+            } catch (Exception err) {
+                err.printStackTrace();
             }
         }
 
