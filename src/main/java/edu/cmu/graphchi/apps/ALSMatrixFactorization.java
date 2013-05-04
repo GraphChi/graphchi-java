@@ -216,7 +216,7 @@ public class ALSMatrixFactorization implements GraphChiProgram<Integer, Float> {
         if (args.length == 3) {
             D = Integer.parseInt(args[2]);
         }
-        ALSMatrixFactorization als = computeALS(baseFilename, nShards, D);
+        ALSMatrixFactorization als = computeALS(baseFilename, nShards, D, 5);
 
 
         als.writeOutputMatrices();
@@ -232,7 +232,7 @@ public class ALSMatrixFactorization implements GraphChiProgram<Integer, Float> {
      * @return
      * @throws IOException
      */
-    public static ALSMatrixFactorization computeALS(String baseFilename, int nShards, int D) throws IOException {
+    public static ALSMatrixFactorization computeALS(String baseFilename, int nShards, int D, int iterations) throws IOException {
         /* Run sharding (preprocessing) if the files do not exist yet */
         FastSharder sharder = createSharder(baseFilename, nShards);
         if (!new File(ChiFilenames.getFilenameIntervals(baseFilename, nShards)).exists() ||
@@ -254,7 +254,7 @@ public class ALSMatrixFactorization implements GraphChiProgram<Integer, Float> {
         engine.setModifiesInedges(false); // Important optimization
         engine.setModifiesOutedges(false); // Important optimization
 
-        engine.run(als, 5);
+        engine.run(als, iterations);
 
         /* Output RMSE */
         double trainRMSE = Math.sqrt(als.rmse / (1.0 * engine.numEdges()));

@@ -4,6 +4,9 @@ package edu.cmu.graphchi.apps.recommendations;
 import edu.cmu.graphchi.*;
 import edu.cmu.graphchi.preprocessing.FastSharder;
 import edu.cmu.graphchi.preprocessing.VertexIdTranslate;
+
+import edu.cmu.graphchi.preprocessing.VertexProcessor;
+import edu.cmu.graphchi.queries.VertexQuery;
 import edu.cmu.graphchi.util.IdCount;
 import edu.cmu.graphchi.walks.DrunkardContext;
 import edu.cmu.graphchi.walks.DrunkardJob;
@@ -20,6 +23,10 @@ import java.rmi.Naming;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.Random;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.logging.Logger;
 
 /**
@@ -73,7 +80,7 @@ public class TwitterWTF implements WalkUpdateFunction<EmptyType, EmptyType> {
         /** Use local drunkard mob companion. You can also pass a remote reference
          *  by using Naming.lookup("rmi://my-companion")
          */
-        RemoteDrunkardCompanion companion;
+        final RemoteDrunkardCompanion companion;
         if (companionUrl.equals("local")) {
             companion = new DrunkardCompanion(4, Runtime.getRuntime().maxMemory() / 3);
         }  else {
@@ -89,51 +96,92 @@ public class TwitterWTF implements WalkUpdateFunction<EmptyType, EmptyType> {
         drunkardJob.configureSourceRangeInternalIds(firstSource, numSources, numWalksPerSource);
         drunkardMobEngine.run(numIters);
 
-        VertexIdTranslate vertexIdTranslate = this.drunkardMobEngine.getVertexIdTranslate();
 
         // Empty from memory so can use cache in the SALSA
         this.drunkardMobEngine = null;
 
         /* Step 2: SALSA */
-        int circleOfTrustSize = 300;
+        final int circleOfTrustSize = 200;
 
-        long startTime = System.currentTimeMillis();
-        CircleOfTrustSalsa csalsa = new CircleOfTrustSalsa(baseFilename, numShards, salsaCacheSize);
+        final long startTime = System.currentTimeMillis();
 
-        // TODO: make multi-threaded!
+        final AtomicInteger numRecs = new AtomicInteger();
+
+        // FIXME: hardcoded
+        ExecutorService executor = Executors.newFixedThreadPool(4);
+
+        logger.info("Started 4 threads");
+
+
+        // Each thread need to have a local query service so the file descriptors don't clash.
+        final ThreadLocal<VertexQuery> queryService = new ThreadLocal<VertexQuery>() {
+            @Override
+            protected VertexQuery initialValue() {
+                try {
+                    return new VertexQuery(baseFilename, numShards);
+                } catch (IOException ioe) {
+                    ioe.printStackTrace();
+                    throw new RuntimeException(ioe);
+                }
+            }
+
+
+        };
+
+        //
+
         for(int vertexId=firstSource; vertexId < firstSource+numSources; vertexId++) {
-            /* Get circle of trust from the DrunkardCompanion */
+            final int _vertexId = vertexId;
+            executor.execute(new Runnable() {
+                @Override
+                public void run() {
+                    try {
+                        CircleOfTrustSalsa csalsa = new CircleOfTrustSalsa(queryService.get(), salsaCacheSize);
+                        computeRecs(companion, circleOfTrustSize, startTime, csalsa, numRecs, _vertexId);
 
-            IdCount[] topVisits = companion.getTop(vertexId, circleOfTrustSize);
+                    } catch (Exception err) {
+                        err.printStackTrace();
+                    }
+                }
+            });
 
-            HashSet<Integer> circleOfTrust = new HashSet<Integer>(topVisits.length);
-            for(IdCount idc: topVisits) {
-                circleOfTrust.add(idc.id);
-            }
+        }
+    }
 
-            /* Initialize and run SALSA */
-            csalsa.initializeGraph(circleOfTrust);
-            csalsa.computeSALSA(4);
+    private void computeRecs(RemoteDrunkardCompanion companion, int circleOfTrustSize, long startTime, CircleOfTrustSalsa csalsa, AtomicInteger numRecs, int vertexId) throws IOException {
+        /* Get circle of trust from the DrunkardCompanion */
+        IdCount[] topVisits = companion.getTop(vertexId, circleOfTrustSize);
 
-            // Make a list of immediate neighbors, which should not be recommended
-            // NOTE: the companion would have that list also!
-            HashSet<Integer> doNotRecommend = csalsa.getQueryService().queryOutNeighbors(vertexId);
-            doNotRecommend.add(vertexId);
+        HashSet<Integer> circleOfTrust = new HashSet<Integer>(topVisits.length);
+        for(IdCount idc: topVisits) {
+            circleOfTrust.add(idc.id);
+        }
 
-            /* Get SALSA's top results and print */
-            ArrayList<CircleOfTrustSalsa.SalsaVertex> recommendations = csalsa.topAuthorities(4, doNotRecommend);
+        /* Initialize and run SALSA */
+        csalsa.initializeGraph(circleOfTrust);
+        csalsa.computeSALSA(4);
 
-            logger.info("Recommendations for " + csalsa.namify(vertexIdTranslate.backward(vertexId)) + " (" + vertexIdTranslate.backward(vertexId) + ")");
-            for(CircleOfTrustSalsa.SalsaVertex sv : recommendations) {
-                int originalId = vertexIdTranslate.backward(sv.id);
-                logger.info("  recommend: " + " = " + originalId + " " + csalsa.namify(originalId) + " (" + sv.value + ")");
-            }
+        // Make a list of immediate neighbors, which should not be recommended
+        // NOTE: the companion would have that list also!
+        HashSet<Integer> doNotRecommend = csalsa.getQueryService().queryOutNeighbors(vertexId);
+        doNotRecommend.add(vertexId);
 
-            if (vertexId - firstSource % 40 == 0) {
-                long t = System.currentTimeMillis() - startTime;
-                logger.info("Computed recommendations for " + (vertexId - firstSource + 1) + " users in " + t + "ms");
-                logger.info("Average: " + (double)t / (vertexId - firstSource + 1));
-            }
+        /* Get SALSA's top results and print */
+
+        ArrayList<CircleOfTrustSalsa.SalsaVertex> recommendations = csalsa.topAuthorities(10, doNotRecommend);
+
+
+        /*logger.info("Recommendations for " + csalsa.namify(vertexIdTranslate.backward(vertexId)) + " (" + vertexIdTranslate.backward(vertexId) + ")");
+   for(CircleOfTrustSalsa.SalsaVertex sv : recommendations) {
+       int originalId = vertexIdTranslate.backward(sv.id);
+       logger.info("  recommend: " + " = " + originalId + " " + csalsa.namify(originalId) + " (" + sv.value + ")");
+   } */
+
+        int numRecsNow = numRecs.incrementAndGet();
+        if (numRecsNow % 100 == 0) {
+            long t = System.currentTimeMillis() - startTime;
+            logger.info("Computed recommendations for " + numRecsNow + " users in " + t + "ms");
+            logger.info("Average: " + (double)t / (vertexId - firstSource + 1) + "ms");
         }
     }
 
