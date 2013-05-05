@@ -20,6 +20,7 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.rmi.Naming;
+import java.rmi.RemoteException;
 import java.util.Random;
 import java.util.logging.Logger;
 
@@ -62,6 +63,38 @@ public class DrunkardMobTester implements WalkUpdateFunction<EmptyType, EmptyTyp
        RemoteDrunkardCompanion companion;
         if (companionUrl.equals("local")) {
             companion = new DrunkardCompanion(4, Runtime.getRuntime().maxMemory() / 3);
+        } else if (companionUrl.equals("none")) {
+            companion = new RemoteDrunkardCompanion() {
+                @Override
+                public void setAvoidList(int sourceIdx, int[] avoidList) throws RemoteException {
+
+                }
+
+                @Override
+                public void setSources(int[] sources) throws RemoteException {
+
+                }
+
+                @Override
+                public void processWalks(int[] walks, int[] atVertices) throws RemoteException {
+
+                }
+
+                @Override
+                public void outputDistributions(String outputFile) throws RemoteException {
+
+                }
+
+                @Override
+                public void outputDistributions(String outputFile, int nTop) throws RemoteException {
+
+                }
+
+                @Override
+                public IdCount[] getTop(int vertexId, int nTop) throws RemoteException {
+                    return new IdCount[0];
+                }
+            };
         }  else {
             companion = (RemoteDrunkardCompanion) Naming.lookup(companionUrl);
         }

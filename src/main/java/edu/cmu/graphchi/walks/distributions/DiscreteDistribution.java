@@ -31,6 +31,21 @@ public class DiscreteDistribution {
     }
 
 
+    public DiscreteDistribution forceToSize(int size) {
+        if (size > this.ids.length) return this;
+        int[] newIds = new int[size];
+        short[] newCounts = new short[size];
+        for(int i=0; i < size; i++) {
+            newIds[i] = ids[i];
+            newCounts[i] = counts[i];
+        }
+        DiscreteDistribution d = new DiscreteDistribution();
+        d.ids = newIds;
+        d.counts = newCounts;
+        d.uniqueCount = size;
+        return d;
+    }
+
     public int totalCount() {
         int tot = 0;
         for(int c=0; c<counts.length; c++) {
@@ -170,6 +185,7 @@ public class DiscreteDistribution {
     }
 
 
+
     public int getCount(int id) {
         int idx = Arrays.binarySearch(ids, id);
         if (idx >= 0) {
@@ -193,6 +209,8 @@ public class DiscreteDistribution {
         int OVERHEAD = 64; // Estimate of the java memory overhead
         return 6 * counts.length + 4 + OVERHEAD;
     }
+
+
 
 
     public int max() {
