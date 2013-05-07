@@ -22,7 +22,7 @@ public class WalkManager {
     private static final int MAX_SOURCES = 16777216;
 
     protected final static int bucketSize = 128; // Store walks into buckets for faster retrieval
-    protected final static int initialSize = Integer.parseInt(System.getProperty("walkmanager.initial_size", "128"));
+    protected final static int initialSize = Integer.parseInt(System.getProperty("walkmanager.initial_size", "32"));
 
     protected int sourceSeqIdx  = 0;
     protected int[] sources;
