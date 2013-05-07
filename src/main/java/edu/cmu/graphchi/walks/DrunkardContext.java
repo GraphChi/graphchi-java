@@ -49,4 +49,6 @@ public interface DrunkardContext {
      * @return
      */
     VertexIdTranslate getVertexIdTranslate();
+
+    void resetAll(int[] walks);
 }

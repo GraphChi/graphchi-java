@@ -1,11 +1,14 @@
 package edu.cmu.graphchi.walks;
 
+import java.util.ArrayList;
 import java.util.Random;
 
 class LocalWalkBuffer {
     int[] walkBufferDests;
     int[] walkSourcesAndHops;
     Random random = new Random();
+
+
 
     int idx = 0;
     LocalWalkBuffer() {
@@ -16,11 +19,20 @@ class LocalWalkBuffer {
     public void add(int src, int dst, boolean hop) {
         if (idx == walkSourcesAndHops.length) {
             int[] tmp = walkSourcesAndHops;
-            walkSourcesAndHops = new int[tmp.length * 2];
+            int newSize = tmp.length * 2;
+
+            // Overflow!
+            if (newSize < 0) {
+                newSize =  tmp.length + 65536 * 2;
+
+                // FIXME: need to make a list of buffers!
+            }
+
+            walkSourcesAndHops = new int[newSize];
             System.arraycopy(tmp, 0, walkSourcesAndHops, 0, tmp.length);
 
             tmp = walkBufferDests;
-            walkBufferDests = new int[tmp.length * 2];
+            walkBufferDests = new int[newSize];
             System.arraycopy(tmp, 0, walkBufferDests, 0, tmp.length);
         }
         walkBufferDests[idx] = dst;

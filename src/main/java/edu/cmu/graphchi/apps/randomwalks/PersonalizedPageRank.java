@@ -53,7 +53,7 @@ public class PersonalizedPageRank implements WalkUpdateFunction<EmptyType, Empty
         /** Use local drunkard mob companion. You can also pass a remote reference
          *  by using Naming.lookup("rmi://my-companion")
          */
-       RemoteDrunkardCompanion companion;
+        RemoteDrunkardCompanion companion;
         if (companionUrl.equals("local")) {
             companion = new DrunkardCompanion(4, Runtime.getRuntime().maxMemory() / 3);
         }  else {
@@ -124,6 +124,8 @@ public class PersonalizedPageRank implements WalkUpdateFunction<EmptyType, Empty
         }
     }
 
+
+
     @Override
     /**
      * Instruct drunkardMob not to track visits to this vertex's immediate out-neighbors.
@@ -134,7 +136,7 @@ public class PersonalizedPageRank implements WalkUpdateFunction<EmptyType, Empty
             notCounted[i + 1] = vertex.getOutEdgeId(i);
         }
         notCounted[0] = vertex.getId();
-        return notCounted;
+         return notCounted;
     }
 
     protected static FastSharder createSharder(String graphName, int numShards) throws IOException {
