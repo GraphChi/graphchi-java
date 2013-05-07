@@ -68,7 +68,7 @@ public class ExperimentTiming {
                             + "user=drunkard&password=jeejee");
             PreparedStatement pstmt = connect.prepareStatement("insert into drunkardrun(max_memory, num_sources,"
             + "first_source,walks_per_source, source_selection_type, runtime, inittime, time_0, time_1, time_2, time_3, time_4, time_5," +
-                    "companion,inedges,weighted,graph,numedges,numvertices, host) values(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)");
+                    "companion,inedges,weighted,graph,numedges,numvertices, host, created_time) values(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?, now())");
 
             int k = 1;
             pstmt.setInt(k++, et.getMaxMemory());
