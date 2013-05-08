@@ -131,6 +131,8 @@ public class TwitterWTF implements WalkUpdateFunction<EmptyType, EmptyType> {
 
         //
 
+        long t = System.currentTimeMillis();
+
         for(int vertexId=firstSource; vertexId < firstSource+numSources; vertexId++) {
             final int _vertexId = vertexId;
             pending.incrementAndGet();
@@ -157,6 +159,8 @@ public class TwitterWTF implements WalkUpdateFunction<EmptyType, EmptyType> {
             System.out.println("Pending WTF recs: " + pending.get());
 
         }
+
+        System.out.println("WTF-recs," + (System.currentTimeMillis() - t));
     }
 
     private void computeRecs(RemoteDrunkardCompanion companion, int circleOfTrustSize, long startTime, CircleOfTrustSalsa csalsa, AtomicInteger numRecs, int vertexId) throws IOException {
