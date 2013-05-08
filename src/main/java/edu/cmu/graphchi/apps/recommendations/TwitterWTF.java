@@ -106,6 +106,7 @@ public class TwitterWTF implements WalkUpdateFunction<EmptyType, EmptyType> {
         final long startTime = System.currentTimeMillis();
 
         final AtomicInteger numRecs = new AtomicInteger();
+        final AtomicInteger pending = new AtomicInteger();
 
         // FIXME: hardcoded
         ExecutorService executor = Executors.newFixedThreadPool(4);
@@ -132,6 +133,7 @@ public class TwitterWTF implements WalkUpdateFunction<EmptyType, EmptyType> {
 
         for(int vertexId=firstSource; vertexId < firstSource+numSources; vertexId++) {
             final int _vertexId = vertexId;
+            pending.incrementAndGet();
             executor.execute(new Runnable() {
                 @Override
                 public void run() {
@@ -142,8 +144,17 @@ public class TwitterWTF implements WalkUpdateFunction<EmptyType, EmptyType> {
                     } catch (Exception err) {
                         err.printStackTrace();
                     }
+                    pending.decrementAndGet();
                 }
             });
+
+        }
+
+        while(pending.get() > 0) {
+            try {
+                Thread.sleep(10000);
+            } catch (InterruptedException ie) {}
+            System.out.println("Pending WTF recs: " + pending.get());
 
         }
     }
@@ -242,6 +253,8 @@ public class TwitterWTF implements WalkUpdateFunction<EmptyType, EmptyType> {
 
     public static void main(String[] args) throws Exception {
 
+        long t = System.currentTimeMillis();
+
         /* Configure command line */
         Options cmdLineOptions = new Options();
         cmdLineOptions.addOption("g", "graph", true, "graph file name");
@@ -289,6 +302,9 @@ public class TwitterWTF implements WalkUpdateFunction<EmptyType, EmptyType> {
             TwitterWTF pp = new TwitterWTF(companionUrl, baseFilename, nShards,
                     firstSource, numSources, walksPerSource);
             pp.execute(nIters);
+
+            System.out.println("WTF-log," + (System.currentTimeMillis() - t) + "," + firstSource +"," + (firstSource + numSources - 1) +
+                            "," + walksPerSource + "," + nIters);
 
         } catch (Exception err) {
             err.printStackTrace();
