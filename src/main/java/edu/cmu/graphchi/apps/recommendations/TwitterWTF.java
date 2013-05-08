@@ -240,13 +240,10 @@ public class TwitterWTF implements WalkUpdateFunction<EmptyType, EmptyType> {
 
     @Override
     /**
-     * Instruct drunkardMob not to track visits to this vertex's immediate out-neighbors.
+     * Only ignore the current vertex
      */
     public int[] getNotTrackedVertices(ChiVertex<EmptyType, EmptyType> vertex) {
-        int[] notCounted = new int[1 + vertex.numOutEdges()];
-        for(int i=0; i < vertex.numOutEdges(); i++) {
-            notCounted[i + 1] = vertex.getOutEdgeId(i);
-        }
+        int[] notCounted = new int[1];
         notCounted[0] = vertex.getId();
         return notCounted;
     }
