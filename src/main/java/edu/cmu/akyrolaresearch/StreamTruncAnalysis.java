@@ -78,6 +78,10 @@ public class StreamTruncAnalysis {
 
         FileOutputStream fos = new FileOutputStream("recalls_" + bufferSize + ".tsv");
 
+        String header = "source\tmaxelem\ttop10count\tfulldistsize\tfilteredsize\tten\ttenrecall\ttwenty\ttwentyrecall\tthirty\tthirtyrecall" +
+                  "\tforty\tfortyrecall\tfifty\tfiftyrecall\n";
+        fos.write(header.getBytes());
+
         /* Analyze */
         for(Integer source : uniqueVertices) {
             System.out.println("Handle: " + source);
@@ -100,7 +104,7 @@ public class StreamTruncAnalysis {
                 DiscreteDistribution filtered = filteredDist.get(ckey).distr;
 
                 StringBuffer sb = new StringBuffer();
-                sb.append(source + "\t" + maxElem + "\t");
+                sb.append(source + "\t" + maxElem + "\t" + tops.get(0)[tops.get(0).length - 1].count + "\t");
                 sb.append(fullDist.size() + "\t" + filtered.size() + "\t");
 
                 for(int i=1; i<=5; i++) {
@@ -108,28 +112,37 @@ public class StreamTruncAnalysis {
                     IdCount[] top = tops.get(i - 1);
                     int recall = 0;
 
+                    IdCount[] filteredTop = filtered.getTop(k);
+
                     for(IdCount ic : top) {
-                        if (filtered.getCount(ic.id) > 0) recall++;
+                        if (idCountContains(filteredTop, ic.id)) recall++;
                     }
 
                     sb.append(k + "\t" + recall + "\t");
                 }
 
                 // how many recalled in total
-                sb.append(maxElem + "\t");
+             /*   sb.append(maxElem + "\t");
                 int recall = 0;
                 IdCount[] fullTop = fullDist.getTop(maxElem);
                 for(IdCount ic: fullTop) {
                     if (filtered.getCount(ic.id) > 0) recall++;
                 }
                 sb.append(recall);
-
+               */
 
 
                 sb.append("\n");
                 fos.write(sb.toString().getBytes());
             }
         }
+    }
+
+    private static boolean idCountContains(IdCount[] filteredTop, int id) {
+        for(IdCount idc: filteredTop) {
+            if (idc.id == id) return true;
+        }
+        return false;
     }
 
 
