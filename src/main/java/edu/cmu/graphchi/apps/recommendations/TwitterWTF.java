@@ -60,7 +60,7 @@ public class TwitterWTF implements WalkUpdateFunction<EmptyType, EmptyType> {
     private int numSources;
     private int numShards;
     private int numWalksPerSource;
-    private int salsaCacheSize = 100000;
+    private int salsaCacheSize = Integer.parseInt(System.getProperty("salsacache", "100000"));
     private String companionUrl;
 
     public TwitterWTF(String companionUrl, String baseFilename, int nShards, int firstSource, int numSources, int walksPerSource) throws Exception{
