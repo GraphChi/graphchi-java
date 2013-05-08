@@ -101,7 +101,7 @@ public class DrunkardCompanion extends UnicastRemoteObject implements RemoteDrun
         logger.info("Max distribution: " + nf.format(maxDistMem / 1024.) + " kb");
 
         long totalMem = companionOverHeads + bufferMem + distributionMem;
-        logger.info("** Total:  " + nf.format(totalMem / 1024. / 1024. / 1024.) + " GB (low-mem limit " + Runtime.getRuntime().maxMemory() * 0.75 / 1024. / 1024. / 1024. + "GB)" );
+        logger.info("** Total:  " + nf.format(totalMem / 1024. / 1024. / 1024.) + " GB (low-mem limit " + Runtime.getRuntime().maxMemory() * 0.25 / 1024. / 1024. / 1024. + "GB)" );
         isLowInMemory = totalMem > maxMemoryBytes;
 
         if (isLowInMemory) {
