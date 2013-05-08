@@ -161,6 +161,7 @@ public class TwitterWTF implements WalkUpdateFunction<EmptyType, EmptyType> {
         }
 
         System.out.println("WTF-recs," + (System.currentTimeMillis() - t));
+
     }
 
     private void computeRecs(RemoteDrunkardCompanion companion, int circleOfTrustSize, long startTime, CircleOfTrustSalsa csalsa, AtomicInteger numRecs, int vertexId) throws IOException {
@@ -308,8 +309,8 @@ public class TwitterWTF implements WalkUpdateFunction<EmptyType, EmptyType> {
             pp.execute(nIters);
 
             System.out.println("WTF-log," + (System.currentTimeMillis() - t) + "," + firstSource +"," + (firstSource + numSources - 1) +
-                            "," + walksPerSource + "," + nIters);
-
+                    "," + walksPerSource + "," + nIters);
+            System.exit(0);
         } catch (Exception err) {
             err.printStackTrace();
             // automatically generate the help statement
