@@ -179,6 +179,11 @@ public class DrunkardDriver<VertexDataType, EdgeDataType> implements GrabbedBuck
                 public VertexIdTranslate getVertexIdTranslate() {
                     return getVertexIdTranslate();
                 }
+
+                @Override
+                public void resetAll(int[] walks) {
+                    for(int w : walks) resetWalk(w, false);
+                }
             }, randomGenerator);
         } catch (RemoteException re) {
             throw new RuntimeException(re);

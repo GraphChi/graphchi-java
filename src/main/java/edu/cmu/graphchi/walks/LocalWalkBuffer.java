@@ -1,11 +1,18 @@
 package edu.cmu.graphchi.walks;
 
+import java.util.ArrayList;
 import java.util.Random;
 
 class LocalWalkBuffer {
     int[] walkBufferDests;
     int[] walkSourcesAndHops;
     Random random = new Random();
+
+    ArrayList<int[]> dests = new ArrayList<int[]>();
+    ArrayList<int[]> hops = new ArrayList<int[]>();
+
+
+
 
     int idx = 0;
     LocalWalkBuffer() {
@@ -15,13 +22,11 @@ class LocalWalkBuffer {
 
     public void add(int src, int dst, boolean hop) {
         if (idx == walkSourcesAndHops.length) {
-            int[] tmp = walkSourcesAndHops;
-            walkSourcesAndHops = new int[tmp.length * 2];
-            System.arraycopy(tmp, 0, walkSourcesAndHops, 0, tmp.length);
-
-            tmp = walkBufferDests;
-            walkBufferDests = new int[tmp.length * 2];
-            System.arraycopy(tmp, 0, walkBufferDests, 0, tmp.length);
+            dests.add(walkBufferDests);
+            hops.add(walkSourcesAndHops);
+            walkBufferDests = new int[1000000];
+            walkSourcesAndHops = new int[1000000];
+            idx = 0;
         }
         walkBufferDests[idx] = dst;
         walkSourcesAndHops[idx] = (hop ? -1 : 1) * (1 + src); // Note +1 so zero will be handled correctly
@@ -29,14 +34,24 @@ class LocalWalkBuffer {
     }
 
     public void purge(WalkManager walkManager) {
-        for(int i=0; i<idx; i++) {
-            int dst = walkBufferDests[i];
-            int src = walkSourcesAndHops[i];
-            boolean hop = src < 0;
-            if (src < 0) src = -src;
-            src = src - 1;  // Note, -1
-            walkManager.updateWalkUnsafe(src, dst, hop);
+        dests.add(walkBufferDests);
+        hops.add(walkSourcesAndHops);
+
+        for(int k=0; k < hops.size(); k++) {
+            int[] d = dests.get(k);
+            int[] h = hops.get(k);
+            int len = (k == hops.size() - 1 ? idx : d.length);
+            for(int i=0; i < len; i++) {
+                int dst = d[i];
+                int src = h[i];
+                boolean hop = src < 0;
+                if (src < 0) src = -src;
+                src = src - 1;  // Note, -1
+                walkManager.updateWalkUnsafe(src, dst, hop);
+            }
         }
+        hops = null;
+        dests = null;
         walkSourcesAndHops = null;
         walkBufferDests = null;
     }

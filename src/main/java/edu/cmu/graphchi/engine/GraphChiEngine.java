@@ -792,6 +792,8 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
             int vertexDataSizeOf = (vertexDataConverter != null ? vertexDataConverter.sizeOf() : 0);
             int edataSizeOf = (onlyAdjacency ? 0 : edataConverter.sizeOf());
 
+            logger.info("Memory budget: " + memBudget);
+
             for(int i=0; i< maxInterval; i++) {
                 if (enableScheduler) {
                     if (!scheduler.isScheduled(i + subIntervalStart)) continue;
@@ -808,6 +810,7 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
 
                 // Following calculation contains some perhaps reasonable estimates of the
                 // overhead of Java objects.
+
                 memReq += vertexDataSizeOf + 256 + (edataSizeOf + 4 + 4 + 4) * (inc + outc);
                 if (memReq > memBudget) {
                     if (totalDegree == 0 && vertexDataConverter == null) {
