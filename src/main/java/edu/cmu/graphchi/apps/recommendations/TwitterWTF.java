@@ -107,6 +107,7 @@ public class TwitterWTF implements WalkUpdateFunction<EmptyType, EmptyType> {
         final long startTime = System.currentTimeMillis();
 
         final AtomicInteger numRecs = new AtomicInteger();
+        final AtomicInteger pending = new AtomicInteger();
 
         // FIXME: hardcoded
         ExecutorService executor = Executors.newFixedThreadPool(4);
@@ -131,6 +132,8 @@ public class TwitterWTF implements WalkUpdateFunction<EmptyType, EmptyType> {
 
         //
         final AtomicInteger pending = new AtomicInteger();
+
+        long t = System.currentTimeMillis();
 
         for(int vertexId=firstSource; vertexId < firstSource+numSources; vertexId++) {
             final int _vertexId = vertexId;
@@ -158,6 +161,9 @@ public class TwitterWTF implements WalkUpdateFunction<EmptyType, EmptyType> {
             }
             System.out.println("Pending WTF queries: " + pending.get());
         }
+ 
+        System.out.println("WTF-recs," + (System.currentTimeMillis() - t));
+
     }
 
     private void computeRecs(RemoteDrunkardCompanion companion, int circleOfTrustSize, long startTime, CircleOfTrustSalsa csalsa, AtomicInteger numRecs, int vertexId) throws IOException {
@@ -236,13 +242,10 @@ public class TwitterWTF implements WalkUpdateFunction<EmptyType, EmptyType> {
 
     @Override
     /**
-     * Instruct drunkardMob not to track visits to this vertex's immediate out-neighbors.
+     * Only ignore the current vertex
      */
     public int[] getNotTrackedVertices(ChiVertex<EmptyType, EmptyType> vertex) {
-        int[] notCounted = new int[1 + vertex.numOutEdges()];
-        for(int i=0; i < vertex.numOutEdges(); i++) {
-            notCounted[i + 1] = vertex.getOutEdgeId(i);
-        }
+        int[] notCounted = new int[1];
         notCounted[0] = vertex.getId();
         return notCounted;
     }
@@ -255,6 +258,7 @@ public class TwitterWTF implements WalkUpdateFunction<EmptyType, EmptyType> {
     public static void main(String[] args) throws Exception {
 
         long t = System.currentTimeMillis();
+
         /* Configure command line */
         Options cmdLineOptions = new Options();
         cmdLineOptions.addOption("g", "graph", true, "graph file name");
@@ -303,7 +307,9 @@ public class TwitterWTF implements WalkUpdateFunction<EmptyType, EmptyType> {
                     firstSource, numSources, walksPerSource);
             pp.execute(nIters);
 
-            System.out.println("WTF-log," + (System.currentTimeMillis() - t) + "," + firstSource + "," + (firstSource + numSources - 1) + "," + nIters + "," + walksPerSource);
+
+            System.out.println("WTF-log," + (System.currentTimeMillis() - t) + "," + firstSource +"," + (firstSource + numSources - 1) +
+                    "," + walksPerSource + "," + nIters);
 
             System.exit(0);
         } catch (Exception err) {
