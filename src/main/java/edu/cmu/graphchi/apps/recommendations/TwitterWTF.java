@@ -131,8 +131,7 @@ public class TwitterWTF implements WalkUpdateFunction<EmptyType, EmptyType> {
         };
 
         //
-        final AtomicInteger pending = new AtomicInteger();
-
+ 
         long t = System.currentTimeMillis();
 
         for(int vertexId=firstSource; vertexId < firstSource+numSources; vertexId++) {
