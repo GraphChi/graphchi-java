@@ -130,7 +130,9 @@ public class DrunkardDriver<VertexDataType, EdgeDataType> implements GrabbedBuck
                     job.getCompanion().setAvoidList(mySourceIdx, callback.getNotTrackedVertices(vertex));
                 }
             }
-            if (walksAtMe == null || walksAtMe.length == 0) return;
+            if (walksAtMe == null || walksAtMe.length == 0)  {
+                return;
+            }
 
             Random randomGenerator = localBuf.random;
 
@@ -176,6 +178,11 @@ public class DrunkardDriver<VertexDataType, EdgeDataType> implements GrabbedBuck
                 @Override
                 public VertexIdTranslate getVertexIdTranslate() {
                     return getVertexIdTranslate();
+                }
+
+                @Override
+                public void resetAll(int[] walks) {
+                    for(int w : walks) resetWalk(w, false);
                 }
             }, randomGenerator);
         } catch (RemoteException re) {
@@ -245,18 +252,14 @@ public class DrunkardDriver<VertexDataType, EdgeDataType> implements GrabbedBuck
         curWalkSnapshot = null; // Release memory
 
         /* Purge local buffers */
-        Thread t = new Thread(new Runnable() {
-            public void run() {
-                synchronized (localBuffers) {
-                    final TimerContext _timer = purgeTimer.time();
-                    for (LocalWalkBuffer buf : localBuffers) {
-                        buf.purge(job.getWalkManager());
-                    }
-                    localBuffers.clear();
-                    _timer.stop();
-                }
-            }});
-        t.start();
+        synchronized (localBuffers) {
+            final TimerContext _timer = purgeTimer.time();
+            for (LocalWalkBuffer buf : localBuffers) {
+                buf.purge(job.getWalkManager());
+            }
+            localBuffers.clear();
+            _timer.stop();
+        }
     }
 
 

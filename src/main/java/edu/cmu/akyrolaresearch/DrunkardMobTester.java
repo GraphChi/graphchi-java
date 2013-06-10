@@ -1,13 +1,17 @@
-package edu.cmu.graphchi.apps.randomwalks;
+package edu.cmu.akyrolaresearch;
 
 import edu.cmu.graphchi.*;
+import edu.cmu.graphchi.datablocks.FloatConverter;
+import edu.cmu.graphchi.preprocessing.EdgeProcessor;
 import edu.cmu.graphchi.preprocessing.FastSharder;
 import edu.cmu.graphchi.preprocessing.VertexIdTranslate;
+import edu.cmu.graphchi.preprocessing.VertexProcessor;
 import edu.cmu.graphchi.util.IdCount;
 import edu.cmu.graphchi.walks.DrunkardContext;
 import edu.cmu.graphchi.walks.DrunkardJob;
 import edu.cmu.graphchi.walks.DrunkardMobEngine;
 import edu.cmu.graphchi.walks.WalkUpdateFunction;
+import edu.cmu.graphchi.walks.WeightedHopper;
 import edu.cmu.graphchi.walks.distributions.DrunkardCompanion;
 import edu.cmu.graphchi.walks.distributions.RemoteDrunkardCompanion;
 import org.apache.commons.cli.*;
@@ -16,6 +20,7 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.rmi.Naming;
+import java.rmi.RemoteException;
 import java.util.Random;
 import java.util.logging.Logger;
 
@@ -26,7 +31,7 @@ import java.util.logging.Logger;
  * getNotTrackedVertices()
  * @author Aapo Kyrola
  */
-public class PersonalizedPageRank implements WalkUpdateFunction<EmptyType, EmptyType> {
+public class DrunkardMobTester implements WalkUpdateFunction<EmptyType, EmptyType> {
 
     private static double RESET_PROBABILITY = 0.15;
     private static Logger logger = ChiLogger.getLogger("personalized-pagerank");
@@ -37,7 +42,9 @@ public class PersonalizedPageRank implements WalkUpdateFunction<EmptyType, Empty
     private int numWalksPerSource;
     private String companionUrl;
 
-    public PersonalizedPageRank(String companionUrl, String baseFilename, int nShards, int firstSource, int numSources, int walksPerSource) throws Exception{
+    private ExperimentTiming expTiming;
+
+    public DrunkardMobTester(String companionUrl, String baseFilename, int nShards, int firstSource, int numSources, int walksPerSource) throws Exception{
         this.baseFilename = baseFilename;
         this.drunkardMobEngine = new DrunkardMobEngine<EmptyType, EmptyType>(baseFilename, nShards);
 
@@ -53,38 +60,75 @@ public class PersonalizedPageRank implements WalkUpdateFunction<EmptyType, Empty
         /** Use local drunkard mob companion. You can also pass a remote reference
          *  by using Naming.lookup("rmi://my-companion")
          */
-        RemoteDrunkardCompanion companion;
+       RemoteDrunkardCompanion companion;
         if (companionUrl.equals("local")) {
             companion = new DrunkardCompanion(4, Runtime.getRuntime().maxMemory() / 3);
+        } else if (companionUrl.equals("none")) {
+            companion = new RemoteDrunkardCompanion() {
+                @Override
+                public void setAvoidList(int sourceIdx, int[] avoidList) throws RemoteException {
+
+                }
+
+                @Override
+                public void setSources(int[] sources) throws RemoteException {
+
+                }
+
+                @Override
+                public void processWalks(int[] walks, int[] atVertices) throws RemoteException {
+
+                }
+
+                @Override
+                public void outputDistributions(String outputFile) throws RemoteException {
+
+                }
+
+                @Override
+                public void outputDistributions(String outputFile, int nTop) throws RemoteException {
+
+                }
+
+                @Override
+                public IdCount[] getTop(int vertexId, int nTop) throws RemoteException {
+                    return new IdCount[0];
+                }
+            };
         }  else {
             companion = (RemoteDrunkardCompanion) Naming.lookup(companionUrl);
         }
 
+        expTiming = new ExperimentTiming();
+        expTiming.setCompanionAddress(companionUrl);
+        expTiming.setFirstSource(firstSource);
+        expTiming.setNumSources(numSources);
+        expTiming.setWalksPerSource(numWalksPerSource);
+        expTiming.setGraphName(new File(baseFilename).getName());
+
+
         /* Configure walk sources. Note, GraphChi's internal ids are used. */
+        long t = System.currentTimeMillis();
         DrunkardJob drunkardJob = this.drunkardMobEngine.addJob("personalizedPageRank",
                 EdgeDirection.OUT_EDGES, this, companion);
 
+
         drunkardJob.configureSourceRangeInternalIds(firstSource, numSources, numWalksPerSource);
-        drunkardMobEngine.run(numIters);
 
-        /* Ask companion to dump the results to file */
-        int nTop = 100;
-        companion.outputDistributions(baseFilename + "_ppr_" + firstSource + "_"
-                + (firstSource + numSources - 1) + ".top" + nTop, nTop);
 
-        /* For debug */
-        VertexIdTranslate vertexIdTranslate = this.drunkardMobEngine.getVertexIdTranslate();
-        IdCount[] topForFirst = companion.getTop(firstSource, 10);
+        drunkardMobEngine.run(numIters, expTiming);
 
-        System.out.println("Top visits from source vertex " + vertexIdTranslate.forward(firstSource) + " (internal id=" + firstSource + ")");
-        for(IdCount idc : topForFirst) {
-            System.out.println(vertexIdTranslate.backward(idc.id) + ": " + idc.count);
-        }
 
         /* If local, shutdown the companion */
         if (companion instanceof DrunkardCompanion) {
             ((DrunkardCompanion) companion).close();
         }
+
+        expTiming.setRunTimeTotal((System.currentTimeMillis() - t) * 0.001);
+
+        ExperimentTiming.insert(expTiming);
+
+        System.exit(0);
     }
 
     /**
@@ -124,8 +168,6 @@ public class PersonalizedPageRank implements WalkUpdateFunction<EmptyType, Empty
         }
     }
 
-
-
     @Override
     /**
      * Instruct drunkardMob not to track visits to this vertex's immediate out-neighbors.
@@ -136,7 +178,7 @@ public class PersonalizedPageRank implements WalkUpdateFunction<EmptyType, Empty
             notCounted[i + 1] = vertex.getOutEdgeId(i);
         }
         notCounted[0] = vertex.getId();
-         return notCounted;
+        return notCounted;
     }
 
     protected static FastSharder createSharder(String graphName, int numShards) throws IOException {
@@ -189,7 +231,7 @@ public class PersonalizedPageRank implements WalkUpdateFunction<EmptyType, Empty
             int nIters = Integer.parseInt(cmdLine.getOptionValue("niters"));
             String companionUrl = cmdLine.hasOption("companion") ? cmdLine.getOptionValue("companion") : "local";
 
-            PersonalizedPageRank pp = new PersonalizedPageRank(companionUrl, baseFilename, nShards,
+            DrunkardMobTester pp = new DrunkardMobTester(companionUrl, baseFilename, nShards,
                     firstSource, numSources, walksPerSource);
             pp.execute(nIters);
 

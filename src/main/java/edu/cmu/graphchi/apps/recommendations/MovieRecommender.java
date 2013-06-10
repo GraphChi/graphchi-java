@@ -1,12 +1,10 @@
 package edu.cmu.graphchi.apps.recommendations;
 
-import edu.cmu.graphchi.ChiFilenames;
 import edu.cmu.graphchi.ChiLogger;
 import edu.cmu.graphchi.ChiVertex;
 import edu.cmu.graphchi.EdgeDirection;
 import edu.cmu.graphchi.apps.ALSMatrixFactorization;
 import edu.cmu.graphchi.datablocks.FloatConverter;
-import edu.cmu.graphchi.preprocessing.FastSharder;
 import edu.cmu.graphchi.preprocessing.VertexIdTranslate;
 import edu.cmu.graphchi.util.IdCount;
 import edu.cmu.graphchi.walks.DrunkardContext;
@@ -17,8 +15,9 @@ import edu.cmu.graphchi.walks.WeightedHopper;
 import edu.cmu.graphchi.walks.distributions.DrunkardCompanion;
 import org.apache.commons.cli.*;
 
-import java.io.File;
-import java.io.FileInputStream;
+
+import java.io.*;
+
 import java.util.ArrayList;
 import java.util.Random;
 import java.util.logging.Logger;
@@ -47,7 +46,7 @@ public class MovieRecommender {
 
     protected void execute() throws Exception {
         /* Step 1. Compute ALS */
-        ALSMatrixFactorization als = ALSMatrixFactorization.computeALS(baseFilename, nShards, D);
+        ALSMatrixFactorization als = ALSMatrixFactorization.computeALS(baseFilename, nShards, D, 5);
 
         logger.info("Computed ALS, now random walks");
 
@@ -66,7 +65,7 @@ public class MovieRecommender {
         ArrayList<Integer> userVertices = new ArrayList<Integer>(graphInfo.getNumLeft());
 
         int numUsers = 50000; // NOTE: hard-coded
-        int walksPerSource = 6000;
+        int walksPerSource = 1000;
 
         if (numUsers > graphInfo.getNumLeft())  graphInfo.getNumLeft();
         logger.info("Compute predictions for first " + numUsers + " users");
@@ -79,21 +78,40 @@ public class MovieRecommender {
         positiveJob.configureWalkSources(userVertices, walksPerSource);
         negativeJob.configureWalkSources(userVertices, walksPerSource);
 
-        /* Run */
+       /* Run */
         drunkardMobEngine.run(6);
+
 
         /* TODO: handle results */
         for(int i=0; i< 500; i++) {
             int userId = vertexIdTranslate.forward(i);
-            IdCount[] posTop = positiveJob.getCompanion().getTop(userId, 40);
-            IdCount[] negTop =  negativeJob.getCompanion().getTop(userId, 40);
+            IdCount[] posTop = positiveJob.getCompanion().getTop(userId, 20);
+            IdCount[] negTop =  negativeJob.getCompanion().getTop(userId, 20);
 
-            for(int j=0; j<Math.min(posTop.length, negTop.length); j++) {
-                System.out.println(i + " " + j + " +" + posTop[j].id + ":" + posTop[j].count + ":" + als.predict(userId, posTop[j].id)
-                        + "    -" + negTop[j].id + ":" + negTop[j].count + ":" + als.predict(userId, negTop[j].id));
+            double sumEstimatePos = 0.0;
+            double sumEstimateNeg = 0.0;
+
+            int n = Math.min(posTop.length, negTop.length);
+            for(int j=0; j<n; j++) {
+                sumEstimatePos += als.predict(userId, posTop[j].id);
+                sumEstimateNeg += als.predict(userId, negTop[j].id);
             }
+
+
+            long t = System.currentTimeMillis();
+            // Compute all
+            double allSum = 0;
+            int numMovies = graphInfo.getNumRight();
+            for(int m=0; m < numMovies; m++) {
+                int movieId = vertexIdTranslate.forward(graphInfo.getNumLeft() + m);
+                allSum += als.predict(userId, movieId);
+            }
+
+            System.out.println(i + " avg pos: " + sumEstimatePos / n + "; avg neg: " + sumEstimateNeg / n + "; all="
+                    + allSum / graphInfo.getNumRight() + " (" + (System.currentTimeMillis() - t) + " ms for " + numMovies + " movies");
         }
     }
+
 
     /* Positive update follows only 4 and 5 rated movies from the beginning */
     protected static class PositiveWalkUpdate implements WalkUpdateFunction<Integer, Float> {
@@ -103,17 +121,22 @@ public class MovieRecommender {
             hopToHighRatings(walks, vertex, drunkardContext, randomGenerator);
         }
 
+        // Have some weight for <= 3 ratings to avoid divide by zeroes.
+        private static final float weightedRating[] = {0.0f, 0.00001f, 0.00001f, 0.0001f, 100.0f, 1000.0f};
+
         protected static void hopToHighRatings(int[] walks, ChiVertex<Integer, Float> vertex, DrunkardContext drunkardContext, Random randomGenerator) {
-            int[] hops = WeightedHopper.generateRandomHopsAliasMethod(randomGenerator, vertex, walks.length, EdgeDirection.IN_AND_OUT_EDGES,
+            int[] hops = WeightedHopper.generateRandomHopsAliasMethod(randomGenerator, vertex, walks.length,
+                    EdgeDirection.IN_AND_OUT_EDGES,
                     new WeightedHopper.EdgeWeightMap() {
                         // Use exponential weights
                         @Override
                         public float map(float x) {
                             int r = (int) x;
-                            return (float) (1 << r); // 2^(rating - 1)     // TODO: should just eliminate negative?
+                            return weightedRating[r]; // 2^(rating - 1)     // TODO: should just eliminate negative?
                         }
                     });
             for(int i=0; i < walks.length; i++) {
+
                 // Track only movie vertices
                 drunkardContext.forwardWalkTo(walks[i],
                         vertex.edge(hops[i]).getVertexId(), vertex.numOutEdges() > 0);
@@ -163,7 +186,7 @@ public class MovieRecommender {
                 /* Then, handle the negative cases */
                 ArrayList<Integer> badlyRated = new ArrayList<Integer>();
                 for(int i=0; i<vertex.numOutEdges(); i++) {
-                    if (vertex.getOutEdgeValue(i) < 3) {
+                    if (vertex.getOutEdgeValue(i) < 2) {
                         badlyRated.add(vertex.getOutEdgeId(i));
                     }
                 }
@@ -178,6 +201,14 @@ public class MovieRecommender {
                     if (drunkardContext.isWalkStartedFromVertex(w)) {
                         int randomBadRating = badlyRated.get(randomGenerator.nextInt(badlyRated.size()));
                         drunkardContext.forwardWalkTo(w, randomBadRating, true);
+
+                        if (vertex.getId() == 0) {
+                            for(int i=0; i<vertex.numOutEdges(); i++) {
+                                if (vertex.getOutEdgeId(i)  == randomBadRating) {
+                                    System.out.println("BAD ====> " + randomBadRating + "; " + vertex.getOutEdgeValue(i));
+                                }
+                            }
+                        }
                     }
                 }
             }

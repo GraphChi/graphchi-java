@@ -13,6 +13,7 @@ import edu.cmu.graphchi.walks.WalkManager;
 import edu.cmu.graphchi.walks.WalkSnapshot;
 
 import java.io.File;
+import java.io.IOException;
 import java.util.TreeSet;
 
 /**
@@ -31,6 +32,8 @@ public class DrunkardMob implements GraphChiProgram<Integer, Float> {
     public DrunkardMob() {
     }
 
+    private static final double RESETPROB = 0.15;
+
     public void update(ChiVertex<Integer, Float> vertex, GraphChiContext context) {
         int[] walksAtMe = curWalkSnapshot.getWalksAtVertex(vertex.getId(), true);
         if (context.getIteration() == 0) vertex.setValue(0);
@@ -47,7 +50,7 @@ public class DrunkardMob implements GraphChiProgram<Integer, Float> {
             if (vertex.getId() != walkManager.getSourceVertex(walk)) {
                 numWalks++;
             }
-            if (vertex.numOutEdges() > 0) {
+            if (vertex.numOutEdges() > 0 && (context.getIteration() == 0 || Math.random() > RESETPROB)) {
                 dst = vertex.getRandomOutNeighbor();
             } else {
                 // Dead end!
@@ -79,23 +82,20 @@ public class DrunkardMob implements GraphChiProgram<Integer, Float> {
         System.out.println("Grab snapshot took " + (System.currentTimeMillis() - t) + " ms.");
 
         String walkDir = System.getProperty("walk.dir", ".");
-        final String filename = walkDir + "/walks_" + interval.getFirstVertex() + "-" + interval.getLastVertex() + ".dat";
+        final String filename = walkDir + "/walks_.dat";
         if (ctx.getIteration() == 0) { // NOTE, temporary hack to save disk space but have the same I/O cost for testing
             new File(filename).delete();
         }
 
         // Launch a thread to dump
         final WalkSnapshot snapshot = curWalkSnapshot;
-        Thread dumperThread = new Thread(new Runnable() {
-            public void run() {
-                try {
-                    walkManager.dumpToFile(snapshot, filename);
-                } catch (Exception err) {
-                    err.printStackTrace();
-                }
-            }
-        });
-        dumperThread.start();
+       synchronized (filename.intern()) {
+           try {
+               walkManager.dumpToFile(snapshot, filename);
+           } catch (IOException e) {
+               e.printStackTrace();
+           }
+       }
     }
 
     public void endSubInterval(GraphChiContext ctx, final VertexInterval interval) {
@@ -152,7 +152,7 @@ public class DrunkardMob implements GraphChiProgram<Integer, Float> {
             mob.walkManager = new WalkManager(nVertices, nSources);
 
             for(int i=0; i < nSources; i++) {
-                int source = (int) (Math.random() * nVertices);
+                int source = 234224 + i;
                 mob.walkManager.addWalkBatch(source, walksPerSource);
             }
             mob.walkManager.initializeWalks();

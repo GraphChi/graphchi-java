@@ -30,10 +30,12 @@ public class ChiLogger {
 
     public static Logger getLogger(String name) {
         Logger log = Logger.getLogger(name);
-        ConsoleHandler handler = new ConsoleHandler();
-        handler.setFormatter(new SingleLineFormatter());
-        log.setUseParentHandlers(false);
-        log.addHandler(handler);
+        if (log.getHandlers().length == 0) {
+            ConsoleHandler handler = new ConsoleHandler();
+            handler.setFormatter(new SingleLineFormatter());
+            log.setUseParentHandlers(false);
+            log.addHandler(handler);
+        }
         return log;
     }
 
@@ -83,7 +85,11 @@ public class ChiLogger {
                 sb.append(" ");
                 sb.append(record.getSourceMethodName());
             }
-            sb.append(" - "); // lineSeparator
+            sb.append(" - t:"); // lineSeparator
+
+            // Thread name
+            sb.append(Thread.currentThread().getId());
+            sb.append(" ");
 
             String message = formatMessage(record);
 

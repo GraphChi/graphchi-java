@@ -686,29 +686,37 @@ public class FastSharder <VertexValueType, EdgeValueType> {
                     if (lineNum % 2000000 == 0) logger.info("Reading line: " + lineNum);
 
                     String[] tok = ln.split("\t");
-                     if (tok.length == 1) tok = ln.split(" ");
+                    if (tok.length == 1) tok = ln.split(" ");
 
-                    if (format == GraphInputFormat.EDGELIST) {
+                    if (tok.length > 1) {
+                        if (format == GraphInputFormat.EDGELIST) {
                         /* Edge list: <src> <dst> <value> */
-                        if (tok.length == 2) {
-                            this.addEdge(Integer.parseInt(tok[0]), Integer.parseInt(tok[1]), null);
-                        } else if (tok.length == 3) {
-                            this.addEdge(Integer.parseInt(tok[0]), Integer.parseInt(tok[1]), tok[2]);
-                        }
-                    } else if (format == GraphInputFormat.ADJACENCY) {
+                            if (tok.length == 2) {
+                                this.addEdge(Integer.parseInt(tok[0]), Integer.parseInt(tok[1]), null);
+                            } else if (tok.length == 3) {
+                                this.addEdge(Integer.parseInt(tok[0]), Integer.parseInt(tok[1]), tok[2]);
+                            }
+                        } else if (format == GraphInputFormat.ADJACENCY) {
                         /* Adjacency list: <vertex-id> <count> <neighbor-1> <neighbor-2> ... */
-                        int vertexId = Integer.parseInt(tok[0]);
-                        int len = Integer.parseInt(tok[1]);
-                        if (len != tok.length - 2) {
-                            throw new IllegalArgumentException("Error on line " + lineNum + "; number of edges does not match number of tokens:" +
-                                    len + " != " + tok.length);
+                            int vertexId = Integer.parseInt(tok[0]);
+                            int len = Integer.parseInt(tok[1]);
+                            if (len != tok.length - 2) {
+                                if (lineNum < 10) {
+                                    throw new IllegalArgumentException("Error on line " + lineNum + "; number of edges does not match number of tokens:" +
+                                            len + " != " + tok.length);
+                                } else {
+                                    logger.warning("Error on line " + lineNum + "; number of edges does not match number of tokens:" +
+                                            len + " != " + tok.length);
+                                    break;
+                                }
+                            }
+                            for(int j=2; j < 2 + len; j++) {
+                                int dest = Integer.parseInt(tok[j]);
+                                this.addEdge(vertexId, dest, null);
+                            }
+                        } else {
+                            throw new IllegalArgumentException("Please specify graph input format");
                         }
-                        for(int j=2; j < 2 + len; j++) {
-                            int dest = Integer.parseInt(tok[j]);
-                            this.addEdge(vertexId, dest, null);
-                        }
-                    } else {
-                        throw new IllegalArgumentException("Please specify graph input format");
                     }
                 }
             }

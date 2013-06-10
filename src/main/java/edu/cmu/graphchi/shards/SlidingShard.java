@@ -288,7 +288,7 @@ public class SlidingShard <EdgeDataType> {
     }
 
     public long getNumEdges() {
-        if (converter == null) return 0; // TODO: fix.
+        if (converter == null) return edataFilesize / 4; // TODO: fix.
         return edataFilesize / converter.sizeOf();
     }
 

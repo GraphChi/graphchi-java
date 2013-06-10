@@ -2,17 +2,16 @@ package edu.cmu.graphchi.apps.recommendations;
 
 
 import edu.cmu.graphchi.*;
-import edu.cmu.graphchi.datablocks.FloatConverter;
-import edu.cmu.graphchi.preprocessing.EdgeProcessor;
 import edu.cmu.graphchi.preprocessing.FastSharder;
 import edu.cmu.graphchi.preprocessing.VertexIdTranslate;
+
 import edu.cmu.graphchi.preprocessing.VertexProcessor;
+import edu.cmu.graphchi.queries.VertexQuery;
 import edu.cmu.graphchi.util.IdCount;
 import edu.cmu.graphchi.walks.DrunkardContext;
 import edu.cmu.graphchi.walks.DrunkardJob;
 import edu.cmu.graphchi.walks.DrunkardMobEngine;
 import edu.cmu.graphchi.walks.WalkUpdateFunction;
-import edu.cmu.graphchi.walks.WeightedHopper;
 import edu.cmu.graphchi.walks.distributions.DrunkardCompanion;
 import edu.cmu.graphchi.walks.distributions.RemoteDrunkardCompanion;
 import org.apache.commons.cli.*;
@@ -24,6 +23,10 @@ import java.rmi.Naming;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.Random;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.logging.Logger;
 
 /**
@@ -57,7 +60,7 @@ public class TwitterWTF implements WalkUpdateFunction<EmptyType, EmptyType> {
     private int numSources;
     private int numShards;
     private int numWalksPerSource;
-    private int salsaCacheSize = 100000;
+    private int salsaCacheSize = Integer.parseInt(System.getProperty("salsacache", "100000"));
     private String companionUrl;
 
     public TwitterWTF(String companionUrl, String baseFilename, int nShards, int firstSource, int numSources, int walksPerSource) throws Exception{
@@ -77,7 +80,7 @@ public class TwitterWTF implements WalkUpdateFunction<EmptyType, EmptyType> {
         /** Use local drunkard mob companion. You can also pass a remote reference
          *  by using Naming.lookup("rmi://my-companion")
          */
-        RemoteDrunkardCompanion companion;
+        final RemoteDrunkardCompanion companion;
         if (companionUrl.equals("local")) {
             companion = new DrunkardCompanion(4, Runtime.getRuntime().maxMemory() / 3);
         }  else {
@@ -93,51 +96,109 @@ public class TwitterWTF implements WalkUpdateFunction<EmptyType, EmptyType> {
         drunkardJob.configureSourceRangeInternalIds(firstSource, numSources, numWalksPerSource);
         drunkardMobEngine.run(numIters);
 
-        VertexIdTranslate vertexIdTranslate = this.drunkardMobEngine.getVertexIdTranslate();
 
         // Empty from memory so can use cache in the SALSA
         this.drunkardMobEngine = null;
+        drunkardJob = null;
 
         /* Step 2: SALSA */
-        int circleOfTrustSize = 300;
+        final int circleOfTrustSize = 200;
 
-        long startTime = System.currentTimeMillis();
-        CircleOfTrustSalsa csalsa = new CircleOfTrustSalsa(baseFilename, numShards, salsaCacheSize);
+        final long startTime = System.currentTimeMillis();
 
-        // TODO: make multi-threaded!
+        final AtomicInteger numRecs = new AtomicInteger();
+        final AtomicInteger pending = new AtomicInteger();
+
+        // FIXME: hardcoded
+        ExecutorService executor = Executors.newFixedThreadPool(4);
+
+        logger.info("Started 4 threads");
+
+
+        // Each thread need to have a local query service so the file descriptors don't clash.
+        final ThreadLocal<VertexQuery> queryService = new ThreadLocal<VertexQuery>() {
+            @Override
+            protected VertexQuery initialValue() {
+                try {
+                    return new VertexQuery(baseFilename, numShards);
+                } catch (IOException ioe) {
+                    ioe.printStackTrace();
+                    throw new RuntimeException(ioe);
+                }
+            }
+
+
+        };
+
+        //
+ 
+        long t = System.currentTimeMillis();
+
         for(int vertexId=firstSource; vertexId < firstSource+numSources; vertexId++) {
-            /* Get circle of trust from the DrunkardCompanion */
+            final int _vertexId = vertexId;
+            pending.incrementAndGet();
+            executor.execute(new Runnable() {
+                @Override
+                public void run() {
+                    try {
+                        CircleOfTrustSalsa csalsa = new CircleOfTrustSalsa(queryService.get(), salsaCacheSize);
+                        computeRecs(companion, circleOfTrustSize, startTime, csalsa, numRecs, _vertexId);
 
-            IdCount[] topVisits = companion.getTop(vertexId, circleOfTrustSize);
+                    } catch (Exception err) {
+                        err.printStackTrace();
+                    }
+                    pending.decrementAndGet();
+                }
+            });
+        }
 
-            HashSet<Integer> circleOfTrust = new HashSet<Integer>(topVisits.length);
-            for(IdCount idc: topVisits) {
-                circleOfTrust.add(idc.id);
+        while(pending.get() > 0) {
+            try {
+                Thread.sleep(10000);
+            } catch (InterruptedException ie) {
+                ie.printStackTrace();
             }
+            System.out.println("Pending WTF queries: " + pending.get());
+        }
+ 
+        System.out.println("WTF-recs," + (System.currentTimeMillis() - t));
 
-            /* Initialize and run SALSA */
-            csalsa.initializeGraph(circleOfTrust);
-            csalsa.computeSALSA(4);
+    }
 
-            // Make a list of immediate neighbors, which should not be recommended
-            // NOTE: the companion would have that list also!
-            HashSet<Integer> doNotRecommend = csalsa.getQueryService().queryOutNeighbors(vertexId);
-            doNotRecommend.add(vertexId);
+    private void computeRecs(RemoteDrunkardCompanion companion, int circleOfTrustSize, long startTime, CircleOfTrustSalsa csalsa, AtomicInteger numRecs, int vertexId) throws IOException {
+        /* Get circle of trust from the DrunkardCompanion */
+        IdCount[] topVisits = companion.getTop(vertexId, circleOfTrustSize);
 
-            /* Get SALSA's top results and print */
-            ArrayList<CircleOfTrustSalsa.SalsaVertex> recommendations = csalsa.topAuthorities(4, doNotRecommend);
+        HashSet<Integer> circleOfTrust = new HashSet<Integer>(topVisits.length);
+        for(IdCount idc: topVisits) {
+            circleOfTrust.add(idc.id);
+        }
 
-            logger.info("Recommendations for " + csalsa.namify(vertexIdTranslate.backward(vertexId)) + " (" + vertexIdTranslate.backward(vertexId) + ")");
-            for(CircleOfTrustSalsa.SalsaVertex sv : recommendations) {
-                int originalId = vertexIdTranslate.backward(sv.id);
-                logger.info("  recommend: " + " = " + originalId + " " + csalsa.namify(originalId) + " (" + sv.value + ")");
-            }
+        /* Initialize and run SALSA */
+        csalsa.initializeGraph(circleOfTrust);
+        csalsa.computeSALSA(4);
 
-            if (vertexId - firstSource % 40 == 0) {
-                long t = System.currentTimeMillis() - startTime;
-                logger.info("Computed recommendations for " + (vertexId - firstSource + 1) + " users in " + t + "ms");
-                logger.info("Average: " + (double)t / (vertexId - firstSource + 1));
-            }
+        // Make a list of immediate neighbors, which should not be recommended
+        // NOTE: the companion would have that list also!
+        HashSet<Integer> doNotRecommend = csalsa.getQueryService().queryOutNeighbors(vertexId);
+        doNotRecommend.add(vertexId);
+
+        /* Get SALSA's top results and print */
+
+        ArrayList<CircleOfTrustSalsa.SalsaVertex> recommendations = csalsa.topAuthorities(10, doNotRecommend);
+
+
+        /*logger.info("Recommendations for " + csalsa.namify(vertexIdTranslate.backward(vertexId)) + " (" + vertexIdTranslate.backward(vertexId) + ")");
+   for(CircleOfTrustSalsa.SalsaVertex sv : recommendations) {
+       int originalId = vertexIdTranslate.backward(sv.id);
+       logger.info("  recommend: " + " = " + originalId + " " + csalsa.namify(originalId) + " (" + sv.value + ")");
+   } */
+
+        int numRecsNow = numRecs.incrementAndGet();
+        if (numRecsNow % 100 == 0) {
+            long t = System.currentTimeMillis() - startTime;
+            logger.info("Computed recommendations for " + numRecsNow + " users in " + t + "ms");
+            logger.info("Average: " + (double)t / (vertexId - firstSource + 1) + "ms");
         }
     }
 
@@ -180,13 +241,10 @@ public class TwitterWTF implements WalkUpdateFunction<EmptyType, EmptyType> {
 
     @Override
     /**
-     * Instruct drunkardMob not to track visits to this vertex's immediate out-neighbors.
+     * Only ignore the current vertex
      */
     public int[] getNotTrackedVertices(ChiVertex<EmptyType, EmptyType> vertex) {
-        int[] notCounted = new int[1 + vertex.numOutEdges()];
-        for(int i=0; i < vertex.numOutEdges(); i++) {
-            notCounted[i + 1] = vertex.getOutEdgeId(i);
-        }
+        int[] notCounted = new int[1];
         notCounted[0] = vertex.getId();
         return notCounted;
     }
@@ -197,6 +255,8 @@ public class TwitterWTF implements WalkUpdateFunction<EmptyType, EmptyType> {
     }
 
     public static void main(String[] args) throws Exception {
+
+        long t = System.currentTimeMillis();
 
         /* Configure command line */
         Options cmdLineOptions = new Options();
@@ -246,11 +306,17 @@ public class TwitterWTF implements WalkUpdateFunction<EmptyType, EmptyType> {
                     firstSource, numSources, walksPerSource);
             pp.execute(nIters);
 
+
+            System.out.println("WTF-log," + (System.currentTimeMillis() - t) + "," + firstSource +"," + (firstSource + numSources - 1) +
+                    "," + walksPerSource + "," + nIters);
+
+            System.exit(0);
         } catch (Exception err) {
             err.printStackTrace();
             // automatically generate the help statement
             HelpFormatter formatter = new HelpFormatter();
             formatter.printHelp("TwitterWTF", cmdLineOptions);
         }
+
     }
 }

@@ -22,7 +22,7 @@ public class WalkManager {
     private static final int MAX_SOURCES = 16777216;
 
     protected final static int bucketSize = 128; // Store walks into buckets for faster retrieval
-    protected final static int initialSize = Integer.parseInt(System.getProperty("walkmanager.initial_size", "128"));
+    protected final static int initialSize = Integer.parseInt(System.getProperty("walkmanager.initial_size", "32"));
 
     protected int sourceSeqIdx  = 0;
     protected int[] sources;
@@ -100,7 +100,7 @@ public class WalkManager {
             throw new IllegalStateException("You can have a maximum of " + sources.length + " random walk sources");
 
         if (sourceSeqIdx > 0) {
-            if (sources[sourceSeqIdx] > vertex) {
+            if (sources[sourceSeqIdx - 1] > vertex) {
                 throw new IllegalArgumentException("You need to add sources in order!");
             }
         }

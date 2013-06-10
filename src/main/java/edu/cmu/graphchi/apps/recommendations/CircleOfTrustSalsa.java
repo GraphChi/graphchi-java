@@ -29,7 +29,7 @@ public class CircleOfTrustSalsa {
     private static final Logger logger = ChiLogger.getLogger("circle-of-trust");
 
 
-   static class SalsaVertex {
+    static class SalsaVertex {
         int id;
         int degree = 0;
         SalsaVertex(int id) {
@@ -45,24 +45,28 @@ public class CircleOfTrustSalsa {
     private HashMap<Integer, SalsaVertex> hubs;
     private HashMap<Integer, SalsaVertex> authorities;
 
-    // Cache: TODO - use LRU
-    private LinkedHashMap<Integer, ArrayList<Integer>> cache;
-    private int cacheSize;
+    // Static cache
+    static private Map<Integer, ArrayList<Integer>> cache;
     private String graphName;
 
     private static final int FILTER_LIMIT = 4;
 
-    public CircleOfTrustSalsa(String graphName, int numShards, final int cacheSize) throws Exception {
-        queryService = new VertexQuery(graphName, numShards);
-        this.graphName = graphName;
-        this.cacheSize = cacheSize;
-        this.cache =  new LinkedHashMap<Integer, ArrayList<Integer>>(cacheSize, 1.0f, true) // LRU
-        {
-            @Override
-            protected boolean removeEldestEntry(Map.Entry<Integer, ArrayList<Integer>> integerArrayListEntry) {
-                return this.size() > cacheSize;
+
+    // NOTE: non-thread safe
+    public CircleOfTrustSalsa(VertexQuery queryService, final int cacheSize) throws Exception {
+        this.queryService = queryService;
+
+        synchronized (CircleOfTrustSalsa.class) {
+            if (cache == null) {
+                cache = Collections.synchronizedMap(new LinkedHashMap<Integer, ArrayList<Integer>>(cacheSize, 1.0f, true) // LRU
+                {
+                    @Override
+                    protected boolean removeEldestEntry(Map.Entry<Integer, ArrayList<Integer>> integerArrayListEntry) {
+                        return this.size() > cacheSize;
+                    }
+                });
             }
-        };
+        }
     }
 
     public void initializeGraph(Collection<Integer> circleOfTrust) {
@@ -121,12 +125,12 @@ public class CircleOfTrustSalsa {
         }
         assert(j == authEntries.length);
 
-         // Create map efficiently
+        // Create map efficiently
         Arrays.sort(authEntries);
 
         int lastId = -1;
         int count = 0;
-        int filtered = 0;
+    //    int filtered = 0;
 
         ArrayList<SalsaVertex> tmpAuth = new ArrayList<SalsaVertex>(1 + authEntries.length / 100);
         for(int i=0; i < authEntries.length; i++) {
@@ -138,7 +142,7 @@ public class CircleOfTrustSalsa {
                         auth.degree = count;
                         tmpAuth.add(auth);
                     } else {
-                        filtered++;
+                      //  filtered++;
                     }
                     count = 0;
 
@@ -155,13 +159,13 @@ public class CircleOfTrustSalsa {
         }
 
         // NOTE: remove neighbors!
-
+            /*
         long salsaInitTime = System.currentTimeMillis() - t;
         logger.info("Query took: " + queryTime + " ms, circle of trust size=" + circleOfTrust.size() + ", cache size=" +
                 cache.size() + ", hits=" + cacheHits);
         logger.info("Salsa init: " + salsaInitTime + " ms, first phase=" + salsaInitTime0 + " ms, hubs="
                 + hubs.size() + ", auths=" + authorities.size());
-        logger.info("Filtered: " + filtered);
+        logger.info("Filtered: " + filtered);            */
     }
 
     /**
@@ -261,7 +265,7 @@ public class CircleOfTrustSalsa {
         String graphName = args[0];
         int nShards = Integer.parseInt(args[1]);
 
-        CircleOfTrustSalsa csalsa = new CircleOfTrustSalsa(graphName, nShards, 10000);
+        CircleOfTrustSalsa csalsa = new CircleOfTrustSalsa(new VertexQuery(graphName, nShards), 10000);
 
         VertexIdTranslate vertexTrans = VertexIdTranslate.fromFile(new File(ChiFilenames.getVertexTranslateDefFile(graphName, nShards)));
 
