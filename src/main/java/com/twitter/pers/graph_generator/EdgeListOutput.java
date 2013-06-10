@@ -1,9 +1,6 @@
 package com.twitter.pers.graph_generator;
 
-import java.io.BufferedOutputStream;
-import java.io.DataOutputStream;
-import java.io.FileOutputStream;
-import java.io.IOException;
+import java.io.*;
 
 /**
  * @author Aapo Kyrola, akyrola@cs.cmu.edu, akyrola@twitter.com
@@ -21,11 +18,10 @@ public class EdgeListOutput implements GraphOutput {
     @Override
     public void addEdges(int[] from, int[] to)  {
         try {
-            DataOutputStream dos = partitionOut.get();
+            BufferedWriter dos = partitionOut.get();
             int n = from.length;
             for(int i=0; i<n; i++) {
-                dos.writeInt(Integer.reverseBytes(from[i]));
-                dos.writeInt(Integer.reverseBytes(to[i]));
+                dos.write(from[i] + "\t" + to[i] + "\n");
             }
         } catch (IOException ioe) {
             throw new RuntimeException(ioe);
@@ -41,9 +37,9 @@ public class EdgeListOutput implements GraphOutput {
     }
 
     /* Each thread will have a local partition */
-    private ThreadLocal<DataOutputStream> partitionOut = new ThreadLocal<DataOutputStream>() {
+    private ThreadLocal<BufferedWriter> partitionOut = new ThreadLocal<BufferedWriter>() {
         @Override
-        protected DataOutputStream initialValue() {
+        protected BufferedWriter initialValue() {
             try {
                 int thisPartId;
                 synchronized (this) {
@@ -51,7 +47,7 @@ public class EdgeListOutput implements GraphOutput {
                 }
 
                 String fileName = fileNamePrefix + "-part" + thisPartId;
-                return new DataOutputStream(new BufferedOutputStream(new FileOutputStream(fileName)));
+                return new BufferedWriter(new FileWriter(fileName));
             } catch (Exception err) {
                 err.printStackTrace();
                 throw new RuntimeException(err);
