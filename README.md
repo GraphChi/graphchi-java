@@ -12,8 +12,9 @@ Version 0.2
 
 You can build GraphChi with any IDE, or using Maven. Just
 write on the command-line:
+```
      mvn assembly:assembly -DdescriptorId=jar-with-dependencies
-
+```
 
 ## Running GraphChi
 
