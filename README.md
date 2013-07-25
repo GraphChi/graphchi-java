@@ -12,7 +12,7 @@ Version 0.2
 
 # Introduction
 
-Project for developing the Java version of GraphChi ( http://www.graphchi.org ), the disk-based graph computation engine. To learn more about GraphChi, visit the C++ version's project page: http://code.google.com/p/graphchi
+Project for developing the Java version of GraphChi ( http://www.graphchi.org ), the disk-based graph computation engine. To learn more about GraphChi, visit the C++ version's project page: https://github.com/GraphChi/graphchi-cpp
 
 **NEW:** GraphChi can be used in Hadoop/Pig scripts: [GraphChi for Pig](https://github.com/GraphChi/graphchi-java/wiki/GraphChi-For-Pig).
 
@@ -84,7 +84,7 @@ Example PIG script:
 
 ### Scala
 
-An early Scala-wrapper is also provided. See [PagerankScala](http://code.google.com/p/graphchi-java/source/browse/src/main/scala/edu/cmu/graphchi/scala/apps/PagerankScala.scala) for example.
+An early Scala-wrapper is also provided. See [PagerankScala](https://github.com/GraphChi/graphchi-java/blob/master/src/main/scala/edu/cmu/graphchi/scala/apps/PagerankScala.scala) for example.
 
 
 ### Differences to the C++ version
@@ -93,7 +93,7 @@ Following features are not implemented in the Java-version:
 * dynamic graphs
 * dynamic edge data
 
-GraphChi implements a preprocessing step called "sharding", which reads an input graph and stores it in efficient binary format on the disk (see http://code.google.com/p/graphchi/wiki/IntroductionToGraphChi for more information). Java-version now includes its own sharding code (called "FastSharder"), which differs from the C++ version: FastSharder shuffles the order of vertices to guarantee (with high probability) an even distribution of edges over shards. Thus, internally GraphChi's Java-version uses different vertex IDs than in the original graph. 
+GraphChi implements a preprocessing step called "sharding", which reads an input graph and stores it in efficient binary format on the disk (see [Introduction to GraphChi](https://github.com/GraphChi/graphchi-cpp/wiki/Introduction-To-GraphChi) for more information). Java-version now includes its own sharding code (called "FastSharder"), which differs from the C++ version: FastSharder shuffles the order of vertices to guarantee (with high probability) an even distribution of edges over shards. Thus, internally GraphChi's Java-version uses different vertex IDs than in the original graph. 
 
 Translating between the internal ids and original ids is easy using the **VertexIdTranslate** class:
 
