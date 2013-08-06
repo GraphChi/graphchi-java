@@ -685,8 +685,8 @@ public class FastSharder <VertexValueType, EdgeValueType> {
                     lineNum++;
                     if (lineNum % 2000000 == 0) logger.info("Reading line: " + lineNum);
 
-                    // split along consecutive whitespaces
-                    String[] tok = ln.split("\\s+");
+                    // trim line and split along consecutive whitespaces
+                    String[] tok = ln.trim().split("\\s+");
 
                     if (tok.length > 1) {
                         if (format == GraphInputFormat.EDGELIST) {
