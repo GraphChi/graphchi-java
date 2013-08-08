@@ -16,6 +16,7 @@ import java.io.*;
 import java.util.Iterator;
 import java.util.Random;
 import java.util.logging.Logger;
+import java.util.regex.Pattern;
 import java.util.zip.DeflaterOutputStream;
 
 /**
@@ -680,13 +681,14 @@ public class FastSharder <VertexValueType, EdgeValueType> {
 
 
         if (!format.equals(GraphInputFormat.MATRIXMARKET)) {
+        	Pattern pat = Pattern.compile("\\s+");
             while ((ln = ins.readLine()) != null) {
                 if (ln.length() > 2 && !ln.startsWith("#")) {
                     lineNum++;
                     if (lineNum % 2000000 == 0) logger.info("Reading line: " + lineNum);
 
                     // trim line and split along consecutive whitespaces
-                    String[] tok = ln.trim().split("\\s+");
+                    String[] tok = pat.split(ln.trim());
 
                     if (tok.length > 1) {
                         if (format == GraphInputFormat.EDGELIST) {
