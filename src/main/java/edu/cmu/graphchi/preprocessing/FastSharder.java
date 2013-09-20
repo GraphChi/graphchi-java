@@ -13,10 +13,14 @@ import edu.cmu.graphchi.shards.SlidingShard;
 import nom.tam.util.BufferedDataInputStream;
 
 import java.io.*;
+import java.util.HashMap;
 import java.util.Iterator;
+import java.util.Map;
 import java.util.Random;
 import java.util.logging.Logger;
 import java.util.zip.DeflaterOutputStream;
+
+import org.codehaus.jackson.map.ObjectMapper;
 
 /**
  * New version of sharder that requires predefined number of shards
@@ -74,6 +78,8 @@ public class FastSharder <VertexValueType, EdgeValueType> {
 
     private EdgeProcessor<EdgeValueType> edgeProcessor;
     private VertexProcessor<VertexValueType> vertexProcessor;
+    
+    private Map<String, String> metadataMap;
 
 
     private static final Logger logger = ChiLogger.getLogger("fast-sharder");
@@ -102,6 +108,7 @@ public class FastSharder <VertexValueType, EdgeValueType> {
         this.vertexProcessor = vertexProcessor;
         this.edgeValueTypeBytesToValueConverter = edgeValConverter;
         this.vertexValueTypeBytesToValueConverter = vertexValConterter;
+        this.metadataMap = new HashMap<String, String>();
 
         /**
          * In the first phase of processing, the edges are "shoveled" to
@@ -758,15 +765,9 @@ public class FastSharder <VertexValueType, EdgeValueType> {
                     }
                 }
             }
-
-            /* Store matrix dimensions */
-            String matrixMarketInfoFile = baseFilename + ".matrixinfo";
-            FileOutputStream fos = new FileOutputStream(new File(matrixMarketInfoFile));
-            fos.write((numLeft + "\t" + numRight + "\t" + totalEdges + "\n").getBytes());
-            fos.close();
+            this.metadataMap.put("numLeft", numLeft + "");
+            this.metadataMap.put("numRight", numRight + "");
         }
-
-
 
         this.process();
     }
@@ -863,6 +864,24 @@ public class FastSharder <VertexValueType, EdgeValueType> {
         } catch (Exception err) {
             err.printStackTrace();
         }
+    }
+
+    
+    public void addMetadata(String key, String value) {
+    	this.metadataMap.put(key, value);
+    }
+    
+    public void writeMetadata() throws IOException {
+    	String fileName = ChiFilenames.getFilenameMetadata(this.baseFilename, this.numShards);
+    	File metadataFile = new File(fileName);
+    	ObjectMapper mapper = new ObjectMapper();
+    	mapper.writeValue(metadataFile, this.metadataMap);
+    }
+    
+    public static Map<String, String> readMetadata(String fileName) throws IOException {
+    	File metadataFile = new File(fileName);
+    	ObjectMapper mapper = new ObjectMapper();
+    	return (Map<String, String>) mapper.readValue(metadataFile, Map.class);
     }
 
     public static void main(String[] args) throws Exception {

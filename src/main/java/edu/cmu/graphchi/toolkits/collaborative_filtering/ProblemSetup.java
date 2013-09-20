@@ -3,6 +3,7 @@ package edu.cmu.graphchi.toolkits.collaborative_filtering;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
+import java.util.logging.Level;
 import java.util.logging.Logger;
 
 import edu.cmu.graphchi.ChiFilenames;
@@ -15,29 +16,50 @@ import edu.cmu.graphchi.util.HugeDoubleMatrix;
 
 public class ProblemSetup {
 
-        static HugeDoubleMatrix latent_factors_inmem;
-		static long M,N,L;
-        static int D = 10;
-        static double minval = -1e100;
-        static double maxval = 1e100;
-        protected static Logger logger = ChiLogger.getLogger("ALS");
-        static double train_rmse = 0.0;
-        FastSharder sharder_validation;
-        static RMSEEngine validation_rmse_engine;
-        static String training;
-        static String validation;
-        static String test;
-        static int nShards;
-        static int quiet;
+		long M,N,L;
+        int D = 10;	//Hidden features - Move to some other place?
+        double minval = Double.MIN_VALUE;
+        double maxval = Double.MAX_VALUE;
+        String training;
+        String validation;
+        String test;
+        int nShards;
+        int quiet;
         
-        void init_feature_vectors(long size){
-          logger.info("Initializing latent factors for " + size + " vertices");
-          latent_factors_inmem = new HugeDoubleMatrix(size, D);
-
-          /* Fill with random data */
-          latent_factors_inmem.randomize(0f, 1.0f);
+        public ProblemSetup(String[] args) {
+        	this.parse_command_line_arguments(args);
         }
         
-       
+        //TODO: Use Apache CLI or some other package which has a better command line interface.
+        public void parse_command_line_arguments(String [] args){
+    		try{
+	    		for (int i=0; i< args.length; i++){
+	    			if (args[i].startsWith("--training="))
+	    				this.training = args[i].substring(11, args[i].length());
+	    			else if (args[i].startsWith("--validation="))
+	    				this.validation = args[i].substring(13, args[i].length());
+	    			else if (args[i].startsWith("--test="))
+	    				this.test = args[i].substring(7,args[i].length());
+	    			else if (args[i].startsWith("--D="))
+	    				this.D = Integer.parseInt(args[i].substring(4,args[i].length()));
+	    			else if (args[i].startsWith("--minval="))
+	    				this.minval = Integer.parseInt(args[i].substring(9,args[i].length()));
+	    			else if (args[i].startsWith("--maxval="))
+	    				this.maxval = Integer.parseInt(args[i].substring(9,args[i].length()));
+	    			else if (args[i].startsWith("--nshards="))
+	    				this.nShards = Integer.parseInt(args[i].substring(10,args[i].length()));
+	    			else if (args[i].startsWith("--quiet="))
+	    				this.quiet = Integer.parseInt(args[i].substring(8,args[i].length()));
+	    		}
+    		} catch (Exception ex){
+    			System.out.println("Failed to parse command line parameters: " + ex.toString());
+    			System.exit(1);
+    		}
+    	
+    		if (this.quiet > 0){
+    			ChiLogger.getLogger("engine").setLevel(Level.SEVERE);
+    		    ChiLogger.getLogger("memoryshard").setLevel(Level.SEVERE);
+    		}
+        }
       
 }

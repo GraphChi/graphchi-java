@@ -13,6 +13,7 @@ import edu.cmu.graphchi.util.HugeDoubleMatrix;
 import org.apache.commons.math.linear.*;
 
 import java.io.*;
+import java.util.Map;
 import java.util.logging.Logger;
 
 /**
@@ -44,29 +45,40 @@ import java.util.logging.Logger;
  * @author Aapo Kyrola, akyrola@cs.cmu.edu, 2013
  * @author Modifications by Danny Bickson, CMU, 2013
  */
-public class ALS extends ProblemSetup implements GraphChiProgram<Integer, Float>{
+public class ALS implements GraphChiProgram<Integer, Float>{
+    
+	double LAMBDA = 0.065;
+	private ProblemSetup problemSetup;
+	private HugeDoubleMatrix latent_factors_inmem;
+	protected Logger logger = ChiLogger.getLogger("ALS");
+    double train_rmse = 0.0;
 
-  
-    double LAMBDA = 0.065;
-
-
-    private ALS() {
+    public ALS(ProblemSetup problemSetup) {
+    	this.problemSetup = problemSetup;
     }
 
-    public static double als_predict(RealVector user, RealVector item){
+    public double als_predict(RealVector user, RealVector item){
     	double prediction = user.dotProduct(item);
-    	prediction = Math.min(prediction, ALS.maxval);
-    	prediction = Math.max(prediction, ALS.minval);
+    	prediction = Math.min(prediction, this.problemSetup.maxval);
+    	prediction = Math.max(prediction, this.problemSetup.minval);
     	return prediction;
     }
+    
+    void init_feature_vectors(long size){
+        this.logger.info("Initializing latent factors for " + size + " vertices");
+        latent_factors_inmem = new HugeDoubleMatrix(size, this.problemSetup.D);
+
+        /* Fill with random data */
+        latent_factors_inmem.randomize(0f, 1.0f);
+      }
     
     
     @Override
     public void update(ChiVertex<Integer, Float> vertex, GraphChiContext context) {
         if (vertex.numEdges() == 0) return;
 
-        RealMatrix XtX = new BlockRealMatrix(D, D);
-        RealVector Xty = new ArrayRealVector(D);
+        RealMatrix XtX = new BlockRealMatrix(this.problemSetup.D, this.problemSetup.D);
+        RealVector Xty = new ArrayRealVector(this.problemSetup.D);
         RealVector latent_factor = latent_factors_inmem.getRowAsVector(vertex.getId());
      
 
@@ -80,16 +92,16 @@ public class ALS extends ProblemSetup implements GraphChiProgram<Integer, Float>
             
                 //Xty.add(neighbor * observation);
                 //XtX.add(neighbor.outerProduct(neighbor));
-                for(int i=0; i < D; i++) {
+                for(int i=0; i < this.problemSetup.D; i++) {
                     Xty.setEntry(i, Xty.getEntry(i) + neighbor.getEntry(i) * observation);
-                    for(int j=i; j < D; j++) {
+                    for(int j=i; j < this.problemSetup.D; j++) {
                         XtX.setEntry(j,i, XtX.getEntry(j, i) + neighbor.getEntry(i) * neighbor.getEntry(j));
                     }
                 }
                 
                 // Symmetrize
-                for(int i=0; i < D; i++) {
-                    for(int j=i+1; j< D; j++) XtX.setEntry(i,j, XtX.getEntry(j, i));
+                for(int i=0; i < this.problemSetup.D; i++) {
+                    for(int j=i+1; j< this.problemSetup.D; j++) XtX.setEntry(i,j, XtX.getEntry(j, i));
                 }
                 
                 if (is_user){
@@ -97,10 +109,9 @@ public class ALS extends ProblemSetup implements GraphChiProgram<Integer, Float>
                   squaredError += Math.pow(prediction - observation,2);
                 }
             }
-
             
             // Diagonal -- add regularization
-            for (int i=0; i < D; i++) 
+            for (int i=0; i < this.problemSetup.D; i++) 
             	XtX.setEntry(i, i, XtX.getEntry(i, i) + LAMBDA * vertex.numEdges());
 
             // Solve the least-squares optimization using Cholesky Decomposition
@@ -109,12 +120,12 @@ public class ALS extends ProblemSetup implements GraphChiProgram<Integer, Float>
 
            if (is_user){
         	   synchronized (this) {
-                 train_rmse += squaredError;
+        		   this.train_rmse += squaredError;
                }
            }
             
         } catch (NotPositiveDefiniteMatrixException npdme) {
-            logger.warning("Matrix was not positive definite: " + XtX);
+        	this.logger.warning("Matrix was not positive definite: " + XtX);
         } catch (Exception err) {
             throw new RuntimeException(err);
         }
@@ -126,7 +137,7 @@ public class ALS extends ProblemSetup implements GraphChiProgram<Integer, Float>
          * Vertices' latent factors are stored in the vertexValueMatrix
          * so that each row contains one latent factor.
          */
-    	train_rmse = 0;
+    	this.train_rmse = 0;
         if (ctx.getIteration() == 0) {
         	   init_feature_vectors(ctx.getNumVertices());
         }
@@ -135,9 +146,8 @@ public class ALS extends ProblemSetup implements GraphChiProgram<Integer, Float>
     @Override
     public void endIteration(GraphChiContext ctx) {
     	 /* Output RMSE */
-        train_rmse = Math.sqrt(train_rmse / (1.0 * 3298163 /*ctx.getNumEdges()*/));
-        //logger.info("Train RMSE: " + train_rmse);
-        ProblemSetup.validation_rmse_engine.calc_validation_rmse(training, nShards);
+        this.train_rmse = Math.sqrt(this.train_rmse / (1.0 * ctx.getNumEdges()));
+        this.logger.info("Train RMSE: " + this.train_rmse);
     }
 
     @Override
@@ -156,10 +166,6 @@ public class ALS extends ProblemSetup implements GraphChiProgram<Integer, Float>
     public void endSubInterval(GraphChiContext ctx, VertexInterval interval) {
     }
 
-
-    
-
-
     /**
      * Usage: java edu.cmu.graphchi.ALSMatrixFactorization <input-file> <nshards> <D>
      * Normally nshards of 10 or so is fine.
@@ -167,19 +173,16 @@ public class ALS extends ProblemSetup implements GraphChiProgram<Integer, Float>
      * @throws Exception
      */
     public static void main(String[] args) throws Exception {
-      
-    	
-        ALS als = new ALS();
-        Common.parse_command_line_arguments(args);
-        logger.info("Set latent factor dimension to: " + als.D);
 
-        IO.convert_matrix_market();
-        
-        ALS.validation_rmse_engine = new RMSEEngine();
-        ALS.validation_rmse_engine.init_validation();
+    	ProblemSetup problemSetup = new ProblemSetup(args);
+    	
+        ALS als = new ALS(problemSetup);
+        als.logger.info("Set latent factor dimension to: " + problemSetup.D);
+
+        IO.convert_matrix_market(problemSetup);
         
         /* Run GraphChi */
-        GraphChiEngine<Integer, Float> engine = new GraphChiEngine<Integer, Float>(ProblemSetup.training, ProblemSetup.nShards);
+        GraphChiEngine<Integer, Float> engine = new GraphChiEngine<Integer, Float>(problemSetup.training, problemSetup.nShards);
         
         engine.setEdataConverter(new FloatConverter());
         engine.setEnableDeterministicExecution(false);
@@ -188,7 +191,6 @@ public class ALS extends ProblemSetup implements GraphChiProgram<Integer, Float>
         engine.setModifiesOutedges(false); // Important optimization
         engine.run(als, 5);
 
-       
         als.writeOutputMatrices(engine.getVertexIdTranslate());
     }
 
@@ -199,40 +201,40 @@ public class ALS extends ProblemSetup implements GraphChiProgram<Integer, Float>
      * @throws Exception
      */
     private void writeOutputMatrices(VertexIdTranslate vertexIdTranslate) throws Exception {
-        /* First read the original matrix dimensions */
-        String info = FileUtils.readToString(training + ".matrixinfo");
-        String[] tok = info.split("\t");
-        int numLeft = Integer.parseInt(tok[0]);
-        int numRight = Integer.parseInt(tok[1]);
-
+    	Map<String, String> metaDataMap = FastSharder.readMetadata(
+    			ChiFilenames.getFilenameMetadata(this.problemSetup.training, this.problemSetup.nShards));
+    	int numLeft = Integer.parseInt(metaDataMap.get("numLeft"));
+    	int numRight = Integer.parseInt(metaDataMap.get("numRight"));
+    	
         /* Output left */
-        String leftFileName = training + "_U.mm";
+        String leftFileName = this.problemSetup.training + "_U.mm";
         BufferedWriter wr = new BufferedWriter(new FileWriter(leftFileName));
         wr.write("%%MatrixMarket matrix array real general\n");
-        wr.write(this.D + " " + numLeft + "\n");
+        wr.write(this.problemSetup.D + " " + numLeft + "\n");
 
         for(int j=0; j < numLeft; j++) {
             int vertexId = vertexIdTranslate.forward(j);  // Translate to internal vertex id
-            for(int i=0; i < D; i++) {
+            for(int i=0; i < this.problemSetup.D; i++) {
                 wr.write(latent_factors_inmem.getValue(vertexId, i) + "\n");
             }
         }
         wr.close();
 
         /* Output right */
-        String rightFileName = training + "_V.mm";
+        String rightFileName = this.problemSetup.training + "_V.mm";
         wr = new BufferedWriter(new FileWriter(rightFileName));
         wr.write("%%MatrixMarket matrix array real general\n");
-        wr.write(this.D + " " + numRight + "\n");
+        wr.write(this.problemSetup.D + " " + numRight + "\n");
 
         for(int j=0; j < numRight; j++) {
             int vertexId = vertexIdTranslate.forward(numLeft + j);   // Translate to internal vertex id
-            for(int i=0; i < D; i++) {
+            for(int i=0; i < this.problemSetup.D; i++) {
                 wr.write(latent_factors_inmem.getValue(vertexId, i) + "\n");
             }
         }
         wr.close();
 
-        logger.info("Latent factor matrices saved: " + training + "_U.mm" + ", " + training + "_V.mm");
+        this.logger.info("Latent factor matrices saved: " + 
+        		this.problemSetup.training + "_U.mm" + ", " + this.problemSetup.training + "_V.mm");
     }
 }
