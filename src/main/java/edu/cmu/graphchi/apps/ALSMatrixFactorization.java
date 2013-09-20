@@ -16,6 +16,7 @@ import java.io.*;
 import java.util.logging.Logger;
 
 /**
+ * Added a comment!
  * Matrix factorization with the Alternative Least Squares (ALS) algorithm.
  * This code is based on GraphLab's implementation of ALS by Joey Gonzalez
  * and Danny Bickson (CMU). A good explanation of the algorithm is
