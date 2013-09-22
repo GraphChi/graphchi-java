@@ -21,7 +21,9 @@ import edu.cmu.graphchi.preprocessing.FastSharder;
 
 /**
  * SVD++ algorithm with Stochastic Gradient Descent.
- * This code is based on GraphChi's implementation of SVD++ by Danny Bickson (CMU) 
+ * 
+ * This code is based on GraphChi-Cpp's implementation of SVD++ by Danny Bickson (CMU) 
+ * 
  * It is based on the algorithm given in the following paper:
  * Y. Koren. Factorization Meets the Neighborhood: a Multifaceted Collaborative Filtering Model. 
  * ACM SIGKDD 2008.
@@ -32,6 +34,7 @@ import edu.cmu.graphchi.preprocessing.FastSharder;
  *
  * @author Mayank Mohta, mmohta@andrew.cmu.edu, 2013
  */
+
 public class SVDPP implements GraphChiProgram<Integer, Float>{
 	
 	private Map<String, String> metadataMap;
@@ -83,7 +86,8 @@ public class SVDPP implements GraphChiProgram<Integer, Float>{
 		prediction += user.bias + movie.bias;
 		
 		// + q_i^T*(p_u + sum y_j/sqrt(|N(u)|))
-		prediction += movie.pVec.dotProduct(user.pVec.add(user.weigths));
+		for(int i = 0; i < this.problemSetup.D; i++)
+			prediction += movie.pVec.getEntry(i)*(user.pVec.getEntry(i) + user.weigths.getEntry(i));
 		
 		prediction = Math.max(prediction, this.problemSetup.minval);
 		prediction = Math.min(prediction, this.problemSetup.maxval);
@@ -102,7 +106,7 @@ public class SVDPP implements GraphChiProgram<Integer, Float>{
 			}
 			for(int i = 0; i < vertex.numOutEdges(); i++) {
 				VertexDataType item = latent_factors_inmem.get(vertex.getOutEdgeId(i));
-				user.weigths.add(item.weigths);
+				user.weigths = user.weigths.add(item.weigths);
 			}
 			
 			//sqrt(|N(u)|)
@@ -151,17 +155,17 @@ public class SVDPP implements GraphChiProgram<Integer, Float>{
 	        	//Batch updation of movie weights
 	        	//y_j = y_j  +   gamma2*sqrt|N(u)| * q_i - gamma7 * y_j
 	        	//This would change the algorithm - Ask Danny's comments?
-	        	step.add(item.pVec.mapMultiply(err*this.problemSetup.itemFactorStep));
+	        	step = step.add(item.pVec.mapMultiply(err));
 	        }
 	        
 	        //Update item weights.
-	        step.mapMultiply(this.problemSetup.itemFactorStep*usrNorm);
+	        step = step.mapMultiply(this.problemSetup.itemFactorStep*usrNorm);
 	        double regStep = this.problemSetup.itemFactorReg*this.problemSetup.itemFactorStep;
 	        
 	        for(int i = 0; i < vertex.numOutEdges(); i++) {
 				VertexDataType item = latent_factors_inmem.get(vertex.getOutEdgeId(i));
 				step = step.subtract(item.weigths.mapMultiply(regStep));
-				item.weigths.add(step);
+				item.weigths = item.weigths.add(step);
 			}
 	        
 		}
@@ -227,14 +231,14 @@ public class SVDPP implements GraphChiProgram<Integer, Float>{
 		public SVDPPProblemSetup(String[] args) {
 			super(args);
 			
-			this.itemFactorStep = 0.0001;
-			this.itemFactorReg = 0.0001;
-			this.userFactorStep = 0.0001;
-			this.userFactorReg = 0.0001;
-			this.itemBiasReg = 0.0001;
-			this.itemBiasStep = 0.0001;
-			this.userBiasReg = 0.0001;
-			this.userBiasReg = 0.0001;
+			this.itemFactorStep = 0.001;
+			this.itemFactorReg = 0.001;
+			this.userFactorStep = 0.001;
+			this.userFactorReg = 0.001;
+			this.itemBiasReg = 0.001;
+			this.itemBiasStep = 0.001;
+			this.userBiasReg = 0.001;
+			this.userBiasStep = 0.001;
 			
 			this.stepDec = 0.9;
 			
