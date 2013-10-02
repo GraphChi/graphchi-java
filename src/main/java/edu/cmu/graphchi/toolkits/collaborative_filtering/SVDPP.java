@@ -98,7 +98,6 @@ public class SVDPP implements GraphChiProgram<Integer, Float>{
 	@Override
 	public void update(ChiVertex<Integer, Float> vertex, GraphChiContext context) {
 		if(vertex.numOutEdges() > 0) {
-			//User vertex.
 			VertexDataType user = latent_factors_inmem.get(vertex.getId());
 			
 			for(int i = 0; i < this.problemSetup.D; i++) {
@@ -113,10 +112,9 @@ public class SVDPP implements GraphChiProgram<Integer, Float>{
 			double usrNorm = 1.0/Math.sqrt(vertex.numOutEdges());
 			user.weigths = user.weigths.mapMultiply(usrNorm);
 			
-			RealVector step = new ArrayRealVector(this.problemSetup.D);
-			
 	        // main algorithm, see Koren's paper, just below below equation (16)
 	        for(int e=0; e < vertex.numOutEdges(); e++) {
+	        	//User vertex.
 	        	VertexDataType item = latent_factors_inmem.get(vertex.getOutEdgeId(e));
 	        	float observation = vertex.getOutEdgeValue(e);
 	        	double estScore = svdppPredict(user, item, observation);
@@ -151,25 +149,28 @@ public class SVDPP implements GraphChiProgram<Integer, Float>{
 	        	synchronized (this) {
 					this.train_rmse += err*err;
 				}
-	        	
-	        	//Batch updation of movie weights
-	        	//y_j = y_j  +   gamma2*sqrt|N(u)| * q_i - gamma7 * y_j
-	        	//This would change the algorithm - Ask Danny's comments?
-	        	step = step.add(item.pVec.mapMultiply(err));
+	     
+	        	//Calculate sum_j(y_j) * (1/sqrt(N(u))) for the next r_ui.
+	        	for(int i = 0; i < this.problemSetup.D; i++) {
+	    			user.weigths.setEntry(i, 0);
+	    		}
+	        	//For all neighbors of u
+	        	//y_j = y_j  +   gamma2*(e_ui * (1/sqrt|N(u)|) * q_i - gamma7 * y_j)
+	        	RealVector step = new ArrayRealVector(this.problemSetup.D);
+	        	for(int i = 0; i < vertex.numOutEdges(); i++) {
+					VertexDataType nbrItem = latent_factors_inmem.get(vertex.getOutEdgeId(i));
+					step = item.pVec.mapMultiply(usrNorm*err);
+					step = step.subtract(nbrItem.weigths.mapMultiply(this.problemSetup.itemFactorReg));
+					step = step.mapMultiply(this.problemSetup.itemFactorStep);
+					nbrItem.weigths = nbrItem.weigths.add(step);
+					
+					//For the next iteration
+					user.weigths = user.weigths.add(nbrItem.weigths);
+	        	}
+	        	user.weigths = user.weigths.mapMultiply(usrNorm);
 	        }
 	        
-	        //Update item weights.
-	        step = step.mapMultiply(this.problemSetup.itemFactorStep*usrNorm);
-	        double regStep = this.problemSetup.itemFactorReg*this.problemSetup.itemFactorStep;
-	        
-	        for(int i = 0; i < vertex.numOutEdges(); i++) {
-				VertexDataType item = latent_factors_inmem.get(vertex.getOutEdgeId(i));
-				step = step.subtract(item.weigths.mapMultiply(regStep));
-				item.weigths = item.weigths.add(step);
-			}
-	        
 		}
-		
 	}
 
 	@Override
