@@ -24,6 +24,17 @@ public class IO {
         }
 	}
 	
+	public static void convert_matrix_market(ProblemSetup problemSetup, FastSharder sharder) 
+			throws IOException{
+		  /* Run sharding (preprocessing) if the files do not exist yet */
+      if (!new File(ChiFilenames.getFilenameIntervals(problemSetup.training, problemSetup.nShards)).exists() ||
+              !new File(problemSetup.training + ".matrixinfo").exists()) {
+          sharder.shard(new FileInputStream(new File(problemSetup.training)), FastSharder.GraphInputFormat.MATRIXMARKET);
+      } else {
+          //problemSetup.logger.info("Found shards -- no need to preprocess");
+      }
+	}
+	
 	 /**
      * Initialize the sharder-program.
      * @param graphName

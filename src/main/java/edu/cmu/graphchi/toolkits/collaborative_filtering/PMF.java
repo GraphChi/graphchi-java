@@ -1,5 +1,14 @@
 package edu.cmu.graphchi.toolkits.collaborative_filtering;
 
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.Externalizable;
+import java.io.IOException;
+import java.io.ObjectInput;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutput;
+import java.io.ObjectOutputStream;
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -13,20 +22,24 @@ import org.apache.commons.math.linear.RealMatrix;
 import org.apache.commons.math.linear.RealVector;
 import org.apache.commons.math3.distribution.MultivariateNormalDistribution;
 
+import edu.cmu.graphchi.ChiEdge;
 import edu.cmu.graphchi.ChiFilenames;
 import edu.cmu.graphchi.ChiLogger;
 import edu.cmu.graphchi.ChiVertex;
 import edu.cmu.graphchi.GraphChiContext;
 import edu.cmu.graphchi.GraphChiProgram;
+import edu.cmu.graphchi.datablocks.BytesToValueConverter;
 import edu.cmu.graphchi.datablocks.FloatConverter;
+import edu.cmu.graphchi.datablocks.IntConverter;
 import edu.cmu.graphchi.engine.GraphChiEngine;
 import edu.cmu.graphchi.engine.VertexInterval;
+import edu.cmu.graphchi.preprocessing.EdgeProcessor;
 import edu.cmu.graphchi.preprocessing.FastSharder;
 import gov.sandia.cognition.math.matrix.Matrix;
 import gov.sandia.cognition.math.matrix.mtj.DenseMatrixFactoryMTJ;
 import gov.sandia.cognition.statistics.distribution.InverseWishartDistribution;
 
-public class PMF implements GraphChiProgram<VertexDataType, Float> {
+public class PMF implements GraphChiProgram<Integer, EdgeDataType> {
 
 	private static final boolean DEBUG = true;
 	PMFProblemSetup setup;
@@ -289,7 +302,7 @@ public class PMF implements GraphChiProgram<VertexDataType, Float> {
 	 */
 	
 	@Override
-	public void update(ChiVertex<VertexDataType, Float> vertex, GraphChiContext context) {
+	public void update(ChiVertex<Integer, EdgeDataType> vertex, GraphChiContext context) {
 		boolean isUser = vertex.numOutEdges() > 0;
 		
 		//First iteration also computes number of users and number of movies
@@ -312,8 +325,8 @@ public class PMF implements GraphChiProgram<VertexDataType, Float> {
 		
 		//Gather data to update the mean and the covariance for the hidden features.	
 		for(int i = 0; i < vertex.numEdges(); i++) {
-			Float edge = vertex.edge(i).getValue();
-			double observation = edge;
+			ChiEdge<EdgeDataType> edge = vertex.edge(i); 
+			double observation = edge.getValue().observation;
 			
 			int nbrId = vertex.edge(i).getVertexId();
 			VertexDataType nbrVertex = this.latent_factors.get(nbrId);
@@ -342,18 +355,27 @@ public class PMF implements GraphChiProgram<VertexDataType, Float> {
 		MultivariateNormalDistribution dist = new MultivariateNormalDistribution(mean.toArray(), covariance.getData());
 		vData.pVec = new ArrayRealVector(dist.sample());
 		
-		//Aggregate the sample and compute rmse if greater than burn_in period
-		boolean burnedIn = context.getIteration() >= this.setup.burn_in_period; 
-		if(burnedIn) {
-			vData.aggVec = vData.aggVec.add(vData.pVec);
-			vData.count++;
-		} 
-		
 		//Compute contribution of all ratings for this vertex to RMSE.
 		if(isUser) {
-			double rmse = computeRMSE(vertex, context);
-			synchronized (this) {
-				this.train_rmse += rmse;
+			for(int i = 0; i < vertex.numEdges(); i++) {
+				ChiEdge<EdgeDataType> edge = vertex.edge(i); 
+				float observation = edge.getValue().observation;
+				int nbrId = vertex.edge(i).getVertexId();
+				VertexDataType nbrVertex = this.latent_factors.get(nbrId);
+				
+				//Aggregate the sample and compute rmse if greater than burn_in period
+				float prediction = predict(vData.pVec, nbrVertex.pVec);
+				boolean burnedIn = context.getIteration() >= this.setup.burn_in_period; 
+				if(burnedIn) {
+					edge.setValue(new EdgeDataType(observation, edge.getValue().aggPred + prediction,
+							edge.getValue().count + 1));
+					prediction = edge.getValue().aggPred/(float)edge.getValue().count;
+					//System.out.println(prediction);
+				}
+			
+				synchronized (this) {
+					this.train_rmse += (observation - prediction)*(observation - prediction);
+				}
 			}
 		}
 		
@@ -417,38 +439,15 @@ public class PMF implements GraphChiProgram<VertexDataType, Float> {
 		
 	}
 	
-	public double computeRMSE(ChiVertex<VertexDataType, Float> v, GraphChiContext ctx) {
-		VertexDataType vData = this.latent_factors.get(v.getId());
-		double rmse = 0;
-		for(int i = 0; i <  v.numOutEdges(); i++) {
-			VertexDataType nbr = this.latent_factors.get(v.edge(i).getVertexId());
-			
-			double prediction;
-			RealVector tmp1 = vData.count == 0 ? vData.pVec : vData.aggVec.mapMultiply(1.0/vData.count);
-			RealVector tmp2 = nbr.count == 0 ? nbr.pVec : nbr.aggVec.mapMultiply(1.0/nbr.count); 
-			prediction = tmp1.dotProduct(tmp2);
-			prediction = Math.max(prediction, this.setup.minval);
-			prediction = Math.min(prediction, this.setup.maxval);			
-			
-			double observation = v.edge(i).getValue();
-			rmse += (observation - prediction)*(observation - prediction);
-
-			if(vData.count > 0 && DEBUG &&  ctx.getVertexIdTranslate().backward(v.getId()) == 13) {
-				int nbrId = ctx.getVertexIdTranslate().backward(v.edge(i).getVertexId());
-				System.out.println("Prediction for 13 and  " + nbrId + " is " + prediction + 
-						" and observation is " + observation + " (It: " + ctx.getIteration() + " u: " 
-						+ vData.count + " i: " + nbr.count + ")");
-				
-			}
-		}
-		if(vData.count > 0 && DEBUG &&  ctx.getVertexIdTranslate().backward(v.getId()) == 13) {
-			for(int j = 0; j < this.setup.D; j++)
-				System.out.print(vData.aggVec.getEntry(j) + " ");
-		}
+	public float predict(RealVector u, RealVector v) {
+		double prediction = u.dotProduct(v);
 		
-		return rmse;
+		prediction = Math.max(prediction, this.setup.minval);
+		prediction = Math.min(prediction, this.setup.maxval);
+
+		return (float)prediction;
 	}
-	
+		
 	static class PMFProblemSetup extends ProblemSetup {
 		//Parameters - hyperpriors
 		int burn_in_period;
@@ -461,25 +460,34 @@ public class PMF implements GraphChiProgram<VertexDataType, Float> {
 		}
 	}
 	
+	protected static FastSharder createSharder(String graphName, int numShards) throws IOException {
+        return new FastSharder<Integer, EdgeDataType>(graphName, numShards, null, 
+        		new EdgeProcessor<EdgeDataType>() {
+		            public EdgeDataType receiveEdge(int from, int to, String token) {
+		                return (token == null ? new EdgeDataType() : new EdgeDataType(Float.parseFloat(token),0.0f,0));
+		            }
+        	}, 
+        	new IntConverter(), new EdgeDataTypeConvertor());
+    }
+	
     public static void main(String[] args) throws Exception {
 
     	PMFProblemSetup problemSetup = new PMFProblemSetup(args);
 
-        IO.convert_matrix_market(problemSetup);
+    	FastSharder sharder = PMF.createSharder(problemSetup.training, problemSetup.nShards);
+        IO.convert_matrix_market(problemSetup, sharder);
         
-        Map<String, String> metadataMap = FastSharder.readMetadata(
-        		ChiFilenames.getFilenameMetadata(problemSetup.training, problemSetup.nShards));
         PMF pmf = new PMF(problemSetup);
         
         // Run GraphChi 
-        GraphChiEngine<VertexDataType, Float> engine = new GraphChiEngine<VertexDataType, Float>
+        GraphChiEngine<Integer, EdgeDataType> engine = new GraphChiEngine<Integer, EdgeDataType>
         	(problemSetup.training, problemSetup.nShards);
         
-        engine.setEdataConverter(new FloatConverter());
+        engine.setEdataConverter(new EdgeDataTypeConvertor());
         engine.setEnableDeterministicExecution(false);
         engine.setVertexDataConverter(null);  // We do not access vertex values.
         engine.setModifiesInedges(false); // Important optimization
-        engine.setModifiesOutedges(false); // Important optimization
+        //engine.setModifiesOutedges(false);
         engine.run(pmf, 15);
        
         //svdpp.writeOutputMatrices(engine.getVertexIdTranslate());
@@ -489,16 +497,116 @@ public class PMF implements GraphChiProgram<VertexDataType, Float> {
 
 class VertexDataType {
 	RealVector pVec;
-	RealVector aggVec;
-	int count;
 	
 	public VertexDataType(int D) {
 		this.pVec = new ArrayRealVector(D);
-		this.aggVec = new ArrayRealVector(D);
-		this.count = 0;
 		for(int i = 0; i < D; i++) {
 			this.pVec.setEntry(i, Math.random());
-			this.aggVec.setEntry(i, 0);
 		}
 	}
+}
+
+class EdgeDataType implements Externalizable {
+	float observation;
+	float aggPred;
+	int count;
+	
+	public EdgeDataType() {
+		this.observation = 0;
+		this.aggPred = 0;
+		this.count = 0;
+	}
+	
+	public EdgeDataType(float observation, float aggPred, int count) {
+		this.observation = observation;
+		this.aggPred = aggPred;
+		this.count = count;
+	}
+	
+	@Override
+	public void writeExternal(ObjectOutput out) throws IOException {
+		out.writeFloat(observation);
+		out.writeFloat(aggPred);
+		out.writeInt(count);
+	}
+	
+	@Override
+	public void readExternal(ObjectInput in) throws IOException,
+			ClassNotFoundException {
+		observation = in.readFloat();
+		aggPred = in.readFloat();
+		count = in.readInt();
+	}
+}
+
+
+class EdgeDataTypeConvertor implements  BytesToValueConverter<EdgeDataType> {
+    public int sizeOf() {
+        return 12;
+    }
+    
+    public EdgeDataType getValue(byte[] array) {
+    	EdgeDataType res = null;
+    	
+    	ByteBuffer buf = ByteBuffer.wrap(array);
+    	float obs = buf.getFloat(0);
+    	float aggPred = buf.getFloat(4);
+    	int count = buf.getInt(8);
+    	
+    	res = new EdgeDataType(obs, aggPred, count);
+    	return res;
+    }
+    
+    public void setValue(byte[] array, EdgeDataType val) {
+    	  ByteBuffer buf = ByteBuffer.allocate(12);
+    	  buf.putFloat(0, val.observation);
+    	  buf.putFloat(4, val.aggPred);
+    	  buf.putInt(8, val.count);
+    	  byte[] a = buf.array();
+    	  
+    	  for(int i = 0; i < a.length; i++) {
+    		  array[i] = a[i];
+    	  }
+    }
+
+/*    public EdgeDataType getValue(byte[] array) {
+    	ByteArrayInputStream bis = new ByteArrayInputStream(array);
+    	ObjectInput in = null;
+    	EdgeDataType res = null;    	
+    	try {
+    		in = new ObjectInputStream(bis);
+    		res = (EdgeDataType)in.readObject();
+    	} catch (Exception e) { 
+    		e.printStackTrace();
+    	} finally {
+    		try {
+    			bis.close();
+    			in.close();
+    		} catch (IOException ioe) {
+    			ioe.printStackTrace();
+    		}
+    	}
+    	return res;
+    }
+
+    public void setValue(byte[] array, EdgeDataType val) {
+    	ByteArrayOutputStream bos = new ByteArrayOutputStream();
+    	ObjectOutput out = null;
+    	try {
+    	  out = new ObjectOutputStream(bos);   
+    	  out.writeObject(val);
+    	  out.flush();
+    	  array = bos.toByteArray();
+//    	  /System.out.println("-------- " + array.length + " ---------");
+    	} catch (Exception e) { 
+    		e.printStackTrace();
+    	} finally {
+    		try {
+    			bos.close();
+    			out.close();
+    		} catch (IOException ioe) {
+    			ioe.printStackTrace();
+    		}
+    	}
+    }*/
 }
