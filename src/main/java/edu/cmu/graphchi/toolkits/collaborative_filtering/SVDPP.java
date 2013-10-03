@@ -98,6 +98,10 @@ public class SVDPP implements GraphChiProgram<Integer, Float>{
 	@Override
 	public void update(ChiVertex<Integer, Float> vertex, GraphChiContext context) {
 		if(vertex.numOutEdges() > 0) {
+			//sqrt(1/|N(u)|)
+			double usrNorm = 1.0/Math.sqrt(vertex.numOutEdges());
+			
+			// Computing the value of sum_j(y_j) * (1/sqrt(N(u))) for first iteration.
 			VertexDataType user = latent_factors_inmem.get(vertex.getId());
 			
 			for(int i = 0; i < this.problemSetup.D; i++) {
@@ -107,9 +111,6 @@ public class SVDPP implements GraphChiProgram<Integer, Float>{
 				VertexDataType item = latent_factors_inmem.get(vertex.getOutEdgeId(i));
 				user.weigths = user.weigths.add(item.weigths);
 			}
-			
-			//sqrt(|N(u)|)
-			double usrNorm = 1.0/Math.sqrt(vertex.numOutEdges());
 			user.weigths = user.weigths.mapMultiply(usrNorm);
 			
 	        // main algorithm, see Koren's paper, just below below equation (16)
@@ -151,6 +152,12 @@ public class SVDPP implements GraphChiProgram<Integer, Float>{
 				}
 	     
 	        	//Calculate sum_j(y_j) * (1/sqrt(N(u))) for the next r_ui.
+	        	//TODO: Clarify from Danny: In C++ version, the same value of
+	        	//sum_j(y_j) * (1/sqrt(N(u))) is used for each of the ratings of a user in
+	        	//one iteration and the item.weights are updated after all ratings have been
+	        	//seen for a user in that iteration. This seems to differ from the paper, 
+	        	//wherein, for each rating r_ui, the weights y_j are updated. However, the results
+	        	//are similar in training RMSE.
 	        	for(int i = 0; i < this.problemSetup.D; i++) {
 	    			user.weigths.setEntry(i, 0);
 	    		}
