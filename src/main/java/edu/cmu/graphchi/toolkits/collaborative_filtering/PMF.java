@@ -370,7 +370,6 @@ public class PMF implements GraphChiProgram<Integer, EdgeDataType> {
 					edge.setValue(new EdgeDataType(observation, edge.getValue().aggPred + prediction,
 							edge.getValue().count + 1));
 					prediction = edge.getValue().aggPred/(float)edge.getValue().count;
-					//System.out.println(prediction);
 				}
 			
 				synchronized (this) {
@@ -506,7 +505,7 @@ class VertexDataType {
 	}
 }
 
-class EdgeDataType implements Externalizable {
+class EdgeDataType {
 	float observation;
 	float aggPred;
 	int count;
@@ -521,21 +520,6 @@ class EdgeDataType implements Externalizable {
 		this.observation = observation;
 		this.aggPred = aggPred;
 		this.count = count;
-	}
-	
-	@Override
-	public void writeExternal(ObjectOutput out) throws IOException {
-		out.writeFloat(observation);
-		out.writeFloat(aggPred);
-		out.writeInt(count);
-	}
-	
-	@Override
-	public void readExternal(ObjectInput in) throws IOException,
-			ClassNotFoundException {
-		observation = in.readFloat();
-		aggPred = in.readFloat();
-		count = in.readInt();
 	}
 }
 

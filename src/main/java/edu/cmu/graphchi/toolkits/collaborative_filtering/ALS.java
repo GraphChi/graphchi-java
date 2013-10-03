@@ -191,7 +191,7 @@ public class ALS implements GraphChiProgram<Integer, Float>{
         engine.setModifiesOutedges(false); // Important optimization
         engine.run(als, 5);
 
-        als.writeOutputMatrices(engine.getVertexIdTranslate());
+        //als.writeOutputMatrices(engine.getVertexIdTranslate());
     }
 
     /**
