@@ -1,17 +1,9 @@
 package edu.cmu.graphchi.toolkits.collaborative_filtering;
 
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
-import java.io.Externalizable;
 import java.io.IOException;
-import java.io.ObjectInput;
-import java.io.ObjectInputStream;
-import java.io.ObjectOutput;
-import java.io.ObjectOutputStream;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.Random;
 import java.util.logging.Logger;
 
@@ -23,13 +15,11 @@ import org.apache.commons.math.linear.RealVector;
 import org.apache.commons.math3.distribution.MultivariateNormalDistribution;
 
 import edu.cmu.graphchi.ChiEdge;
-import edu.cmu.graphchi.ChiFilenames;
 import edu.cmu.graphchi.ChiLogger;
 import edu.cmu.graphchi.ChiVertex;
 import edu.cmu.graphchi.GraphChiContext;
 import edu.cmu.graphchi.GraphChiProgram;
 import edu.cmu.graphchi.datablocks.BytesToValueConverter;
-import edu.cmu.graphchi.datablocks.FloatConverter;
 import edu.cmu.graphchi.datablocks.IntConverter;
 import edu.cmu.graphchi.engine.GraphChiEngine;
 import edu.cmu.graphchi.engine.VertexInterval;

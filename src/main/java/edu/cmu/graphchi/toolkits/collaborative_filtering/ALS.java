@@ -1,20 +1,28 @@
 package edu.cmu.graphchi.toolkits.collaborative_filtering;
 
-import edu.cmu.graphchi.*;
-import edu.cmu.graphchi.datablocks.FloatConverter;
-import edu.cmu.graphchi.datablocks.IntConverter;
-import edu.cmu.graphchi.engine.GraphChiEngine;
-import edu.cmu.graphchi.engine.VertexInterval;
-import edu.cmu.graphchi.preprocessing.EdgeProcessor;
-import edu.cmu.graphchi.preprocessing.FastSharder;
-import edu.cmu.graphchi.preprocessing.VertexIdTranslate;
-import edu.cmu.graphchi.util.FileUtils;
-import edu.cmu.graphchi.util.HugeDoubleMatrix;
-import org.apache.commons.math.linear.*;
-
-import java.io.*;
+import java.io.BufferedWriter;
+import java.io.FileWriter;
 import java.util.Map;
 import java.util.logging.Logger;
+
+import org.apache.commons.math.linear.ArrayRealVector;
+import org.apache.commons.math.linear.BlockRealMatrix;
+import org.apache.commons.math.linear.CholeskyDecompositionImpl;
+import org.apache.commons.math.linear.NotPositiveDefiniteMatrixException;
+import org.apache.commons.math.linear.RealMatrix;
+import org.apache.commons.math.linear.RealVector;
+
+import edu.cmu.graphchi.ChiFilenames;
+import edu.cmu.graphchi.ChiLogger;
+import edu.cmu.graphchi.ChiVertex;
+import edu.cmu.graphchi.GraphChiContext;
+import edu.cmu.graphchi.GraphChiProgram;
+import edu.cmu.graphchi.datablocks.FloatConverter;
+import edu.cmu.graphchi.engine.GraphChiEngine;
+import edu.cmu.graphchi.engine.VertexInterval;
+import edu.cmu.graphchi.preprocessing.FastSharder;
+import edu.cmu.graphchi.preprocessing.VertexIdTranslate;
+import edu.cmu.graphchi.util.HugeDoubleMatrix;
 
 /**
  * Matrix factorization with the Alternative Least Squares (ALS) algorithm.
