@@ -465,7 +465,7 @@ public class PMF implements GraphChiProgram<Integer, EdgeDataType> {
     	PMFProblemSetup problemSetup = new PMFProblemSetup(args);
 
     	FastSharder sharder = PMF.createSharder(problemSetup.training, problemSetup.nShards);
-        IO.convert_matrix_market(problemSetup, sharder);
+        IO.convertMatrixMarket(problemSetup, sharder);
         
         PMF pmf = new PMF(problemSetup);
         

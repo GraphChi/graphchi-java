@@ -81,7 +81,7 @@ class ModelParams {
 }
 
 
-public class LibFM_MCMC  implements GraphChiProgram<VertexDataType, EdgeDataType>{
+public class LibFM_MCMC  implements GraphChiProgram<LibFMUsers, LibFMItems>{
 	private ModelParams params;
 	private int num_users;
 	private int num_items;
@@ -203,7 +203,7 @@ public class LibFM_MCMC  implements GraphChiProgram<VertexDataType, EdgeDataType
 	}
 
 	@Override
-	public void update(ChiVertex<VertexDataType, EdgeDataType> vertex, GraphChiContext context) {
+	public void update(ChiVertex<LibFMUsers, LibFMItems> vertex, GraphChiContext context) {
 
 	}
 
@@ -253,7 +253,7 @@ public class LibFM_MCMC  implements GraphChiProgram<VertexDataType, EdgeDataType
 
 }
 
-class VertexDataType {
+class LibFMUsers {
 	int id;		//feature index.
 	
 	//These 2 lists represent the sparse vector for user/item features.
@@ -261,7 +261,7 @@ class VertexDataType {
 	float[] feature_values;		//feature values.
 }
 
-class EdgeDataType {
+class LibFMItems {
 	float observation;
 	
 }

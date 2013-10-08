@@ -1,18 +1,21 @@
 package edu.cmu.graphchi.toolkits.collaborative_filtering;
 
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.IOException;
 import java.util.logging.Level;
-import java.util.logging.Logger;
 
-import edu.cmu.graphchi.ChiFilenames;
 import edu.cmu.graphchi.ChiLogger;
-import edu.cmu.graphchi.datablocks.FloatConverter;
-import edu.cmu.graphchi.datablocks.IntConverter;
-import edu.cmu.graphchi.preprocessing.EdgeProcessor;
-import edu.cmu.graphchi.preprocessing.FastSharder;
-import edu.cmu.graphchi.util.HugeDoubleMatrix;
+
+/**
+ * This class represents the setup of a particular algorithm to be run.
+ * Every recommender system algorithm need some common parameters like the 
+ * location of training data file, test data file, number of shards, min and
+ * max values, etc.
+ * Each algorithm might also have some custom arguments like regularization or
+ * step. 
+ * Currently, this class wraps the Apache CLI and parses all the command line
+ * arguments and sets its member variables. The values of custom parameters are read
+ * by the corresponding algorithms ModelParameter class.
+ * @author mayank
+ */
 
 public class ProblemSetup {
 
@@ -25,6 +28,7 @@ public class ProblemSetup {
         String test;
         int nShards;
         int quiet;
+        String paramJson;
         
         public ProblemSetup(String[] args) {
         	this.parse_command_line_arguments(args);

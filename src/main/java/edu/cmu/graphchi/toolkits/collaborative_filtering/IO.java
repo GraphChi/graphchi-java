@@ -13,7 +13,7 @@ import edu.cmu.graphchi.preprocessing.FastSharder;
 
 public class IO {
 
-	public static void convert_matrix_market(ProblemSetup problemSetup) throws IOException{
+	public static void convertMatrixMarket(ProblemSetup problemSetup) throws IOException{
 		  /* Run sharding (preprocessing) if the files do not exist yet */
         FastSharder sharder = createSharder(problemSetup.training, problemSetup.nShards);
         if (!new File(ChiFilenames.getFilenameIntervals(problemSetup.training, problemSetup.nShards)).exists() ||
@@ -24,7 +24,7 @@ public class IO {
         }
 	}
 	
-	public static void convert_matrix_market(ProblemSetup problemSetup, FastSharder sharder) 
+	public static void convertMatrixMarket(ProblemSetup problemSetup, FastSharder sharder) 
 			throws IOException{
 		  /* Run sharding (preprocessing) if the files do not exist yet */
       if (!new File(ChiFilenames.getFilenameIntervals(problemSetup.training, problemSetup.nShards)).exists() ||
@@ -50,32 +50,6 @@ public class IO {
         }, new IntConverter(), new FloatConverter());
     }
 
-    /**
-     * Initialize the sharder-program. This sharder program will also record certain metadata
-     * like global mean to an info file.
-     * @param graphName
-     * @param numShards
-     * @return
-     * @throws java.io.IOException
-     */
-	public static void convert_matrix_market_metadata(ProblemSetup problemSetup) throws IOException{
-		  /* Run sharding (preprocessing) if the files do not exist yet */
-		GlobalMeanEdgeProcessor edgeProcessor = new GlobalMeanEdgeProcessor(); 
-		FastSharder sharder =  new FastSharder<Integer, Float>(problemSetup.training, 
-				problemSetup.nShards, null, edgeProcessor, new IntConverter(), new FloatConverter());
-		
-      if (!new File(ChiFilenames.getFilenameIntervals(problemSetup.training, problemSetup.nShards)).exists() ||
-              !new File(problemSetup.training + ".matrixinfo").exists()) {
-          sharder.shard(new FileInputStream(new File(problemSetup.training)), FastSharder.GraphInputFormat.MATRIXMARKET);
-          sharder.addMetadata("globalMean", edgeProcessor.getGlobalMean()+"");
-        //Write the metadata map which was populated during the sharding process.
-         sharder.writeMetadata();
-      } else {
-          //problemSetup.logger.info("Found shards -- no need to preprocess");
-      }
-      
-	}
-    
     static class GlobalMeanEdgeProcessor implements EdgeProcessor<Float> {
     	private long globalSum;
     	private long count;

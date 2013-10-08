@@ -187,7 +187,7 @@ public class ALS implements GraphChiProgram<Integer, Float>{
         ALS als = new ALS(problemSetup);
         als.logger.info("Set latent factor dimension to: " + problemSetup.D);
 
-        IO.convert_matrix_market(problemSetup);
+        IO.convertMatrixMarket(problemSetup);
         
         /* Run GraphChi */
         GraphChiEngine<Integer, Float> engine = new GraphChiEngine<Integer, Float>(problemSetup.training, problemSetup.nShards);
