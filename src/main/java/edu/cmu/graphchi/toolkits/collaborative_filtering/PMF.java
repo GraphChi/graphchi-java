@@ -369,6 +369,7 @@ public class PMF implements GraphChiProgram<Integer, EdgeDataType> {
 		}
 		
 		//Update Sum of U_i / V_j
+		//Should be synchronized? Or Atomic add of vectors?
 		if(isUser) {
 			this.sumU = this.sumU.add(vData.pVec);
 			this.sumUUT = this.sumUUT.add(vData.pVec.outerProduct(vData.pVec));
