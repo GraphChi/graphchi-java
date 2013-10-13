@@ -1,4 +1,4 @@
-package edu.cmu.graphchi.toolkits.collaborative_filtering;
+package edu.cmu.graphchi.toolkits.collaborative_filtering.algorithms;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -25,6 +25,8 @@ import edu.cmu.graphchi.engine.GraphChiEngine;
 import edu.cmu.graphchi.engine.VertexInterval;
 import edu.cmu.graphchi.preprocessing.EdgeProcessor;
 import edu.cmu.graphchi.preprocessing.FastSharder;
+import edu.cmu.graphchi.toolkits.collaborative_filtering.utils.IO;
+import edu.cmu.graphchi.toolkits.collaborative_filtering.utils.ProblemSetup;
 import gov.sandia.cognition.math.matrix.Matrix;
 import gov.sandia.cognition.math.matrix.mtj.DenseMatrixFactoryMTJ;
 import gov.sandia.cognition.statistics.distribution.InverseWishartDistribution;

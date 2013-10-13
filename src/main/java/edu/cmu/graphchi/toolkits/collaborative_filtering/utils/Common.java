@@ -1,4 +1,4 @@
-package edu.cmu.graphchi.toolkits.collaborative_filtering;
+package edu.cmu.graphchi.toolkits.collaborative_filtering.utils;
 
 import java.util.logging.Level;
 

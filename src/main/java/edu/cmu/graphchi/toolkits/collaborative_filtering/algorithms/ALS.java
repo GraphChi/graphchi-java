@@ -1,4 +1,4 @@
-package edu.cmu.graphchi.toolkits.collaborative_filtering;
+package edu.cmu.graphchi.toolkits.collaborative_filtering.algorithms;
 
 import java.io.BufferedWriter;
 import java.io.FileWriter;
@@ -22,6 +22,8 @@ import edu.cmu.graphchi.engine.GraphChiEngine;
 import edu.cmu.graphchi.engine.VertexInterval;
 import edu.cmu.graphchi.preprocessing.FastSharder;
 import edu.cmu.graphchi.preprocessing.VertexIdTranslate;
+import edu.cmu.graphchi.toolkits.collaborative_filtering.utils.IO;
+import edu.cmu.graphchi.toolkits.collaborative_filtering.utils.ProblemSetup;
 import edu.cmu.graphchi.util.HugeDoubleMatrix;
 
 /**

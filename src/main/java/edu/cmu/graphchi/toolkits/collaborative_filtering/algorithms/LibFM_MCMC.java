@@ -1,4 +1,4 @@
-package edu.cmu.graphchi.toolkits.collaborative_filtering;
+package edu.cmu.graphchi.toolkits.collaborative_filtering.algorithms;
 
 
 import org.apache.commons.math3.distribution.GammaDistribution;

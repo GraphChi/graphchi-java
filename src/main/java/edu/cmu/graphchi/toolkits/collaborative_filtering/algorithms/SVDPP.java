@@ -1,8 +1,5 @@
-package edu.cmu.graphchi.toolkits.collaborative_filtering;
+package edu.cmu.graphchi.toolkits.collaborative_filtering.algorithms;
 
-import java.text.DateFormat;
-import java.text.SimpleDateFormat;
-import java.util.Date;
 import java.util.logging.Logger;
 
 import edu.cmu.graphchi.ChiLogger;
@@ -12,7 +9,9 @@ import edu.cmu.graphchi.GraphChiProgram;
 import edu.cmu.graphchi.datablocks.FloatConverter;
 import edu.cmu.graphchi.engine.GraphChiEngine;
 import edu.cmu.graphchi.engine.VertexInterval;
+import edu.cmu.graphchi.toolkits.collaborative_filtering.utils.IO;
 import edu.cmu.graphchi.toolkits.collaborative_filtering.utils.ModelParameters;
+import edu.cmu.graphchi.toolkits.collaborative_filtering.utils.ProblemSetup;
 import edu.cmu.graphchi.util.HugeDoubleMatrix;
 
 /**
@@ -55,7 +54,7 @@ class SVDPPParams extends ModelParameters {
 	double userBiasReg;		// lambda6
 	double itemBiasStep;	//gamma1
 	double userBiasStep;	//gamma1
-	double stepDec; 		//
+	double stepDec; 		//Amount by which step size should be reduced.
 	
 	public SVDPPParams(String id, String json) {
 		super(id, json);
@@ -93,7 +92,6 @@ class SVDPPParams extends ModelParameters {
 	@Override
 	public void deserialize(String file) {
 		// TODO Auto-generated method stub
-		
 	}
 	
 	public void initParameterValues() {
@@ -305,8 +303,6 @@ public class SVDPP implements GraphChiProgram<Integer, Float>{
 	}
 	
     /**
-     * Usage: java edu.cmu.graphchi.ALSMatrixFactorization <input-file> <nshards> <D>
-     * Normally nshards of 10 or so is fine.
      * @param args
      * @throws Exception
      */
@@ -316,8 +312,7 @@ public class SVDPP implements GraphChiProgram<Integer, Float>{
 
         IO.convertMatrixMarket(problemSetup);
         
-        DateFormat df = new SimpleDateFormat("MM/dd/yyyy HH:mm:ss");
-        SVDPPParams params = new SVDPPParams("SVDPP_" +  df.format(new Date()), problemSetup.paramJson);
+        SVDPPParams params = new SVDPPParams(problemSetup.getRunId("SVDPP"), problemSetup.paramJson);
         SVDPP svdpp = new SVDPP(params, problemSetup);
         
         // Run GraphChi 
@@ -330,7 +325,7 @@ public class SVDPP implements GraphChiProgram<Integer, Float>{
         engine.setModifiesOutedges(false); // Important optimization
         engine.run(svdpp, 15);
        
-        //svdpp.writeOutputMatrices(engine.getVertexIdTranslate());
+        params.serialize(problemSetup.outputLoc);
     }
 
 }
