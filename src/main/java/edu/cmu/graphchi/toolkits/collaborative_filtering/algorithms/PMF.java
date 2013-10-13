@@ -26,16 +26,15 @@ import edu.cmu.graphchi.engine.VertexInterval;
 import edu.cmu.graphchi.preprocessing.EdgeProcessor;
 import edu.cmu.graphchi.preprocessing.FastSharder;
 import edu.cmu.graphchi.toolkits.collaborative_filtering.utils.IO;
+import edu.cmu.graphchi.toolkits.collaborative_filtering.utils.ModelParameters;
 import edu.cmu.graphchi.toolkits.collaborative_filtering.utils.ProblemSetup;
+import edu.cmu.graphchi.util.HugeDoubleMatrix;
 import gov.sandia.cognition.math.matrix.Matrix;
 import gov.sandia.cognition.math.matrix.mtj.DenseMatrixFactoryMTJ;
 import gov.sandia.cognition.statistics.distribution.InverseWishartDistribution;
 
-public class PMF implements GraphChiProgram<Integer, EdgeDataType> {
 
-	private static final boolean DEBUG = true;
-	PMFProblemSetup setup;
-	
+class PMFParameters extends ModelParameters {
 	/*
 	 * Graphical Model for Bayesian Probabilistic Matrix Factorization.
 	 * From the paper: 
@@ -81,7 +80,7 @@ public class PMF implements GraphChiProgram<Integer, EdgeDataType> {
 	RealMatrix lambda_V; // The precision matrix (inverse covariance matrix) for V (item's latent factors)
 	RealVector mu_V; //The mean vector for V (item's latent factors)
 	
-	List<VertexDataType> latent_factors; //list of latent factors (U_i and V_j vectors for different U and V)
+	HugeDoubleMatrix latentFactors; //list of latent factors (U_i and V_j vectors for different U and V)
 	
 	//Other variables used while updation of different parameters.
 	int N;	//Number of U_i's (users)	
@@ -92,55 +91,63 @@ public class PMF implements GraphChiProgram<Integer, EdgeDataType> {
 	RealVector sumV;	//SUM U_i
 	RealMatrix sumVVT;	//SUM U_i*U_i'
 	
-	//Root Mean Squared Error
-	double train_rmse;
-	protected Logger logger = ChiLogger.getLogger("PMF");
+	int burnInPeriod;	//the burn in period for Gibbs sampling.
+	int D;				//number of latent features 
 	
 	
-	//Constructor
-	public PMF(PMFProblemSetup setup) {
-		this.setup = setup;
+	public PMFParameters(String id, String json) {
+		super(id, json);
+		
+		setDefaults();
+		
+		parseParameters(json);
 	}
 	
-	public void init_parameters(long numVertices) {
+	public void setDefaults() {
+		this.D = 10;
+		this.burnInPeriod = 5;		
 		this.alpha = 2.0;
+		this.beta0_U = 2.0;
+		this.beta0_V = 2.0;
+	}
+	
+	public void parseParameters(String json) {
+		//TODO: Implement parsing json string and setting parameters.
+	}
+	
+	public void initParameters(long numVertices) {
 		
 		//Inititalize hyperparameters for U
-		this.nu0_U = this.setup.D; //degrees of freedom equal to latent factors
-		this.beta0_U = 2.0;
-		this.W0_U = eye(this.setup.D);
-		this.invW0_U = eye(this.setup.D);
-		this.mu0_U = new ArrayRealVector(this.setup.D);
+		this.nu0_U = this.D; //degrees of freedom equal to latent factors
+		this.W0_U = eye(this.D);
+		this.invW0_U = eye(this.D);
+		this.mu0_U = new ArrayRealVector(this.D);
 		
 		//Inititalize hyperparameters for V
-		this.nu0_V = this.setup.D; //degrees of freedom equal to latent factors
-		this.beta0_V = 2.0;
-		this.W0_V = eye(this.setup.D);
-		this.invW0_V = eye(this.setup.D);
-		this.mu0_V = new ArrayRealVector(this.setup.D);
+		this.nu0_V = this.D; //degrees of freedom equal to latent factors
+		this.W0_V = eye(this.D);
+		this.invW0_V = eye(this.D);
+		this.mu0_V = new ArrayRealVector(this.D);
 		
 		//Initializing precision for U and V to identity.
-		this.lambda_U = eye(this.setup.D);
-		this.lambda_V = eye(this.setup.D);
+		this.lambda_U = eye(this.D);
+		this.lambda_V = eye(this.D);
 		
 		//Initializing mean for U and V to 0.
-		this.mu_U = new ArrayRealVector(this.setup.D);
-		this.mu_V = new ArrayRealVector(this.setup.D);
+		this.mu_U = new ArrayRealVector(this.D);
+		this.mu_V = new ArrayRealVector(this.D);
 		
 		//Initialize latent factors in memory.
-		this.latent_factors = new ArrayList<VertexDataType>();
-		for(int i = 0; i < numVertices; i++) {
-			this.latent_factors.add(new VertexDataType(this.setup.D));
-		}
+		this.latentFactors = new HugeDoubleMatrix(numVertices, this.D); 
+		this.latentFactors.randomize(0, 1);
 		
 		//Initialize sumU, sumUUT, sumV and sumVVT
-		this.sumU = new ArrayRealVector(this.setup.D);
-		this.sumV = new ArrayRealVector(this.setup.D);
-		this.sumUUT = new BlockRealMatrix(this.setup.D, this.setup.D);
-		this.sumVVT = new BlockRealMatrix(this.setup.D, this.setup.D);
-		
+		this.sumU = new ArrayRealVector(this.D);
+		this.sumV = new ArrayRealVector(this.D);
+		this.sumUUT = new BlockRealMatrix(this.D, this.D);
+		this.sumVVT = new BlockRealMatrix(this.D, this.D);
 	}
-	
+
 	//TODO: Move this to utils.
 	public RealMatrix eye(int dim) {
 		RealMatrix m = new BlockRealMatrix(dim, dim);
@@ -148,6 +155,37 @@ public class PMF implements GraphChiProgram<Integer, EdgeDataType> {
 			m.setEntry(i, i, 1);
 		}
 		return m;
+	}
+
+	@Override
+	public void serialize(String dir) {
+		// TODO Auto-generated method stub
+		
+	}
+
+	@Override
+	public void deserialize(String file) {
+		// TODO Auto-generated method stub
+		
+	}
+	
+}
+
+public class PMF implements GraphChiProgram<Integer, EdgeDataType> {
+
+	private static final boolean DEBUG = true;
+	PMFProblemSetup setup;
+	PMFParameters params;
+	
+	//Root Mean Squared Error
+	double train_rmse;
+	protected Logger logger = ChiLogger.getLogger("PMF");
+	
+	
+	//Constructor
+	public PMF(PMFProblemSetup setup, ModelParameters params) {
+		this.setup = setup;
+		this.params = (PMFParameters) params;
 	}
 	
 	/**
@@ -164,43 +202,43 @@ public class PMF implements GraphChiProgram<Integer, EdgeDataType> {
 		//sample_U is called after the 1 iteration of all vertices, we already have the sum.
 		
 		//meanU = (SUM U_i)/N
-		RealVector meanU = this.sumU.mapMultiply(1.0/this.N);
+		RealVector meanU = params.sumU.mapMultiply(1.0/params.N);
 		//meanS = (SUM (U_i*U_i')/N)
-		RealMatrix meanS = this.sumUUT.scalarMultiply(1.0/this.N);
+		RealMatrix meanS = params.sumUUT.scalarMultiply(1.0/params.N);
 		
 		//mu0 = (beta0*mu0 + meanU)/(beta0 + N)
-		RealVector mu0_ = (this.mu0_U.mapMultiply(this.beta0_U).add(meanU)).mapDivide((this.beta0_U + this.N));
+		RealVector mu0_ = (params.mu0_U.mapMultiply(params.beta0_U).add(meanU)).mapDivide((params.beta0_U + params.N));
 		
-		double beta0_ = this.beta0_U + this.N;
-		int nu0_ = this.nu0_U + this.N;
+		double beta0_ = params.beta0_U + params.N;
+		int nu0_ = params.nu0_U + params.N;
 		
 		//W0 = inv( inv(W0) + N*meanS + (beta0*N/(beta0 + N))(mu0 - meanU)*(mu0 - meanU)'
-		RealVector tmp = this.mu0_U.subtract(meanU);
+		RealVector tmp = params.mu0_U.subtract(meanU);
 		RealMatrix mu0_d_meanU_T = tmp.outerProduct(tmp); 
-		mu0_d_meanU_T = mu0_d_meanU_T.scalarMultiply((this.beta0_U*this.N/(this.beta0_U + this.N)));
-		RealMatrix invW0_ = this.invW0_U.add(this.sumUUT).add(mu0_d_meanU_T);
+		mu0_d_meanU_T = mu0_d_meanU_T.scalarMultiply((params.beta0_U*params.N/(params.beta0_U + params.N)));
+		RealMatrix invW0_ = params.invW0_U.add(params.sumUUT).add(mu0_d_meanU_T);
 		
 		//Update all the values.
-		this.mu0_U = mu0_;
-		this.beta0_U = beta0_;
-		this.nu0_U = nu0_;
-		this.invW0_U = invW0_;
-		this.W0_U = (new LUDecompositionImpl(invW0_)).getSolver().getInverse();
+		params.mu0_U = mu0_;
+		params.beta0_U = beta0_;
+		params.nu0_U = nu0_;
+		params.invW0_U = invW0_;
+		params.W0_U = (new LUDecompositionImpl(invW0_)).getSolver().getInverse();
 		
 		//Sample lambda_U and mu_U from the Gaussian Wishart distribution
 		// http://en.wikipedia.org/wiki/Normal-Wishart_distribution#Generating_normal-Wishart_random_variates
 		//Draw lambda_U from Wishart distribution with scale matrix w0_U.
-		this.lambda_U = sampleWishart(this.invW0_U, this.nu0_U);
+		params.lambda_U = sampleWishart(params.invW0_U, params.nu0_U);
 		//Compute cov = inv(beta0*lambda) 
-		RealMatrix cov = (new LUDecompositionImpl(this.lambda_U.scalarMultiply(this.beta0_U))).getSolver().getInverse();
+		RealMatrix cov = (new LUDecompositionImpl(params.lambda_U.scalarMultiply(params.beta0_U))).getSolver().getInverse();
 		//Draw mu_U from multivariate normal dist with mean mu0_U and covariance inv(beta0*lambda)
-		MultivariateNormalDistribution dist = new MultivariateNormalDistribution(this.mu0_U.toArray(), 
+		MultivariateNormalDistribution dist = new MultivariateNormalDistribution(params.mu0_U.toArray(), 
 				cov.getData());
-		this.mu_U = new ArrayRealVector(dist.sample());
+		params.mu_U = new ArrayRealVector(dist.sample());
 		
 		//Reset the sum of latent factors.
-		this.sumU.mapMultiply(0);
-		this.sumUUT.scalarMultiply(0);
+		params.sumU.mapMultiply(0);
+		params.sumUUT.scalarMultiply(0);
 	}
 	
 	/**
@@ -218,43 +256,43 @@ public class PMF implements GraphChiProgram<Integer, EdgeDataType> {
 		//sample_V is called after the 1 iteration of all vertices, we already have the sum.
 		
 		//meanV = (SUM V_j)/N
-		RealVector meanV = this.sumV.mapMultiply(1.0/this.M);
+		RealVector meanV = params.sumV.mapMultiply(1.0/params.M);
 		//meanS = (SUM (V_j*V_j')/N)
-		RealMatrix meanS = this.sumVVT.scalarMultiply(1.0/this.M);
+		RealMatrix meanS = params.sumVVT.scalarMultiply(1.0/params.M);
 		
 		//mu0 = (beta0*mu0 + meanV)/(beta0 + N)
-		RealVector mu0_ = (this.mu0_V.mapMultiply(this.beta0_V).add(meanV)).mapDivide((this.beta0_V + this.M));
+		RealVector mu0_ = (params.mu0_V.mapMultiply(params.beta0_V).add(meanV)).mapDivide((params.beta0_V + params.M));
 		
-		double beta0_ = this.beta0_V + this.M;
-		int nu0_ = this.nu0_V + this.M;
+		double beta0_ = params.beta0_V + params.M;
+		int nu0_ = params.nu0_V + params.M;
 		
 		//W0 = inv( inv(W0) + N*meanS + (beta0*N/(beta0 + N))(mu0 - meanU)*(mu0 - meanU)'
-		RealVector tmp = this.mu0_V.subtract(meanV);
+		RealVector tmp = params.mu0_V.subtract(meanV);
 		RealMatrix mu0_d_meanV_T = tmp.outerProduct(tmp); 
-		mu0_d_meanV_T = mu0_d_meanV_T.scalarMultiply((this.beta0_V*this.M/(this.beta0_V + this.M)));
-		RealMatrix invW0_ = this.invW0_V.add(this.sumVVT).add(mu0_d_meanV_T);
+		mu0_d_meanV_T = mu0_d_meanV_T.scalarMultiply((params.beta0_V*params.M/(params.beta0_V + params.M)));
+		RealMatrix invW0_ = params.invW0_V.add(params.sumVVT).add(mu0_d_meanV_T);
 
 		//Update all the values.
-		this.mu0_V = mu0_;
-		this.beta0_V = beta0_;
-		this.nu0_V = nu0_;
-		this.invW0_V = invW0_;
-		this.W0_V = (new LUDecompositionImpl(invW0_)).getSolver().getInverse();
+		params.mu0_V = mu0_;
+		params.beta0_V = beta0_;
+		params.nu0_V = nu0_;
+		params.invW0_V = invW0_;
+		params.W0_V = (new LUDecompositionImpl(invW0_)).getSolver().getInverse();
 		
 		//Sample lambda_V and mu_V from the Gaussian Wishart distribution
 		// http://en.wikipedia.org/wiki/Normal-Wishart_distribution#Generating_normal-Wishart_random_variates
 		//Draw lambda_V from Wishart distribution with scale matrix w0_U.
-		this.lambda_V = sampleWishart(this.invW0_V, this.nu0_V);
+		params.lambda_V = sampleWishart(params.invW0_V, params.nu0_V);
 		//Compute cov = inv(beta0*lambda) 
-		RealMatrix cov = (new LUDecompositionImpl(this.lambda_V.scalarMultiply(this.beta0_V))).getSolver().getInverse();
+		RealMatrix cov = (new LUDecompositionImpl(params.lambda_V.scalarMultiply(params.beta0_V))).getSolver().getInverse();
 		//Draw mu_V from multivariate normal dist with mean mu0_V and covariance inv(beta0_V*lambda)
-		MultivariateNormalDistribution dist = new MultivariateNormalDistribution(this.mu0_V.toArray(), 
+		MultivariateNormalDistribution dist = new MultivariateNormalDistribution(params.mu0_V.toArray(), 
 				cov.getData());
-		this.mu_V = new ArrayRealVector(dist.sample());
+		params.mu_V = new ArrayRealVector(dist.sample());
 		
 		//Reset the sum of latent factors.
-		this.sumV.mapMultiply(0);
-		this.sumVVT.scalarMultiply(0);
+		params.sumV.mapMultiply(0);
+		params.sumVVT.scalarMultiply(0);
 	}
 	
 	public RealMatrix sampleWishart(RealMatrix invScaleMatrix, int degreesOfFreedom) {
@@ -296,24 +334,26 @@ public class PMF implements GraphChiProgram<Integer, EdgeDataType> {
 	@Override
 	public void update(ChiVertex<Integer, EdgeDataType> vertex, GraphChiContext context) {
 		boolean isUser = vertex.numOutEdges() > 0;
+		double[] nbrPVec = new double[params.D];
 		
 		//First iteration also computes number of users and number of movies
 		if(context.getIteration() == 0) {
 			synchronized (this) {
 				if(isUser) {
-					this.N++;
+					params.N++;
 				} else {
-					this.M++;
+					params.M++;
 				}
 			}
 		}
 		
-		VertexDataType vData = this.latent_factors.get(vertex.getId());
+		double[] vData = new double[params.D];
+		params.latentFactors.getRow(vertex.getId(), vData);
 		
 		//Will be updated to store SUM(V_j*R_ij)
-		RealVector Xty = new ArrayRealVector(this.setup.D);
+		RealVector Xty = new ArrayRealVector(params.D);
 		//Will be updated to store SUM(V_j*V_j')
-		RealMatrix XtX = new BlockRealMatrix(this.setup.D, this.setup.D);
+		RealMatrix XtX = new BlockRealMatrix(params.D, params.D);
 		
 		//Gather data to update the mean and the covariance for the hidden features.	
 		for(int i = 0; i < vertex.numEdges(); i++) {
@@ -321,31 +361,44 @@ public class PMF implements GraphChiProgram<Integer, EdgeDataType> {
 			double observation = edge.getValue().observation;
 			
 			int nbrId = vertex.edge(i).getVertexId();
-			VertexDataType nbrVertex = this.latent_factors.get(nbrId);
+			params.latentFactors.getRow(nbrId, nbrPVec);
+			////VertexDataType nbrVertex = params.latentFactors.get(nbrId);
 			
 			//Add V_j*R_ij for this observation.
-			Xty = Xty.add(nbrVertex.pVec.mapMultiply(observation));
+			////Xty = Xty.add(nbrVertex.pVec.mapMultiply(observation));
+			for(int f = 0; f < params.D; f++) {
+				double value = Xty.getEntry(f) + nbrPVec[f]*observation;
+				Xty.setEntry(f, value);
+				
+				//Add V_j*V_j' for this
+				for(int f2 = 0; f2 < params.D; f2++) {
+					value = XtX.getEntry(f, f2) + nbrPVec[f]*nbrPVec[f2];
+					XtX.setEntry(f, f2, value);
+				}
+			}
 			
 			//Add V_j*V_j' for this 
-			XtX = XtX.add(nbrVertex.pVec.outerProduct(nbrVertex.pVec));
+			////XtX = XtX.add(nbrVertex.pVec.outerProduct(nbrVertex.pVec));
 			
 		}
 		
-		RealMatrix lambda_prior = isUser ? this.lambda_U : this.lambda_V;
-		RealVector mu_prior = isUser ? this.mu_U : this.mu_V;
+		RealMatrix lambda_prior = isUser ? params.lambda_U : params.lambda_V;
+		RealVector mu_prior = isUser ? params.mu_U : params.mu_V;
 		
-		RealMatrix precision = lambda_prior.add(XtX.scalarMultiply(this.alpha)); 
+		RealMatrix precision = lambda_prior.add(XtX.scalarMultiply(params.alpha)); 
 		RealMatrix covariance = (new LUDecompositionImpl(precision).getSolver().getInverse());
 		
 		RealVector tmp = lambda_prior.operate(mu_prior);
-		RealVector mean = covariance.operate(Xty.mapMultiply(this.alpha).add(tmp));
+		RealVector mean = covariance.operate(Xty.mapMultiply(params.alpha).add(tmp));
 		
 		//We have the covariance and mean. We can grab a sample from this multivariate
 		//normal distribution according to: 
 		// http://en.wikipedia.org/wiki/Multivariate_normal_distribution#Drawing_values_from_the_distribution
 		//Javadoc:
 		MultivariateNormalDistribution dist = new MultivariateNormalDistribution(mean.toArray(), covariance.getData());
-		vData.pVec = new ArrayRealVector(dist.sample());
+		////vData.pVec = new ArrayRealVector(dist.sample());
+		vData = dist.sample();
+		params.latentFactors.setRow(vertex.getId(), vData);
 		
 		//Compute contribution of all ratings for this vertex to RMSE.
 		if(isUser) {
@@ -353,11 +406,11 @@ public class PMF implements GraphChiProgram<Integer, EdgeDataType> {
 				ChiEdge<EdgeDataType> edge = vertex.edge(i); 
 				float observation = edge.getValue().observation;
 				int nbrId = vertex.edge(i).getVertexId();
-				VertexDataType nbrVertex = this.latent_factors.get(nbrId);
+				params.latentFactors.getRow(nbrId, nbrPVec);
 				
 				//Aggregate the sample and compute rmse if greater than burn_in period
-				float prediction = predict(vData.pVec, nbrVertex.pVec);
-				boolean burnedIn = context.getIteration() >= this.setup.burn_in_period; 
+				float prediction = predict(vData, nbrPVec);
+				boolean burnedIn = context.getIteration() >= params.burnInPeriod; 
 				if(burnedIn) {
 					edge.setValue(new EdgeDataType(observation, edge.getValue().aggPred + prediction,
 							edge.getValue().count + 1));
@@ -372,19 +425,23 @@ public class PMF implements GraphChiProgram<Integer, EdgeDataType> {
 		
 		//Update Sum of U_i / V_j
 		//Should be synchronized? Or Atomic add of vectors?
-		if(isUser) {
-			this.sumU = this.sumU.add(vData.pVec);
-			this.sumUUT = this.sumUUT.add(vData.pVec.outerProduct(vData.pVec));
-		} else {
-			this.sumV = this.sumV.add(vData.pVec);
-			this.sumVVT = this.sumVVT.add(vData.pVec.outerProduct(vData.pVec));
+		RealVector vDataVec = new ArrayRealVector(vData);
+		RealMatrix vDataOuterProd = vDataVec.outerProduct(vDataVec);
+		synchronized (params) {
+			if(isUser) {
+					params.sumU = params.sumU.add(vDataVec);
+					params.sumUUT = params.sumUUT.add(vDataOuterProd);
+			} else {
+				params.sumV = params.sumV.add(vDataVec);
+				params.sumVVT = params.sumVVT.add(vDataOuterProd);
+			}
 		}
 	}
 
 	@Override
 	public void beginIteration(GraphChiContext ctx) {
 		if (ctx.getIteration() == 0) {
-     	   init_parameters(ctx.getNumVertices());
+     	   params.initParameters(ctx.getNumVertices());
 		}
 		// TODO Auto-generated method stub
 		synchronized (this) {
@@ -397,7 +454,7 @@ public class PMF implements GraphChiProgram<Integer, EdgeDataType> {
 		// TODO Auto-generated method stub
 		//Sample hyperparameters.
 		if(ctx.getIteration() == 0) {
-			this.logger.info("Number of Users = " + this.N + " and Number of items = " + this.M);
+			this.logger.info("Number of Users = " + params.N + " and Number of items = " + params.M);
 		}
 		
 		sample_U();
@@ -431,8 +488,11 @@ public class PMF implements GraphChiProgram<Integer, EdgeDataType> {
 		
 	}
 	
-	public float predict(RealVector u, RealVector v) {
-		double prediction = u.dotProduct(v);
+	public float predict(double[] u, double[] v) {
+		double prediction = 0;
+		for(int f = 0; f < params.D; f++) {
+			prediction += u[f]*v[f];
+		}
 		
 		prediction = Math.max(prediction, this.setup.minval);
 		prediction = Math.min(prediction, this.setup.maxval);
@@ -442,13 +502,9 @@ public class PMF implements GraphChiProgram<Integer, EdgeDataType> {
 		
 	static class PMFProblemSetup extends ProblemSetup {
 		//Parameters - hyperpriors
-		int burn_in_period;
 		
 		public PMFProblemSetup(String[] args) {
 			super(args);
-			
-			//TODO: Allow burn in period to be passed as a command line argument.
-			this.burn_in_period = 5;
 		}
 	}
 	
@@ -465,11 +521,12 @@ public class PMF implements GraphChiProgram<Integer, EdgeDataType> {
     public static void main(String[] args) throws Exception {
 
     	PMFProblemSetup problemSetup = new PMFProblemSetup(args);
+    	ModelParameters params = new PMFParameters(problemSetup.getRunId("PMF"), problemSetup.paramJson);
 
     	FastSharder sharder = PMF.createSharder(problemSetup.training, problemSetup.nShards);
         IO.convertMatrixMarket(problemSetup, sharder);
         
-        PMF pmf = new PMF(problemSetup);
+        PMF pmf = new PMF(problemSetup, params);
         
         // Run GraphChi 
         GraphChiEngine<Integer, EdgeDataType> engine = new GraphChiEngine<Integer, EdgeDataType>

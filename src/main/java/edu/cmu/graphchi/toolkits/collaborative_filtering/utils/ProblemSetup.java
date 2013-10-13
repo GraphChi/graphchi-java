@@ -30,25 +30,21 @@ public class ProblemSetup {
 	
 		private static final DateFormat DF = new SimpleDateFormat("MM/dd/yyyy_HH:mm:ss");
 
-		//TODO: Move this to appropriate place in ALS / PMF
-		long M,N,L;
-        int D = 10;	//Hidden features - Move to some other place?
+		public String runId;	//The identifier by which this particular run will be identified. 
         
-        String runId;	//The identifier by which this particular run will be identified. 
-        
-        double minval = Double.MIN_VALUE;	//The minimum value of rating
-        double maxval = Double.MAX_VALUE;	//The maximum value of rating
+		public double minval = Double.MIN_VALUE;	//The minimum value of rating
+		public double maxval = Double.MAX_VALUE;	//The maximum value of rating
         
         //TODO: Standardize this so that user / item features can be taken as input as well.
-        String training;					//Training file (currrently in Matrix market Format)
-        String validation;					//Validation File
-        String test;						//Test File
+        public String training;					//Training file (currrently in Matrix market Format)
+        public String validation;					//Validation File
+        public String test;						//Test File
         
-        int nShards;						//Number of shards to run with GraphChi
-        int quiet;							//Debug information?
-        String paramJson;					//JSON String representing the parameters
-        String paramFile;					//File containing parameters as JSON
-        String outputLoc;				//The url of output dir/S3 bucket etc. to save the model parameters.  
+        public int nShards;						//Number of shards to run with GraphChi
+        public int quiet;							//Debug information?
+        public String paramJson;					//JSON String representing the parameters
+        public String paramFile;					//File containing parameters as JSON
+        public String outputLoc;				//The url of output dir/S3 bucket etc. to save the model parameters.  
         
         public ProblemSetup(String[] args) {
         	this.parse_command_line_arguments(args);

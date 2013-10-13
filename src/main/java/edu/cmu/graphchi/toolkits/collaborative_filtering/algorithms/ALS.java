@@ -23,6 +23,7 @@ import edu.cmu.graphchi.engine.VertexInterval;
 import edu.cmu.graphchi.preprocessing.FastSharder;
 import edu.cmu.graphchi.preprocessing.VertexIdTranslate;
 import edu.cmu.graphchi.toolkits.collaborative_filtering.utils.IO;
+import edu.cmu.graphchi.toolkits.collaborative_filtering.utils.ModelParameters;
 import edu.cmu.graphchi.toolkits.collaborative_filtering.utils.ProblemSetup;
 import edu.cmu.graphchi.util.HugeDoubleMatrix;
 
@@ -54,17 +55,64 @@ import edu.cmu.graphchi.util.HugeDoubleMatrix;
  *
  * @author Aapo Kyrola, akyrola@cs.cmu.edu, 2013
  * @author Modifications by Danny Bickson, CMU, 2013
+ * @author Modifications by Mayank Mohta (mmohta@andrew.cmu.edu), CMU, 2013
  */
+
+class ALSParams extends ModelParameters {
+	double LAMBDA;	//regularization
+	int D;	//number of features
+	HugeDoubleMatrix latentFactors;
+	
+	public ALSParams(String id, String json) {
+		super(id, json);
+		
+		setDefaults();
+		
+		parseParameters(json);
+		
+	}
+	
+	public void setDefaults() {
+		this.LAMBDA = 0.065;
+		this.D = 10;
+	}
+	
+	public void parseParameters(String json) {
+		
+	}
+	
+    void initParameterValues(long size, int D){
+        latentFactors = new HugeDoubleMatrix(size, D);
+
+        /* Fill with random data */
+        latentFactors.randomize(0f, 1.0f);
+      }
+	
+	@Override
+	public void serialize(String dir) {
+		// TODO Auto-generated method stub
+		
+	}
+
+	@Override
+	public void deserialize(String file) {
+		// TODO Auto-generated method stub
+		
+	}
+	
+}
+
 public class ALS implements GraphChiProgram<Integer, Float>{
     
 	double LAMBDA = 0.065;
 	private ProblemSetup problemSetup;
-	private HugeDoubleMatrix latent_factors_inmem;
+	private ALSParams params;
 	protected Logger logger = ChiLogger.getLogger("ALS");
     double train_rmse = 0.0;
 
-    public ALS(ProblemSetup problemSetup) {
+    public ALS(ProblemSetup problemSetup, ModelParameters params) {
     	this.problemSetup = problemSetup;
+    	this.params = (ALSParams)params;
     }
 
     public double als_predict(RealVector user, RealVector item){
@@ -74,22 +122,14 @@ public class ALS implements GraphChiProgram<Integer, Float>{
     	return prediction;
     }
     
-    void init_feature_vectors(long size){
-        this.logger.info("Initializing latent factors for " + size + " vertices");
-        latent_factors_inmem = new HugeDoubleMatrix(size, this.problemSetup.D);
-
-        /* Fill with random data */
-        latent_factors_inmem.randomize(0f, 1.0f);
-      }
-    
     
     @Override
     public void update(ChiVertex<Integer, Float> vertex, GraphChiContext context) {
         if (vertex.numEdges() == 0) return;
 
-        RealMatrix XtX = new BlockRealMatrix(this.problemSetup.D, this.problemSetup.D);
-        RealVector Xty = new ArrayRealVector(this.problemSetup.D);
-        RealVector latent_factor = latent_factors_inmem.getRowAsVector(vertex.getId());
+        RealMatrix XtX = new BlockRealMatrix(params.D, params.D);
+        RealVector Xty = new ArrayRealVector(params.D);
+        RealVector latent_factor = params.latentFactors.getRowAsVector(vertex.getId());
      
 
         try {
@@ -98,20 +138,20 @@ public class ALS implements GraphChiProgram<Integer, Float>{
             // Compute XtX and Xty (NOTE: unweighted)
             for(int e=0; e < vertex.numEdges(); e++) {
                 float observation = vertex.edge(e).getValue();
-                RealVector neighbor = latent_factors_inmem.getRowAsVector(vertex.edge(e).getVertexId());
+                RealVector neighbor = params.latentFactors.getRowAsVector(vertex.edge(e).getVertexId());
             
                 //Xty.add(neighbor * observation);
                 //XtX.add(neighbor.outerProduct(neighbor));
-                for(int i=0; i < this.problemSetup.D; i++) {
+                for(int i=0; i < params.D; i++) {
                     Xty.setEntry(i, Xty.getEntry(i) + neighbor.getEntry(i) * observation);
-                    for(int j=i; j < this.problemSetup.D; j++) {
+                    for(int j=i; j < params.D; j++) {
                         XtX.setEntry(j,i, XtX.getEntry(j, i) + neighbor.getEntry(i) * neighbor.getEntry(j));
                     }
                 }
                 
                 // Symmetrize
-                for(int i=0; i < this.problemSetup.D; i++) {
-                    for(int j=i+1; j< this.problemSetup.D; j++) XtX.setEntry(i,j, XtX.getEntry(j, i));
+                for(int i=0; i < params.D; i++) {
+                    for(int j=i+1; j< params.D; j++) XtX.setEntry(i,j, XtX.getEntry(j, i));
                 }
                 
                 if (is_user){
@@ -121,12 +161,12 @@ public class ALS implements GraphChiProgram<Integer, Float>{
             }
             
             // Diagonal -- add regularization
-            for (int i=0; i < this.problemSetup.D; i++) 
+            for (int i=0; i < params.D; i++) 
             	XtX.setEntry(i, i, XtX.getEntry(i, i) + LAMBDA * vertex.numEdges());
 
             // Solve the least-squares optimization using Cholesky Decomposition
             RealVector newLatentFactor = new CholeskyDecompositionImpl(XtX).getSolver().solve(Xty);
-            latent_factors_inmem.setRow(vertex.getId(), newLatentFactor.getData());
+            params.latentFactors.setRow(vertex.getId(), newLatentFactor.getData());
 
            if (is_user){
         	   synchronized (this) {
@@ -149,7 +189,7 @@ public class ALS implements GraphChiProgram<Integer, Float>{
          */
     	this.train_rmse = 0;
         if (ctx.getIteration() == 0) {
-        	   init_feature_vectors(ctx.getNumVertices());
+        	params.initParameterValues(ctx.getNumVertices(), params.D);
         }
     }
 
@@ -185,9 +225,9 @@ public class ALS implements GraphChiProgram<Integer, Float>{
     public static void main(String[] args) throws Exception {
 
     	ProblemSetup problemSetup = new ProblemSetup(args);
+    	ModelParameters params = new ALSParams(problemSetup.getRunId("ALS"), problemSetup.paramJson);
     	
-        ALS als = new ALS(problemSetup);
-        als.logger.info("Set latent factor dimension to: " + problemSetup.D);
+        ALS als = new ALS(problemSetup, params);
 
         IO.convertMatrixMarket(problemSetup);
         
@@ -201,7 +241,7 @@ public class ALS implements GraphChiProgram<Integer, Float>{
         engine.setModifiesOutedges(false); // Important optimization
         engine.run(als, 5);
 
-        //als.writeOutputMatrices(engine.getVertexIdTranslate());
+        params.serialize(problemSetup.outputLoc);
     }
 
     /**
@@ -220,12 +260,12 @@ public class ALS implements GraphChiProgram<Integer, Float>{
         String leftFileName = this.problemSetup.training + "_U.mm";
         BufferedWriter wr = new BufferedWriter(new FileWriter(leftFileName));
         wr.write("%%MatrixMarket matrix array real general\n");
-        wr.write(this.problemSetup.D + " " + numLeft + "\n");
+        wr.write(params.D + " " + numLeft + "\n");
 
         for(int j=0; j < numLeft; j++) {
             int vertexId = vertexIdTranslate.forward(j);  // Translate to internal vertex id
-            for(int i=0; i < this.problemSetup.D; i++) {
-                wr.write(latent_factors_inmem.getValue(vertexId, i) + "\n");
+            for(int i=0; i < params.D; i++) {
+                wr.write(params.latentFactors.getValue(vertexId, i) + "\n");
             }
         }
         wr.close();
@@ -234,12 +274,12 @@ public class ALS implements GraphChiProgram<Integer, Float>{
         String rightFileName = this.problemSetup.training + "_V.mm";
         wr = new BufferedWriter(new FileWriter(rightFileName));
         wr.write("%%MatrixMarket matrix array real general\n");
-        wr.write(this.problemSetup.D + " " + numRight + "\n");
+        wr.write(params.D + " " + numRight + "\n");
 
         for(int j=0; j < numRight; j++) {
             int vertexId = vertexIdTranslate.forward(numLeft + j);   // Translate to internal vertex id
-            for(int i=0; i < this.problemSetup.D; i++) {
-                wr.write(latent_factors_inmem.getValue(vertexId, i) + "\n");
+            for(int i=0; i < params.D; i++) {
+                wr.write(params.latentFactors.getValue(vertexId, i) + "\n");
             }
         }
         wr.close();
