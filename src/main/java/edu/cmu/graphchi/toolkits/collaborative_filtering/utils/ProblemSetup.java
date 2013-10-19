@@ -37,8 +37,10 @@ public class ProblemSetup {
         
         //TODO: Standardize this so that user / item features can be taken as input as well.
         public String training;					//Training file (currrently in Matrix market Format)
-        public String validation;					//Validation File
+        public String validation;				//Validation File
         public String test;						//Test File
+        public String userFeatures;				//File containing user features.
+        public String itemFeatures;				//File containing item features.
         
         public int nShards;						//Number of shards to run with GraphChi
         public int quiet;							//Debug information?
@@ -58,8 +60,13 @@ public class ProblemSetup {
         	options.addOption("training", true, "The training file in Matrix Market format");
         	options.addOption("validation", true, "The validation file in Matrix Market format");
         	options.addOption("test", true, "The test file in Matrix Market format");
+        	
+        	options.addOption("userFeatures", true, "The file containing user features");
+        	options.addOption("itemFeatures", true, "The file containing item features");
+        	
         	options.addOption("minval", true, "The minimum value of predictions");
         	options.addOption("maxval", true, "The maximum value of predictions");
+        	
         	options.addOption("nshards", true, "Number of shards for GraphChi");
         	options.addOption("paramJson", true, "JSON String representing the parameters");
         	options.addOption("paramFile", true, "Number of shards for GraphChi");
@@ -81,6 +88,9 @@ public class ProblemSetup {
     			}
     			this.validation = cmd.getOptionValue("validation");
     			this.test = cmd.getOptionValue("test");
+    		
+    			this.userFeatures = cmd.getOptionValue("userFeatures");
+    			this.itemFeatures = cmd.getOptionValue("itemFeatures");
     			
     			this.minval = Integer.parseInt(cmd.getOptionValue("minval", "" + Integer.MIN_VALUE));
     			this.maxval = Integer.parseInt(cmd.getOptionValue("maxval", "" + Integer.MAX_VALUE));

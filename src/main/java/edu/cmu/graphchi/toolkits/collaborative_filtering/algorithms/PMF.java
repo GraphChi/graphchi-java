@@ -181,7 +181,6 @@ public class PMF implements GraphChiProgram<Integer, EdgeDataType> {
 	double train_rmse;
 	protected Logger logger = ChiLogger.getLogger("PMF");
 	
-	
 	//Constructor
 	public PMF(PMFProblemSetup setup, ModelParameters params) {
 		this.setup = setup;
@@ -494,8 +493,8 @@ public class PMF implements GraphChiProgram<Integer, EdgeDataType> {
 			prediction += u[f]*v[f];
 		}
 		
-		prediction = Math.max(prediction, this.setup.minval);
-		prediction = Math.min(prediction, this.setup.maxval);
+		prediction = Math.min(prediction, this.setup.minval);
+		prediction = Math.max(prediction, this.setup.maxval);
 
 		return (float)prediction;
 	}
@@ -542,17 +541,6 @@ public class PMF implements GraphChiProgram<Integer, EdgeDataType> {
         //svdpp.writeOutputMatrices(engine.getVertexIdTranslate());
     }
 
-}
-
-class VertexDataType {
-	RealVector pVec;
-	
-	public VertexDataType(int D) {
-		this.pVec = new ArrayRealVector(D);
-		for(int i = 0; i < D; i++) {
-			this.pVec.setEntry(i, Math.random());
-		}
-	}
 }
 
 class EdgeDataType {
@@ -602,45 +590,4 @@ class EdgeDataTypeConvertor implements  BytesToValueConverter<EdgeDataType> {
     		  array[i] = a[i];
     	  }
     }
-
-/*    public EdgeDataType getValue(byte[] array) {
-    	ByteArrayInputStream bis = new ByteArrayInputStream(array);
-    	ObjectInput in = null;
-    	EdgeDataType res = null;    	
-    	try {
-    		in = new ObjectInputStream(bis);
-    		res = (EdgeDataType)in.readObject();
-    	} catch (Exception e) { 
-    		e.printStackTrace();
-    	} finally {
-    		try {
-    			bis.close();
-    			in.close();
-    		} catch (IOException ioe) {
-    			ioe.printStackTrace();
-    		}
-    	}
-    	return res;
-    }
-
-    public void setValue(byte[] array, EdgeDataType val) {
-    	ByteArrayOutputStream bos = new ByteArrayOutputStream();
-    	ObjectOutput out = null;
-    	try {
-    	  out = new ObjectOutputStream(bos);   
-    	  out.writeObject(val);
-    	  out.flush();
-    	  array = bos.toByteArray();
-//    	  /System.out.println("-------- " + array.length + " ---------");
-    	} catch (Exception e) { 
-    		e.printStackTrace();
-    	} finally {
-    		try {
-    			bos.close();
-    			out.close();
-    		} catch (IOException ioe) {
-    			ioe.printStackTrace();
-    		}
-    	}
-    }*/
 }
