@@ -15,6 +15,8 @@ import nom.tam.util.BufferedDataInputStream;
 import java.io.*;
 import java.util.Iterator;
 import java.util.Random;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.logging.Logger;
 import java.util.zip.DeflaterOutputStream;
 
@@ -510,7 +512,7 @@ public class FastSharder <VertexValueType, EdgeValueType> {
         int istart = 0;
         int edgeCounter = 0;
         int lastIndexFlush = 0;
-        int edgesPerIndexEntry = 512;
+        int edgesPerIndexEntry = 4096; // Tuned for fast shard queries
 
         for(int i=0; i <= shoveled.length; i++) {
             int from = (i < shoveled.length ? getFirst(shoveled[i]) : -1);
@@ -570,8 +572,6 @@ public class FastSharder <VertexValueType, EdgeValueType> {
         /* Create compressed edge data directories */
         if (sizeOf > 0) {
             int blockSize = ChiFilenames.getBlocksize(sizeOf);
-
-
             String edataFileName = ChiFilenames.getFilenameShardEdata(baseFilename, new BytesToValueConverter() {
                 @Override
                 public int sizeOf() {
@@ -819,6 +819,7 @@ public class FastSharder <VertexValueType, EdgeValueType> {
             }
 
             int SUBINTERVAL = 2000000;
+            ExecutorService parallelExecutor = Executors.newFixedThreadPool(4);
 
             for(int p=0; p < numShards; p++) {
                 logger.info("Degree computation round " + p + " / " + numShards);
@@ -838,7 +839,7 @@ public class FastSharder <VertexValueType, EdgeValueType> {
                         verts[i] = new ChiVertex(i + subIntervalSt, null);
                     }
 
-                    memoryShard.loadVertices(subIntervalSt, subIntervalEn, verts, false);
+                    memoryShard.loadVertices(subIntervalSt, subIntervalEn, verts, false, parallelExecutor);
                     for(int i=0; i < numShards; i++) {
                         if (i != p) {
                             slidingShards[i].readNextVertices(verts, subIntervalSt, true);
@@ -859,6 +860,7 @@ public class FastSharder <VertexValueType, EdgeValueType> {
                     }
                 }
             }
+            parallelExecutor.shutdown();
             degreeOut.close();
         } catch (Exception err) {
             err.printStackTrace();

@@ -11,6 +11,7 @@ import edu.cmu.graphchi.datablocks.BytesToValueConverter;
 import edu.cmu.graphchi.engine.auxdata.DegreeData;
 import edu.cmu.graphchi.engine.auxdata.VertexDegree;
 import edu.cmu.graphchi.io.CompressedIO;
+import edu.cmu.graphchi.shards.ShardIndex;
 import edu.cmu.graphchi.vertexdata.VertexIdValue;
 import ucar.unidata.io.RandomAccessFile;
 
@@ -203,7 +204,7 @@ public class VertexQuery {
             this.fileName = fileName;
             File f = new File(ChiFilenames.getFilenameShardsAdj(fileName, shardNum, numShards));
             adjFile = new RandomAccessFile(f.getAbsolutePath(), "r", 64 * 1024);
-            index = new ShardIndex(new File(f.getAbsolutePath() + ".index"));
+            index = new ShardIndex(f);
         }
 
         /**
@@ -217,13 +218,13 @@ public class VertexQuery {
             ArrayList<Integer> sortedIds = new ArrayList<Integer>(queryIds);
             Collections.sort(sortedIds);
 
-            ArrayList<IndexEntry> indexEntries = new ArrayList<IndexEntry>(sortedIds.size());
+            ArrayList<ShardIndex.IndexEntry> indexEntries = new ArrayList<ShardIndex.IndexEntry>(sortedIds.size());
             for(Integer a : sortedIds) {
                 indexEntries.add(index.lookup(a));
             }
 
             HashMap<Integer, Integer> results = new HashMap<Integer, Integer>(5000);
-            IndexEntry entry = null, lastEntry = null;
+            ShardIndex.IndexEntry entry = null, lastEntry = null;
             int curvid=0, adjOffset=0;
             for(int qIdx=0; qIdx < sortedIds.size(); qIdx++) {
                 entry = indexEntries.get(qIdx);
@@ -285,14 +286,14 @@ public class VertexQuery {
             ArrayList<Integer> sortedIds = new ArrayList<Integer>(queryIds);
             Collections.sort(sortedIds);
 
-            ArrayList<IndexEntry> indexEntries = new ArrayList<IndexEntry>(sortedIds.size());
+            ArrayList<ShardIndex.IndexEntry> indexEntries = new ArrayList<ShardIndex.IndexEntry>(sortedIds.size());
             for(Integer a : sortedIds) {
                 indexEntries.add(index.lookup(a));
             }
 
             HashMap<Integer, ArrayList<Integer>> results = new HashMap<Integer, ArrayList<Integer>>(queryIds.size());
 
-            IndexEntry entry = null, lastEntry = null;
+            ShardIndex.IndexEntry entry = null, lastEntry = null;
             int curvid=0, adjOffset=0;
             for(int qIdx=0; qIdx < sortedIds.size(); qIdx++) {
                 entry = indexEntries.get(qIdx);
@@ -360,7 +361,7 @@ public class VertexQuery {
                 IOException {
 
             List<VertexIdValue<VT>> results = new ArrayList<VertexIdValue<VT>>();
-            IndexEntry entry = index.lookup(vertexId);
+            ShardIndex.IndexEntry entry = index.lookup(vertexId);
 
             int curvid = entry.vertex;
             int adjOffset = entry.fileOffset;
@@ -429,86 +430,6 @@ public class VertexQuery {
         }
 
 
-    }
-
-    static class ShardIndex {
-        File indexFile;
-        int[] vertices;
-        int[] edgePointer;
-        int[] fileOffset;
-
-        ShardIndex(File indexFile) throws IOException {
-            this.indexFile = indexFile;
-            load();
-        }
-
-        private void load() throws IOException {
-            int n = (int) (indexFile.length() / 12) + 1;
-            vertices = new int[n];
-            edgePointer = new int[n];
-            fileOffset = new int[n];
-
-            vertices[0] = 0;
-            edgePointer[0] = 0;
-            fileOffset[0] = 0;
-
-            DataInputStream dis = new DataInputStream(new BufferedInputStream(new FileInputStream(indexFile)));
-            int i = 1;
-            while (i < n) {
-                vertices[i] = dis.readInt();
-                fileOffset[i] = dis.readInt();
-                edgePointer[i] = dis.readInt();
-                i++;
-            }
-        }
-
-        IndexEntry lookup(int vertexId) {
-            int idx = Arrays.binarySearch(vertices, vertexId);
-            if (idx >= 0) {
-                return new IndexEntry(vertexId, edgePointer[idx], fileOffset[idx]);
-            } else {
-                idx = -(idx + 1) - 1;
-                return new IndexEntry(vertices[idx], edgePointer[idx], fileOffset[idx]);
-            }
-
-        }
-
-    }
-
-    static class IndexEntry {
-        int vertex, edgePointer, fileOffset;
-
-        IndexEntry(int vertex, int edgePointer, int fileOffset) {
-            this.vertex = vertex;
-            this.edgePointer = edgePointer;
-            this.fileOffset = fileOffset;
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-
-            IndexEntry that = (IndexEntry) o;
-
-            if (edgePointer != that.edgePointer) return false;
-            if (fileOffset != that.fileOffset) return false;
-            if (vertex != that.vertex) return false;
-
-            return true;
-        }
-
-        @Override
-        public int hashCode() {
-            int result = vertex;
-            result = 31 * result + edgePointer;
-            result = 31 * result + fileOffset;
-            return result;
-        }
-
-        public String toString() {
-            return "vertex: " + vertex + ", offset=" + fileOffset;
-        }
     }
 
 

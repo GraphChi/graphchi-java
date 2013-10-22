@@ -12,7 +12,10 @@ import edu.cmu.graphchi.io.CompressedIO;
 import nom.tam.util.BufferedDataInputStream;
 
 import java.io.*;
+import java.util.ArrayList;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.logging.Logger;
 import java.util.zip.GZIPInputStream;
 
@@ -64,7 +67,9 @@ public class MemoryShard <EdgeDataType> {
     private final Timer loadVerticesTimers = Metrics.defaultRegistry().newTimer(MemoryShard.class, "load-vertices", TimeUnit.SECONDS, TimeUnit.MINUTES);
 
     private static final Logger logger = ChiLogger.getLogger("memoryshard");
-    
+
+    private ArrayList<ShardIndex.IndexEntry> index;
+
 
     private MemoryShard() {}
 
@@ -121,37 +126,100 @@ public class MemoryShard <EdgeDataType> {
         }
     }
 
-    public void loadVertices(int windowStart, int windowEnd, ChiVertex[] vertices, boolean disableOutEdges)
-            throws FileNotFoundException, IOException {
-        DataInput adjInput = null;
+    public void loadVertices(final int windowStart, final int windowEnd, final ChiVertex[] vertices, final boolean disableOutEdges, final ExecutorService parallelExecutor)
+            throws IOException {
+        DataInput compressedInput = null;
         if (adjData == null) {
-            adjInput = loadAdj(windowEnd == rangeEnd && windowStart == rangeStart);
+            compressedInput = loadAdj(windowEnd == rangeEnd && windowStart == rangeStart);
 
             if (!onlyAdjacency) loadEdata();
         }
 
         TimerContext _timer = loadVerticesTimers.time();
 
-        logger.info("Load memory shard: " + windowStart + " --- " + windowEnd);
-        int vid = 0;
-        int edataPtr = 0;
-        int adjOffset = 0;
-        int sizeOf = (converter == null ? 0 : converter.sizeOf());
-        if (adjInput == null) {
-            adjInput = new DataInputStream(new ByteArrayInputStream(adjData));
+        if (compressedInput != null) {
+            // This means we are using compressed data and cannot read in parallel (or could we?)
+            // A bit ugly.
+            index = new ArrayList<ShardIndex.IndexEntry>();
+            index.add(new ShardIndex.IndexEntry(0, 0, 0));
         }
-        try {
-            while(true) {
-                if (!hasSetOffset && vid > rangeEnd) {
-                    streamingOffset = adjOffset;
-                    streamingOffsetEdgePtr = edataPtr;
-                    streamingOffsetVid = vid;
-                    hasSetOffset = true;
+        final int sizeOf = (converter == null ? 0 : converter.sizeOf());
+
+        /* Load in parallel */
+        if (compressedInput == null) {
+            final AtomicInteger countDown = new AtomicInteger(index.size());
+            final Object waitLock = new Object();
+            for(int chunk=0; chunk<index.size(); chunk++) {
+                final int _chunk = chunk;
+                parallelExecutor.submit(new Runnable() {
+                    @Override
+                    public void run() {
+                        try {
+                            loadAdjChunk(windowStart, windowEnd, vertices, disableOutEdges, null, sizeOf, _chunk);
+                        } catch (IOException ioe) {
+                            ioe.printStackTrace();
+                            throw new RuntimeException(ioe);
+                        } finally {
+                            countDown.decrementAndGet();
+                            synchronized (waitLock) {
+                                waitLock.notifyAll();
+                            }
+
+                        }
+                    }
+                } );
+            }
+            /* Wait for finishing */
+            while (countDown.get() > 0) {
+                synchronized (waitLock) {
+                    try {
+                        waitLock.wait(10000);
+                    } catch (InterruptedException e) {}
                 }
-                if (!hasSetRangeOffset && vid >= rangeStart) {
-                    rangeStartOffset = adjOffset;
-                    rangeStartEdgePtr = edataPtr;
-                    hasSetRangeOffset = true;
+            }
+        } else {
+            loadAdjChunk(windowStart, windowEnd, vertices, disableOutEdges, compressedInput, sizeOf, 0);
+        }
+
+        _timer.stop();
+    }
+
+    private void loadAdjChunk(int windowStart, int windowEnd, ChiVertex[] vertices, boolean disableOutEdges, DataInput compressedInput, int sizeOf, int chunk) throws IOException {
+        ShardIndex.IndexEntry indexEntry = index.get(chunk);
+
+        int vid = indexEntry.vertex;
+        int viden = (chunk < index.size() - 1 ?  index.get(chunk + 1).vertex : Integer.MAX_VALUE);
+        int edataPtr = indexEntry.edgePointer * sizeOf;
+        int adjOffset = indexEntry.fileOffset;
+        int end = adjData.length;
+        if (chunk < index.size() - 1) {
+            end = index.get(chunk + 1).fileOffset;
+        }
+
+        boolean containsRangeEnd = (vid < rangeEnd && viden > rangeEnd);
+        boolean containsRangeSt = (vid <= rangeStart && viden > rangeStart);
+
+        DataInput adjInput = (compressedInput != null ? compressedInput : new DataInputStream(new ByteArrayInputStream(adjData)));
+
+        adjInput.skipBytes(adjOffset);
+
+        try {
+            while(adjOffset < end) {
+
+                if (containsRangeEnd) {
+                    if (!hasSetOffset && vid > rangeEnd) {
+                        streamingOffset = adjOffset;
+                        streamingOffsetEdgePtr = edataPtr;
+                        streamingOffsetVid = vid;
+                        hasSetOffset = true;
+                    }
+                }
+                if (containsRangeSt)  {
+                    if (!hasSetRangeOffset && vid >= rangeStart) {
+                        rangeStartOffset = adjOffset;
+                        rangeStartEdgePtr = edataPtr;
+                        hasSetRangeOffset = true;
+                    }
                 }
 
                 int n = 0;
@@ -208,13 +276,11 @@ public class MemoryShard <EdgeDataType> {
                 vid++;
             }
         } catch (EOFException eof) {
+            return;
         }
-
-        // Ugly
-        if (adjInput instanceof  InputStream) {
+        if (adjInput instanceof InputStream) {
             ((InputStream) adjInput).close();
         }
-        _timer.stop();
     }
 
 
@@ -242,17 +308,13 @@ public class MemoryShard <EdgeDataType> {
         TimerContext _timer = loadAdjTimer.time();
 
         ByteArrayOutputStream adjDataStream = new ByteArrayOutputStream((int) fileSizeEstimate);
-
-        long tot = 0;
         try {
             byte[] buf = new byte[(int) fileSizeEstimate / 4];   // Read in 16 chunks
             while (true) {
                 int read =  adjStream.read(buf);
-                tot += read;
                 if (read > 0) {
                     adjDataStream.write(buf, 0, read);
                 } else break;
-
             }
         } catch (EOFException err) {
             // Done
@@ -262,6 +324,9 @@ public class MemoryShard <EdgeDataType> {
 
         adjStream.close();
         adjDataStream.close();
+
+        /* Load index */
+        index = new ShardIndex(new File(adjDataFilename)).sparserIndex(1204 * 1024);
 
         _timer.stop();
         return null;

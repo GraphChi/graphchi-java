@@ -617,30 +617,23 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
             final AtomicInteger countDown = new AtomicInteger(disableOutEdges ? 1 : nShards);
 
             if (!disableInEdges) {
-                loadingExecutor.submit(new Runnable() {
+                try {
 
-                    public void run() {
-                        try {
-                            logger.info("Loading memshard started. " + Thread.currentThread().getName() + " id=" +
-                                    Thread.currentThread().getId());
-                            logger.info("Memshard: " + startVertex + " -- " + endVertex);
-                            logger.info("Vertices length: " + vertices.length);
-                            memShard.loadVertices(startVertex, endVertex, vertices, disableOutEdges);
-                            logger.info("Loading memory-shard finished." + Thread.currentThread().getName());
+                    logger.info("Memshard: " + startVertex + " -- " + endVertex);
+                    memShard.loadVertices(startVertex, endVertex, vertices, disableOutEdges, parallelExecutor);
+                    logger.info("Loading memory-shard finished." + Thread.currentThread().getName());
 
-                            if (countDown.decrementAndGet() == 0) {
-                                synchronized (terminationLock) {
-                                    terminationLock.notifyAll();
-                                }
-                            }
-                        } catch (IOException ioe) {
-                            ioe.printStackTrace();
-                            throw new RuntimeException(ioe);
-                        }  catch (Exception err) {
-                            err.printStackTrace();
+                    if (countDown.decrementAndGet() == 0) {
+                        synchronized (terminationLock) {
+                            terminationLock.notifyAll();
                         }
                     }
-                });
+                } catch (IOException ioe) {
+                    ioe.printStackTrace();
+                    throw new RuntimeException(ioe);
+                }  catch (Exception err) {
+                    err.printStackTrace();
+                }
             }
 
             /* Load in parallel */
@@ -1018,42 +1011,42 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
     private class GraphChiContextInternal extends GraphChiContext{
         @Override
         protected void setVertexIdTranslate(VertexIdTranslate vertexIdTranslate) {
-            super.setVertexIdTranslate(vertexIdTranslate);    
+            super.setVertexIdTranslate(vertexIdTranslate);
         }
 
         @Override
         public void setThreadLocal(Object threadLocal) {
-            super.setThreadLocal(threadLocal);    
+            super.setThreadLocal(threadLocal);
         }
 
         @Override
         protected void setNumVertices(long numVertices) {
-            super.setNumVertices(numVertices);    
+            super.setNumVertices(numVertices);
         }
 
         @Override
         protected void setNumEdges(long numEdges) {
-            super.setNumEdges(numEdges);    
+            super.setNumEdges(numEdges);
         }
 
         @Override
         protected void setScheduler(Scheduler scheduler) {
-            super.setScheduler(scheduler);    
+            super.setScheduler(scheduler);
         }
 
         @Override
         protected void setNumIterations(int numIterations) {
-            super.setNumIterations(numIterations);    
+            super.setNumIterations(numIterations);
         }
 
         @Override
         protected void setIteration(int iteration) {
-            super.setIteration(iteration);    
+            super.setIteration(iteration);
         }
 
         @Override
         protected void setCurInterval(VertexInterval curInterval) {
-            super.setCurInterval(curInterval);    
+            super.setCurInterval(curInterval);
         }
     }
 }
