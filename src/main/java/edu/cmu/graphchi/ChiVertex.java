@@ -4,8 +4,11 @@ import edu.cmu.graphchi.datablocks.BytesToValueConverter;
 import edu.cmu.graphchi.datablocks.ChiPointer;
 import edu.cmu.graphchi.datablocks.DataBlockManager;
 import edu.cmu.graphchi.engine.auxdata.VertexDegree;
+import sun.misc.Unsafe;
 import sun.reflect.generics.reflectiveObjects.NotImplementedException;
 
+import java.lang.reflect.Field;
+import java.security.AccessController;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
@@ -41,14 +44,49 @@ public class ChiVertex<VertexValue, EdgeValue> {
     public static boolean disableInedges = false;
     public static boolean disableOutedges = false;
 
-    private int nInedges = 0;
+    private volatile int nInedges = 0;
     private int[] inEdgeDataArray = null;
 
-    private AtomicInteger nOutedges = new AtomicInteger(0);
+    private volatile int nOutedges = 0;
     private int[] outEdgeDataArray = null;
 
     /* Internal management */
     public boolean parallelSafe = true;
+
+    /* We replicate the behavior of atomic integer to save some memory and improve performance */
+
+    @SuppressWarnings("restriction")
+    // http://stackoverflow.com/questions/13003871/how-do-i-get-the-instance-of-sun-misc-unsafe
+    private static Unsafe getUnsafe() {
+        try {
+
+            Field singleoneInstanceField = Unsafe.class.getDeclaredField("theUnsafe");
+            singleoneInstanceField.setAccessible(true);
+            return (Unsafe) singleoneInstanceField.get(null);
+
+        } catch (IllegalArgumentException e) {
+            throw e;
+        } catch (SecurityException e) {
+            throw e;
+        } catch (NoSuchFieldException e) {
+            throw new RuntimeException(e);
+        } catch (IllegalAccessException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private static final Unsafe unsafe = getUnsafe();
+    private static final long valueOffset_nInedges;
+    private static final long valueOffset_nOutedges;
+
+    static {
+        try {
+            valueOffset_nInedges = unsafe.objectFieldOffset
+                    (ChiVertex.class.getDeclaredField("nInedges"));
+            valueOffset_nOutedges = unsafe.objectFieldOffset
+                    (ChiVertex.class.getDeclaredField("nOutedges"));
+        } catch (Exception ex) { throw new Error(ex); }
+    }
 
     private ChiPointer vertexPtr;
 
@@ -59,12 +97,12 @@ public class ChiVertex<VertexValue, EdgeValue> {
             if (!disableInedges) {
                 inEdgeDataArray = new int[degree.inDegree * (edgeValueConverter != null ? 3 : 1)];
             } else {
-                nInedges = degree.inDegree;
+                nInedges =  degree.inDegree;
             }
             if (!disableOutedges) {
                 outEdgeDataArray = new int[degree.outDegree * (edgeValueConverter != null ? 3 : 1)];
             } else {
-                nOutedges.set(degree.outDegree);
+                nOutedges = degree.outDegree;
             }
         }
     }
@@ -125,7 +163,7 @@ public class ChiVertex<VertexValue, EdgeValue> {
 
 
     public int numOutEdges() {
-        return nOutedges.get();
+        return nOutedges;
     }
 
 
@@ -137,17 +175,26 @@ public class ChiVertex<VertexValue, EdgeValue> {
      * INTERNAL USE ONLY    (TODO: separate better)
      */
     public void addInEdge(int chunkId, int offset, int vertexId) {
+        int tmpInEdges;
+        /* Note: it would be nicer to use AtomicInteger, but I want to save as much memory as possible */
+        for (;;) {
+            int current = nInedges;
+            tmpInEdges = current + 1;
+            if (unsafe.compareAndSwapInt(this, valueOffset_nInedges, current, tmpInEdges)) {
+                break;
+            }
+        }
+
+        tmpInEdges--;
         if (edgeValueConverter != null) {
-            int idx = nInedges * 3;
+            int idx = tmpInEdges * 3;
             inEdgeDataArray[idx] = chunkId;
             inEdgeDataArray[idx + 1] = offset;
             inEdgeDataArray[idx + 2] = vertexId;
         } else {
             if (inEdgeDataArray != null)
-                inEdgeDataArray[nInedges] = vertexId;
+                inEdgeDataArray[tmpInEdges] = vertexId;
         }
-        nInedges++;
-
     }
 
 
@@ -155,7 +202,16 @@ public class ChiVertex<VertexValue, EdgeValue> {
      * INTERNAL USE ONLY  (TODO: separate better)
      */
     public void addOutEdge(int chunkId, int offset,  int vertexId) {
-        int tmpOutEdges = nOutedges.addAndGet(1) - 1;
+        int tmpOutEdges;
+        /* Note: it would be nicer to use AtomicInteger, but I want to save as much memory as possible */
+        for (;;) {
+            int current = nOutedges;
+            tmpOutEdges = current + 1;
+            if (unsafe.compareAndSwapInt(this, valueOffset_nOutedges, current, tmpOutEdges)) {
+                break;
+            }
+        }
+        tmpOutEdges--;
         if (edgeValueConverter != null) {
             int idx = tmpOutEdges * 3;
             outEdgeDataArray[idx] = chunkId;
@@ -222,7 +278,7 @@ public class ChiVertex<VertexValue, EdgeValue> {
      * @return the number of in- and out-edges
      */
     public int numEdges() {
-        return nInedges + nOutedges.get();
+        return nInedges + nOutedges;
     }
 
     /**
