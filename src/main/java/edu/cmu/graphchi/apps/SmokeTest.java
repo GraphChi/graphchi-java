@@ -156,7 +156,8 @@ public class SmokeTest implements GraphChiProgram<Integer, Integer> {
             i++;
         }
 
-        if (i != engine.numVertices()) throw new IllegalStateException("Error in iterator: did not have numVertices vertices");
+        if (i != engine.numVertices())
+            throw new IllegalStateException("Error in iterator: did not have numVertices vertices: " + i + "/" + engine.numVertices());
 
         logger.info("Ready.");
     }

@@ -57,6 +57,7 @@ public class MemoryShard <EdgeDataType> {
     private boolean hasSetRangeOffset = false, hasSetOffset = false;
 
     private int rangeStartOffset, rangeStartEdgePtr, rangeContVid;
+    private int adjDataLength;
 
     private DataBlockManager dataBlockManager;
     private BytesToValueConverter<EdgeDataType> converter;
@@ -130,7 +131,7 @@ public class MemoryShard <EdgeDataType> {
             throws IOException {
         DataInput compressedInput = null;
         if (adjData == null) {
-            compressedInput = loadAdj(windowEnd == rangeEnd && windowStart == rangeStart);
+            compressedInput = loadAdj();
 
             if (!onlyAdjacency) loadEdata();
         }
@@ -191,7 +192,7 @@ public class MemoryShard <EdgeDataType> {
         int viden = (chunk < index.size() - 1 ?  index.get(chunk + 1).vertex : Integer.MAX_VALUE);
         int edataPtr = indexEntry.edgePointer * sizeOf;
         int adjOffset = indexEntry.fileOffset;
-        int end = adjData.length;
+        int end = adjDataLength;
         if (chunk < index.size() - 1) {
             end = index.get(chunk + 1).fileOffset;
         }
@@ -284,7 +285,7 @@ public class MemoryShard <EdgeDataType> {
     }
 
 
-    private DataInput loadAdj(boolean onlyOneRead) throws FileNotFoundException, IOException {
+    private DataInput loadAdj() throws FileNotFoundException, IOException {
         File compressedFile = new File(adjDataFilename + ".gz");
         InputStream adjStreamRaw;
         long fileSizeEstimate = 0;
@@ -297,9 +298,11 @@ public class MemoryShard <EdgeDataType> {
             fileSizeEstimate = new File(adjDataFilename).length();
 
         }
-        if (onlyOneRead) {
-            return new BufferedDataInputStream(adjStreamRaw,  (int) fileSizeEstimate / 64 + 1024);
-        }
+
+        /* Load index */
+        index = new ShardIndex(new File(adjDataFilename)).sparserIndex(1204 * 1024);
+
+
 
         BufferedInputStream adjStream =	new BufferedInputStream(adjStreamRaw, (int) fileSizeEstimate /
                 4);
@@ -321,12 +324,10 @@ public class MemoryShard <EdgeDataType> {
         }
 
         adjData = adjDataStream.toByteArray();
+        adjDataLength = adjData.length;
 
         adjStream.close();
         adjDataStream.close();
-
-        /* Load index */
-        index = new ShardIndex(new File(adjDataFilename)).sparserIndex(1204 * 1024);
 
         _timer.stop();
         return null;
