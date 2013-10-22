@@ -26,22 +26,52 @@ import java.util.zip.*;
  */
 public class CompressedIO {
 
-	public static void readCompressed(File f, byte[] buf, int nbytes) throws FileNotFoundException, IOException {
-		BufferedInputStream bis = new BufferedInputStream(new FileInputStream(f));
-		InflaterInputStream iis = new InflaterInputStream(bis);
-		int read = 0;
-		while (read < nbytes) {
-			read += iis.read(buf, read, nbytes - read);
-		}
-		iis.close(); bis.close();
-		
-	}
-	
-	public static void writeCompressed(File f, byte[] data, int nbytes) throws FileNotFoundException, IOException {
-		BufferedOutputStream bos = new BufferedOutputStream(new FileOutputStream(f));
-		DeflaterOutputStream dos = new DeflaterOutputStream(bos);
-		dos.write(data, 0, nbytes);
-		dos.close(); bos.close();
-	}
-	
+    static boolean COMPRESSION_ENABLED = true;
+
+    public static void readCompressed(File f, byte[] buf, int nbytes) throws FileNotFoundException, IOException {
+        if (COMPRESSION_ENABLED) {
+            BufferedInputStream bis = new BufferedInputStream(new FileInputStream(f));
+            InflaterInputStream iis = new InflaterInputStream(bis);
+            int read = 0;
+            while (read < nbytes) {
+                read += iis.read(buf, read, nbytes - read);
+            }
+            iis.close(); bis.close();
+        } else {
+            FileInputStream in = new FileInputStream(f);
+            int read = 0;
+            while (read < nbytes) {
+                read += in.read(buf, read, buf.length - read);
+            }
+            in.close();
+        }
+    }
+
+    public static void writeCompressed(File f, byte[] data, int nbytes) throws FileNotFoundException, IOException {
+        if (COMPRESSION_ENABLED) {
+            BufferedOutputStream bos = new BufferedOutputStream(new FileOutputStream(f));
+            DeflaterOutputStream dos = new DeflaterOutputStream(bos);
+            dos.write(data, 0, nbytes);
+            dos.close(); bos.close();
+        } else {
+            BufferedOutputStream bos = new BufferedOutputStream(new FileOutputStream(f));
+            bos.write(data, 0, nbytes);
+            bos.close();
+        }
+    }
+
+    /* Note: I realize this is not a good way to manage compression level (should not be part of the utility class). FIXME */
+    public static void disableCompression() {
+        COMPRESSION_ENABLED = false;
+    }
+
+    public static boolean isCompressionEnabled() {
+        return COMPRESSION_ENABLED;
+    }
+
+    static {
+        if ("0".equals(System.getProperty("graphchi.compression"))) {
+            disableCompression();
+        }
+    }
 }

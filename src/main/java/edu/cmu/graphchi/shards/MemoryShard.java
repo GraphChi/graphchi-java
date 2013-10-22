@@ -296,14 +296,10 @@ public class MemoryShard <EdgeDataType> {
         } else {
             adjStreamRaw = new FileInputStream(adjDataFilename);
             fileSizeEstimate = new File(adjDataFilename).length();
-
         }
 
         /* Load index */
         index = new ShardIndex(new File(adjDataFilename)).sparserIndex(1204 * 1024);
-
-
-
         BufferedInputStream adjStream =	new BufferedInputStream(adjStreamRaw, (int) fileSizeEstimate /
                 4);
 

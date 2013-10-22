@@ -4,6 +4,7 @@ import edu.cmu.graphchi.*;
 import edu.cmu.graphchi.datablocks.FloatConverter;
 import edu.cmu.graphchi.engine.GraphChiEngine;
 import edu.cmu.graphchi.engine.VertexInterval;
+import edu.cmu.graphchi.io.CompressedIO;
 import edu.cmu.graphchi.preprocessing.EdgeProcessor;
 import edu.cmu.graphchi.preprocessing.FastSharder;
 import edu.cmu.graphchi.preprocessing.VertexIdTranslate;
@@ -88,6 +89,8 @@ public class Pagerank implements GraphChiProgram<Float, Float> {
         String baseFilename = args[0];
         int nShards = Integer.parseInt(args[1]);
         String fileType = (args.length >= 3 ? args[2] : null);
+
+        CompressedIO.disableCompression();
 
         /* Create shards */
         FastSharder sharder = createSharder(baseFilename, nShards);

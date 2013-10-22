@@ -2,6 +2,7 @@ package edu.cmu.graphchi;
 
 import edu.cmu.graphchi.datablocks.BytesToValueConverter;
 import edu.cmu.graphchi.engine.VertexInterval;
+import edu.cmu.graphchi.io.CompressedIO;
 
 import java.io.*;
 import java.util.ArrayList;
@@ -38,10 +39,14 @@ public class ChiFilenames {
     }
 
     public static String getDirnameShardEdataBlock(String edataShardName, int blocksize) {
+        if (CompressedIO.isCompressionEnabled()) {
+            edataShardName += ".Z.";
+        }
         return edataShardName + "_blockdir_" + blocksize;
     }
 
     public static String getFilenameShardEdataBlock(String edataShardname, int blockId, int blocksize) {
+
         return getDirnameShardEdataBlock(edataShardname, blocksize) + "/" + blockId;
     }
 

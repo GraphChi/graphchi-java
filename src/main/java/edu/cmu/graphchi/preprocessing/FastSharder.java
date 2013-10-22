@@ -8,6 +8,7 @@ import edu.cmu.graphchi.datablocks.ChiPointer;
 import edu.cmu.graphchi.datablocks.DataBlockManager;
 import edu.cmu.graphchi.datablocks.IntConverter;
 import edu.cmu.graphchi.engine.auxdata.VertexData;
+import edu.cmu.graphchi.io.CompressedIO;
 import edu.cmu.graphchi.shards.MemoryShard;
 import edu.cmu.graphchi.shards.SlidingShard;
 import nom.tam.util.BufferedDataInputStream;
@@ -601,7 +602,9 @@ public class FastSharder <VertexValueType, EdgeValueType> {
             int edgeIdx= 0;
             for(long idx=0; idx < edatasize; idx += blockSize) {
                 File blockFile = new File(ChiFilenames.getFilenameShardEdataBlock(edataFileName, blockIdx, blockSize));
-                DeflaterOutputStream blockOs = new DeflaterOutputStream(new BufferedOutputStream(new FileOutputStream(blockFile)));
+                OutputStream blockOs = (CompressedIO.isCompressionEnabled() ?
+                        new DeflaterOutputStream(new BufferedOutputStream(new FileOutputStream(blockFile))) :
+                                new FileOutputStream(blockFile));
                 long len = Math.min(blockSize, edatasize - idx);
                 byte[] block = new byte[(int)len];
 
