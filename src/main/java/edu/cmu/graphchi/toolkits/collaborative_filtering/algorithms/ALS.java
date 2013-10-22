@@ -24,6 +24,7 @@ import edu.cmu.graphchi.preprocessing.FastSharder;
 import edu.cmu.graphchi.preprocessing.VertexIdTranslate;
 import edu.cmu.graphchi.toolkits.collaborative_filtering.utils.IO;
 import edu.cmu.graphchi.toolkits.collaborative_filtering.utils.ModelParameters;
+import edu.cmu.graphchi.toolkits.collaborative_filtering.utils.ModelTester;
 import edu.cmu.graphchi.toolkits.collaborative_filtering.utils.ProblemSetup;
 import edu.cmu.graphchi.util.HugeDoubleMatrix;
 
@@ -62,6 +63,8 @@ class ALSParams extends ModelParameters {
 	double LAMBDA;	//regularization
 	int D;	//number of features
 	HugeDoubleMatrix latentFactors;
+	int numUsers;
+	int numItems;
 	
 	public ALSParams(String id, String json) {
 		super(id, json);
@@ -91,7 +94,6 @@ class ALSParams extends ModelParameters {
 	@Override
 	public void serialize(String dir) {
 		// TODO Auto-generated method stub
-		
 	}
 
 	@Override
@@ -110,18 +112,21 @@ public class ALS implements GraphChiProgram<Integer, Float>{
 	protected Logger logger = ChiLogger.getLogger("ALS");
     double train_rmse = 0.0;
 
+    ModelTester validationTester;
+    
     public ALS(ProblemSetup problemSetup, ModelParameters params) {
     	this.problemSetup = problemSetup;
     	this.params = (ALSParams)params;
+    	if(this.problemSetup.validation != null)
+    		this.validationTester = new ModelTester(this.problemSetup.validation);
     }
 
-    public double als_predict(RealVector user, RealVector item){
+    public double predict(RealVector user, RealVector item){
     	double prediction = user.dotProduct(item);
     	prediction = Math.min(prediction, this.problemSetup.maxval);
     	prediction = Math.max(prediction, this.problemSetup.minval);
     	return prediction;
     }
-    
     
     @Override
     public void update(ChiVertex<Integer, Float> vertex, GraphChiContext context) {
@@ -130,8 +135,11 @@ public class ALS implements GraphChiProgram<Integer, Float>{
         RealMatrix XtX = new BlockRealMatrix(params.D, params.D);
         RealVector Xty = new ArrayRealVector(params.D);
         RealVector latent_factor = params.latentFactors.getRowAsVector(vertex.getId());
-     
 
+        if(vertex.getId() == 12) {
+        	System.out.print(" ");
+        }
+        
         try {
             double squaredError = 0;
             boolean is_user = vertex.numOutEdges() > 0;
@@ -155,7 +163,7 @@ public class ALS implements GraphChiProgram<Integer, Float>{
                 }
                 
                 if (is_user){
-                  double prediction = als_predict(neighbor, new ArrayRealVector(latent_factor));
+                  double prediction = predict(neighbor, new ArrayRealVector(latent_factor));
                   squaredError += Math.pow(prediction - observation,2);
                 }
             }
@@ -198,6 +206,23 @@ public class ALS implements GraphChiProgram<Integer, Float>{
     	 /* Output RMSE */
         this.train_rmse = Math.sqrt(this.train_rmse / (1.0 * ctx.getNumEdges()));
         this.logger.info("Train RMSE: " + this.train_rmse);
+
+        if(validationTester != null) {
+	        validationTester.init();
+	        double validationRMSE = 0;
+	        while(validationTester.next()) {
+	        	double obs = validationTester.getCurrRating();
+	        	int userId = ctx.getVertexIdTranslate().forward(validationTester.getCurrUser());
+	        	RealVector user = params.latentFactors.getRowAsVector(userId);
+	        	int itemId = ctx.getVertexIdTranslate().forward(validationTester.getCurrItem());
+	        	RealVector item = params.latentFactors.getRowAsVector(itemId);
+	        	
+	        	double estVal = predict(user, item);
+	        	validationRMSE += (obs - estVal)*(obs - estVal);
+	        }
+	        validationRMSE = Math.sqrt(validationRMSE / (1.0 * this.validationTester.getNumTestCases()));
+	        this.logger.info("Validation RMSE: " + validationRMSE);
+        }
     }
 
     @Override
@@ -225,12 +250,16 @@ public class ALS implements GraphChiProgram<Integer, Float>{
     public static void main(String[] args) throws Exception {
 
     	ProblemSetup problemSetup = new ProblemSetup(args);
-    	ModelParameters params = new ALSParams(problemSetup.getRunId("ALS"), problemSetup.paramJson);
-    	
-        ALS als = new ALS(problemSetup, params);
+    	ALSParams params = new ALSParams(problemSetup.getRunId("ALS"), problemSetup.paramJson);
 
-        IO.convertMatrixMarket(problemSetup);
+        FastSharder<Integer, Float> sharder = IO.createSharder(problemSetup.training, problemSetup.nShards); 
+        IO.convertMatrixMarket(problemSetup, sharder);
         
+        Map<String, String> metaDataMap = sharder.readMetadata(problemSetup.training, problemSetup.nShards);
+        params.numUsers = Integer.parseInt(metaDataMap.get("numLeft"));
+        params.numItems = Integer.parseInt(metaDataMap.get("numRight"));
+        
+        ALS als = new ALS(problemSetup, params);
         /* Run GraphChi */
         GraphChiEngine<Integer, Float> engine = new GraphChiEngine<Integer, Float>(problemSetup.training, problemSetup.nShards);
         
@@ -251,8 +280,7 @@ public class ALS implements GraphChiProgram<Integer, Float>{
      * @throws Exception
      */
     private void writeOutputMatrices(VertexIdTranslate vertexIdTranslate) throws Exception {
-    	Map<String, String> metaDataMap = FastSharder.readMetadata(
-    			ChiFilenames.getFilenameMetadata(this.problemSetup.training, this.problemSetup.nShards));
+    	Map<String, String> metaDataMap = FastSharder.readMetadata(this.problemSetup.training, this.problemSetup.nShards);
     	int numLeft = Integer.parseInt(metaDataMap.get("numLeft"));
     	int numRight = Integer.parseInt(metaDataMap.get("numRight"));
     	

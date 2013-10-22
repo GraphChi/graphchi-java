@@ -265,14 +265,13 @@ public class ALSMatrixFactorization implements GraphChiProgram<Integer, Float> {
     }
 
     public BipartiteGraphInfo getGraphInfo() {
-        String infoFile = baseFilename + "." + numShards + ".matrixinfo";
         try {
-        	Map<String, String> metadata = FastSharder.readMetadata(infoFile);
+        	Map<String, String> metadata = FastSharder.readMetadata(baseFilename, numShards);
             int numLeft = Integer.parseInt(metadata.get("numLeft"));
             int numRight = Integer.parseInt(metadata.get("numRight"));
             return new BipartiteGraphInfo(numLeft, numRight);
         } catch (IOException ioe) {
-            throw new RuntimeException("Could not load matrix info! File: " + infoFile);
+            throw new RuntimeException("Could not load matrix info! File: " + baseFilename);
         }
     } 
 
