@@ -108,7 +108,7 @@ public class FastSharder <VertexValueType, EdgeValueType> {
         this.vertexProcessor = vertexProcessor;
         this.edgeValueTypeBytesToValueConverter = edgeValConverter;
         this.vertexValueTypeBytesToValueConverter = vertexValConterter;
-        this.metadataMap = new HashMap<String, String>();
+        this.metadataMap = readMetadata(baseFilename, this.numShards);
 
         /**
          * In the first phase of processing, the edges are "shoveled" to
@@ -770,6 +770,8 @@ public class FastSharder <VertexValueType, EdgeValueType> {
         }
 
         this.process();
+        
+        writeMetadata();
     }
 
     /**
@@ -878,10 +880,15 @@ public class FastSharder <VertexValueType, EdgeValueType> {
     	mapper.writeValue(metadataFile, this.metadataMap);
     }
     
-    public static Map<String, String> readMetadata(String fileName) throws IOException {
+    public static Map<String, String> readMetadata(String baseFileName, int numShards) throws IOException {
+    	String fileName = ChiFilenames.getFilenameMetadata(baseFileName, numShards);
     	File metadataFile = new File(fileName);
-    	ObjectMapper mapper = new ObjectMapper();
-    	return (Map<String, String>) mapper.readValue(metadataFile, Map.class);
+    	if(metadataFile.exists()) {
+    		ObjectMapper mapper = new ObjectMapper();
+    		return (Map<String, String>) mapper.readValue(metadataFile, Map.class);
+    	} else {
+    		return new HashMap<String, String>();
+    	}
     }
 
     public static void main(String[] args) throws Exception {

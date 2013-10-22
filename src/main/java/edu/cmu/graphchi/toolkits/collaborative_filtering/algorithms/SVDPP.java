@@ -118,7 +118,7 @@ public class SVDPP implements GraphChiProgram<Integer, Float>{
 		this.train_rmse = 0;
 	}
 	
-	private double svdppPredict(int user, int item, double observation, double[] sumWeight) {
+	private double predict(int user, int item, double observation, double[] sumWeight) {
 		// \hat(r_ui) = \mu +
 		double prediction = params.globalMean;
 		
@@ -187,7 +187,7 @@ public class SVDPP implements GraphChiProgram<Integer, Float>{
 	        	params.latentFactors.getRow(item, itemFactors);
 	        	
 	        	float observation = vertex.getOutEdgeValue(e);
-	        	double estScore = svdppPredict(user, item, observation, sumWeights);
+	        	double estScore = predict(user, item, observation, sumWeights);
 	        	
 	        	 // e_ui = r_ui - \hat{r_ui}
 	        	double err = observation - estScore;

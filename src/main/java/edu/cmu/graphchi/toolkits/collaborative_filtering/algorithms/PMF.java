@@ -493,8 +493,8 @@ public class PMF implements GraphChiProgram<Integer, EdgeDataType> {
 			prediction += u[f]*v[f];
 		}
 		
-		prediction = Math.min(prediction, this.setup.minval);
-		prediction = Math.max(prediction, this.setup.maxval);
+		prediction = Math.max(prediction, this.setup.minval);
+		prediction = Math.min(prediction, this.setup.maxval);
 
 		return (float)prediction;
 	}

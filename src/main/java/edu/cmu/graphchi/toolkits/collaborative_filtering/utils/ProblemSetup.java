@@ -86,11 +86,11 @@ public class ProblemSetup {
     				help.printHelp("<algorithm> <options>", options);
     				System.exit(1);
     			}
-    			this.validation = cmd.getOptionValue("validation");
-    			this.test = cmd.getOptionValue("test");
+    			this.validation = cmd.getOptionValue("validation", null);
+    			this.test = cmd.getOptionValue("test", null);
     		
-    			this.userFeatures = cmd.getOptionValue("userFeatures");
-    			this.itemFeatures = cmd.getOptionValue("itemFeatures");
+    			this.userFeatures = cmd.getOptionValue("userFeatures", null);
+    			this.itemFeatures = cmd.getOptionValue("itemFeatures", null);
     			
     			this.minval = Integer.parseInt(cmd.getOptionValue("minval", "" + Integer.MIN_VALUE));
     			this.maxval = Integer.parseInt(cmd.getOptionValue("maxval", "" + Integer.MAX_VALUE));
