@@ -64,14 +64,13 @@ public class DegreeData {
      * @throws IOException
      */
     public void load(long _vertexSt, long _vertexEn) throws IOException {
-        if (!intervalContainsAny && _vertexSt < lastId && _vertexEn < lastId && _vertexSt >= lastQuery) {
+        if (sparse && !intervalContainsAny && _vertexSt < lastId && _vertexEn < lastId && _vertexSt >= lastQuery) {
              return; // Nothing to do for sure
         }
 
         long prevVertexEn = vertexEn;
         long prevVertexSt = vertexSt;
 
-        intervalContainsAny = false;
         vertexSt = _vertexSt;
         vertexEn = _vertexEn;
 
@@ -92,7 +91,11 @@ public class DegreeData {
         if (!sparse) {
             int adjLen = (int) (dataSize - len);
 
-            if (adjLen == 0) return;
+            if (adjLen == 0){
+                return;
+            }
+            intervalContainsAny = false;
+
             long dataStart =  (long)  vertexSt * 4l * 2l + len;
 
             try {
@@ -117,6 +120,8 @@ public class DegreeData {
             }
 
             try {
+                intervalContainsAny = false;
+
                 while(true) {
                     long vertexId = (lastId < 0 ? degreeFile.readLong() : lastId);
                     if (vertexId >= _vertexSt && vertexId <= _vertexEn) {

@@ -806,7 +806,7 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
                 // Following calculation contains some perhaps reasonable estimates of the
                 // overhead of Java objects.
 
-                memReq += vertexDataSizeOf + 256 + (edataSizeOf + 4 + 4 + 4) * (inc + outc);
+                memReq += vertexDataSizeOf + 256 + (edataSizeOf + 8 + 8 + 8) * (inc + outc);
                 if (memReq > memBudget) {
                     if (totalDegree == 0 && vertexDataConverter == null) {
                         throw new NoEdgesInIntervalException();
