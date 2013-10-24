@@ -30,6 +30,10 @@ public class VertexDegree {
         this.outDegree = outDegree;
     }
 
+    public int getDegree() {
+        return inDegree + outDegree;
+    }
+
     public String toString() {
         return inDegree + "," + outDegree;
     }

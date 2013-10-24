@@ -81,8 +81,8 @@ public class PigALSMatrixFactorization extends PigGraphChiBase
     private final static int RIGHTSIDE = 1;
 
     /* We keep track of these while sharding the graph */
-    private int maxLeftVertexId = 0;
-    private int maxRightVertexId = 0;
+    private long maxLeftVertexId = 0;
+    private long maxRightVertexId = 0;
 
     @Override
     public void update(ChiVertex<Integer, Float> vertex, GraphChiContext context) {
@@ -117,7 +117,7 @@ public class PigALSMatrixFactorization extends PigGraphChiBase
                     float observation = edge.getValue();
                     if (observation < 1.0) throw new RuntimeException("Had invalid observation: " + observation + " on edge " + idTranslate.backward(vertex.getId()) + "->" +
                                 idTranslate.backward(edge.getVertexId()));
-                    otherSideMatrix.getRow(idTranslate.backward(edge.getVertexId()), neighborLatent);
+                    otherSideMatrix.getRow((int) idTranslate.backward(edge.getVertexId()), neighborLatent);
 
                     for(int i=0; i < D; i++) {
                         Xty.setEntry(i, Xty.getEntry(i) + neighborLatent[i] * observation);
@@ -140,7 +140,7 @@ public class PigALSMatrixFactorization extends PigGraphChiBase
 
                 // Set the new latent factor for this vector
                 for(int i=0; i < D; i++) {
-                    thisSideMatrix.setValue(idTranslate.backward(vertex.getId()), i, newLatentFactor.getEntry(i));
+                    thisSideMatrix.setValue((int) idTranslate.backward(vertex.getId()), i, newLatentFactor.getEntry(i));
                 }
 
                 if (context.isLastIteration() && side == RIGHTSIDE) {
@@ -155,7 +155,7 @@ public class PigALSMatrixFactorization extends PigGraphChiBase
                             // Compute RMSE
                             ChiEdge<Float> edge = vertex.inEdge(e);
                             float observation = edge.getValue();
-                            otherSideMatrix.getRow(idTranslate.backward(edge.getVertexId()), neighborLatent);
+                            otherSideMatrix.getRow((int)idTranslate.backward(edge.getVertexId()), neighborLatent);
                             double prediction = new ArrayRealVector(neighborLatent).dotProduct(newLatentFactor);
                             squaredError += (prediction - observation) * (prediction - observation);
                         }
@@ -224,7 +224,7 @@ public class PigALSMatrixFactorization extends PigGraphChiBase
     protected FastSharder createSharder(String graphName, int numShards) throws IOException {
         return new FastSharder<Integer, Float>(graphName, numShards, null
                 , new EdgeProcessor<Float>() {
-            public Float receiveEdge(int from, int to, String token) {
+            public Float receiveEdge(long from, long to, String token) {
                 /* Keep track of the graph dimension*/
                 maxLeftVertexId = Math.max(from, maxLeftVertexId);
                 maxRightVertexId = Math.max(to, maxRightVertexId);
@@ -270,7 +270,7 @@ public class PigALSMatrixFactorization extends PigGraphChiBase
     @Override
     protected Tuple getNextResult(TupleFactory tupleFactory) throws ExecException {
         HugeDoubleMatrix matrix;
-        int vertexId = 0;
+        long vertexId = 0;
         String factor;
         if (outputCounter < maxLeftVertexId) {
             matrix = leftSideMatrix;
@@ -286,7 +286,7 @@ public class PigALSMatrixFactorization extends PigGraphChiBase
         t.set(0, factor);
         t.set(1, vertexId);
         for(int i=0; i<D; i++) {
-            t.set(2 + i, matrix.getValue(vertexId, i));
+            t.set(2 + i, matrix.getValue((int) vertexId, i));
         }
         outputCounter++;
         return t;

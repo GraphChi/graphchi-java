@@ -17,14 +17,14 @@ import java.io.IOException;
  */
 public class VertexIdTranslate {
 
-    private int vertexIntervalLength;
+    private long vertexIntervalLength;
     private int numShards;
 
     protected  VertexIdTranslate() {
 
     }
 
-    public VertexIdTranslate(int vertexIntervalLength, int numShards) {
+    public VertexIdTranslate(long vertexIntervalLength, int numShards) {
         this.vertexIntervalLength = vertexIntervalLength;
         this.numShards = numShards;
     }
@@ -34,7 +34,7 @@ public class VertexIdTranslate {
      * @param origId
      * @return
      */
-    public int forward(int origId) {
+    public long forward(long origId) {
         return (origId % numShards) * vertexIntervalLength + origId / numShards;
     }
 
@@ -43,13 +43,13 @@ public class VertexIdTranslate {
      * @param transId
      * @return
      */
-    public int backward(int transId) {
-        final int shard = transId / vertexIntervalLength;
-        final int off = transId % vertexIntervalLength;
+    public long backward(long transId) {
+        final long shard = transId / vertexIntervalLength;
+        final long off = transId % vertexIntervalLength;
         return off * numShards + shard;
     }
 
-    public int getVertexIntervalLength() {
+    public long getVertexIntervalLength() {
         return vertexIntervalLength;
     }
 
@@ -66,11 +66,11 @@ public class VertexIdTranslate {
            return identity();
        }
        String[] lines = s.split("\n");
-       int vertexIntervalLength = -1;
+       long vertexIntervalLength = -1;
        int numShards = -1;
        for(String ln : lines) {
             if (ln.startsWith("vertex_interval_length=")) {
-                vertexIntervalLength = Integer.parseInt(ln.split("=")[1]);
+                vertexIntervalLength = Long.parseLong(ln.split("=")[1]);
             } else if (ln.startsWith("numShards=")) {
                 numShards = Integer.parseInt(ln.split("=")[1]);
             }
@@ -94,17 +94,17 @@ public class VertexIdTranslate {
     public static VertexIdTranslate identity() {
         return new VertexIdTranslate() {
             @Override
-            public int forward(int origId) {
+            public long forward(long origId) {
                 return origId;
             }
 
             @Override
-            public int backward(int transId) {
+            public long backward(long transId) {
                 return transId;
             }
 
             @Override
-            public int getVertexIntervalLength() {
+            public long getVertexIntervalLength() {
                 return -1;
             }
 

@@ -6,6 +6,6 @@ package edu.cmu.graphchi.vertexdata;
  */
 public interface VertexTransformCallBack<VertexDataType>  {
 
-    VertexDataType map(int vertexId, VertexDataType value);
+    VertexDataType map(long vertexId, VertexDataType value);
 
 }

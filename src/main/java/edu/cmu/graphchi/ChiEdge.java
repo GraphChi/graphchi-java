@@ -22,7 +22,7 @@ package edu.cmu.graphchi;
  */
 public interface ChiEdge<EdgeData> {
 
-    public int getVertexId();
+    public long getVertexId();
 
     public EdgeData getValue();
 

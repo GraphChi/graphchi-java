@@ -18,32 +18,26 @@ package edu.cmu.graphchi.engine;
 
 public class VertexInterval {
 
-    private int firstVertex;
+    private long firstVertex;
+    private long lastVertex; // Inclusive
 
-    public VertexInterval(int firstVertex, int lastVertex) {
+    public VertexInterval(long firstVertex, long lastVertex) {
         this.firstVertex = firstVertex;
         this.lastVertex = lastVertex;
     }
 
-    private int lastVertex; // Inclusive
 
 
-    public int getFirstVertex() {
+    public long getFirstVertex() {
         return firstVertex;
     }
 
 
-    public void setFirstVertex(int firstVertex) {
-        this.firstVertex = firstVertex;
-    }
 
-    public int getLastVertex() {
+    public long getLastVertex() {
         return lastVertex;
     }
 
-    public void setLastVertex(int lastVertex) {
-        this.lastVertex = lastVertex;
-    }
 
     public String toString() {
         return "Interval " + firstVertex + " -- " + lastVertex;

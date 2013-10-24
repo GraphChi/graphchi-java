@@ -7,15 +7,15 @@ package edu.cmu.graphchi.vertexdata;
 
 public class VertexIdValue <VertexValueType> {
 
-    private int vertexId;
+    private long vertexId;
     private VertexValueType value;
 
-    public VertexIdValue(int vertexId, VertexValueType value) {
+    public VertexIdValue(long vertexId, VertexValueType value) {
         this.vertexId = vertexId;
         this.value = value;
     }
 
-    public int getVertexId() {
+    public long getVertexId() {
         return vertexId;
     }
 

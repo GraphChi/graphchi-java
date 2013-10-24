@@ -12,6 +12,6 @@ public interface ForeachCallback <VertexDataType> {
      * @param vertexId
      * @param vertexValue
      */
-   public void callback(int vertexId, VertexDataType vertexValue);
+   public void callback(long vertexId, VertexDataType vertexValue);
 
 }

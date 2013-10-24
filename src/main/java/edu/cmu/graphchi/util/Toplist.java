@@ -28,11 +28,11 @@ public class Toplist {
      * @return
      * @throws IOException
      */
-    public static TreeSet<IdFloat> topListFloat(String baseFilename, int numVertices, final int topN) throws IOException{
+    public static TreeSet<IdFloat> topListFloat(String baseFilename, long numVertices, final int topN) throws IOException{
         final TreeSet<IdFloat> topList = new TreeSet<IdFloat>(new IdFloat.Comparator());
         VertexAggregator.foreach(numVertices, baseFilename, new FloatConverter(), new ForeachCallback<Float>()  {
             IdFloat least;
-            public void callback(int vertexId, Float vertexValue) {
+            public void callback(long vertexId, Float vertexValue) {
                 if (topList.size() < topN) {
                     topList.add(new IdFloat(vertexId, vertexValue));
                     least = topList.last();
@@ -58,7 +58,7 @@ public class Toplist {
      * @return
      * @throws IOException
      */
-    public static TreeSet<IdInt> topListInt(String baseFilename, int numVertices, final int topN) throws IOException{
+    public static TreeSet<IdInt> topListInt(String baseFilename, long numVertices, final int topN) throws IOException{
         final TreeSet<IdInt> topList = new TreeSet<IdInt>(new Comparator<IdInt>() {
             public int compare(IdInt a, IdInt b) {
                 if (a.vertexId == b.vertexId) return 0;
@@ -67,7 +67,7 @@ public class Toplist {
         });
         VertexAggregator.foreach(numVertices, baseFilename, new IntConverter(), new ForeachCallback<Integer>()  {
             IdInt least;
-            public void callback(int vertexId, Integer vertexValue) {
+            public void callback(long vertexId, Integer vertexValue) {
                 if (topList.size() < topN) {
                     topList.add(new IdInt(vertexId, vertexValue));
                     least = topList.last();

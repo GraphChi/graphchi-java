@@ -141,7 +141,7 @@ public abstract class PigGraphChiBase  extends LoadFunc implements LoadMetadata 
                         HDFSGraphLoader hdfsLoader = new HDFSGraphLoader(location, new EdgeProcessor<Float>() {
                             long counter = 0;
 
-                            public Float receiveEdge(int from, int to, String token) {
+                            public Float receiveEdge(long from, long to, String token) {
                                 try {
                                     sharder.addEdge(from, to, token);
                                     counter++;

@@ -61,8 +61,8 @@ public class HDFSGraphLoader {
             String[] tok = tokenPattern.split(ln);
             if (tok.length >= 2) {
                 try {
-                    int from = Integer.parseInt(tok[0]);
-                    int to = Integer.parseInt(tok[1]);
+                    long from = Long.parseLong(tok[0]);
+                    long to = Long.parseLong(tok[1]);
 
                     edgeProcessor.receiveEdge(from, to, tok.length == 3 ? tok[2] : null);
                 } catch (NumberFormatException nfe) {

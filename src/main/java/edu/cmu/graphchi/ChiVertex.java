@@ -34,10 +34,8 @@ import java.util.concurrent.atomic.AtomicInteger;
  */
 public class ChiVertex<VertexValue, EdgeValue> {
 
-    /**
-     *  To save memory, support now only 32-bit vertex ids.
-     */
-    private int id;
+
+    private long id;
     public static DataBlockManager blockManager;
     public static BytesToValueConverter vertexValueConverter;
     public static BytesToValueConverter edgeValueConverter;
@@ -45,10 +43,10 @@ public class ChiVertex<VertexValue, EdgeValue> {
     public static boolean disableOutedges = false;
 
     private volatile int nInedges = 0;
-    private int[] inEdgeDataArray = null;
+    private long[] inEdgeDataArray = null;
 
     private volatile int nOutedges = 0;
-    private int[] outEdgeDataArray = null;
+    private long[] outEdgeDataArray = null;
 
     /* Internal management */
     public boolean parallelSafe = true;
@@ -90,17 +88,17 @@ public class ChiVertex<VertexValue, EdgeValue> {
 
     private ChiPointer vertexPtr;
 
-    public ChiVertex(int id, VertexDegree degree) {
+    public ChiVertex(long id, VertexDegree degree) {
         this.id = id;
 
         if (degree != null) {
             if (!disableInedges) {
-                inEdgeDataArray = new int[degree.inDegree * (edgeValueConverter != null ? 3 : 1)];
+                inEdgeDataArray = new long[degree.inDegree * (edgeValueConverter != null ? 3 : 1)];
             } else {
                 nInedges =  degree.inDegree;
             }
             if (!disableOutedges) {
-                outEdgeDataArray = new int[degree.outDegree * (edgeValueConverter != null ? 3 : 1)];
+                outEdgeDataArray = new long[degree.outDegree * (edgeValueConverter != null ? 3 : 1)];
             } else {
                 nOutedges = degree.outDegree;
             }
@@ -108,7 +106,7 @@ public class ChiVertex<VertexValue, EdgeValue> {
     }
 
 
-    public int getId() {
+    public long getId() {
         return this.id;
     }
 
@@ -138,7 +136,7 @@ public class ChiVertex<VertexValue, EdgeValue> {
      * Returns a random out-neighbors vertex id.
      * @return
      */
-    public int getRandomOutNeighbor() {
+    public long getRandomOutNeighbor() {
         int i = (int) (Math.random() * numOutEdges());
         if (edgeValueConverter != null) {
             int idx = i * 3;
@@ -152,7 +150,7 @@ public class ChiVertex<VertexValue, EdgeValue> {
      * Returns a random neighbor's vertex id.
      * @return
      */
-    public int getRandomNeighbor() {
+    public long getRandomNeighbor() {
         if (numEdges() == 0) {
             return -1;
         }
@@ -174,7 +172,7 @@ public class ChiVertex<VertexValue, EdgeValue> {
     /**
      * INTERNAL USE ONLY    (TODO: separate better)
      */
-    public void addInEdge(int chunkId, int offset, int vertexId) {
+    public void addInEdge(int chunkId, int offset, long vertexId) {
         int tmpInEdges;
         /* Note: it would be nicer to use AtomicInteger, but I want to save as much memory as possible */
         for (;;) {
@@ -201,7 +199,7 @@ public class ChiVertex<VertexValue, EdgeValue> {
     /**
      * INTERNAL USE ONLY  (TODO: separate better)
      */
-    public void addOutEdge(int chunkId, int offset,  int vertexId) {
+    public void addOutEdge(int chunkId, int offset,  long vertexId) {
         int tmpOutEdges;
         /* Note: it would be nicer to use AtomicInteger, but I want to save as much memory as possible */
         for (;;) {
@@ -231,7 +229,7 @@ public class ChiVertex<VertexValue, EdgeValue> {
     public ChiEdge<EdgeValue> inEdge(int i) {
         if (edgeValueConverter != null) {
             int idx = i * 3;
-            return new Edge(new ChiPointer(inEdgeDataArray[idx], inEdgeDataArray[idx + 1]), inEdgeDataArray[idx + 2]);
+            return new Edge(new ChiPointer((int)inEdgeDataArray[idx], (int)inEdgeDataArray[idx + 1]), inEdgeDataArray[idx + 2]);
         } else {
             return new Edge(null, inEdgeDataArray[i]);
         }
@@ -245,7 +243,7 @@ public class ChiVertex<VertexValue, EdgeValue> {
     public ChiEdge<EdgeValue>  outEdge(int i) {
         if (edgeValueConverter != null) {
             int idx = i * 3;
-            return new Edge(new ChiPointer(outEdgeDataArray[idx], outEdgeDataArray[idx + 1]), outEdgeDataArray[idx + 2]);
+            return new Edge(new ChiPointer((int)outEdgeDataArray[idx], (int)outEdgeDataArray[idx + 1]), outEdgeDataArray[idx + 2]);
         } else {
             return new Edge(null, outEdgeDataArray[i]);
         }
@@ -255,7 +253,7 @@ public class ChiVertex<VertexValue, EdgeValue> {
      * Get vertex-id of the i'th out edge (avoid creating the edge-object).
      * @param i
      */
-    public int getOutEdgeId(int i) {
+    public long getOutEdgeId(int i) {
         if (edgeValueConverter != null) {
             int idx = i * 3;
             return outEdgeDataArray[idx + 2];
@@ -284,9 +282,9 @@ public class ChiVertex<VertexValue, EdgeValue> {
     /**
      * ONLY ADVANCED USE
      */
-    public int[] getOutNeighborArray() {
+    public long[] getOutNeighborArray() {
         if (edgeValueConverter != null) {
-            int[] nbrs = new int[numOutEdges()];
+            long[] nbrs = new long[numOutEdges()];
             for(int i=0; i<nbrs.length; i++) {
                 nbrs[i] = outEdgeDataArray[(i * 3) + 2];
             }
@@ -303,7 +301,7 @@ public class ChiVertex<VertexValue, EdgeValue> {
      */
     public EdgeValue getOutEdgeValue(int i) {
         int idx = i * 3;
-        return blockManager.dereference(new ChiPointer(outEdgeDataArray[idx], outEdgeDataArray[idx + 1]),
+        return blockManager.dereference(new ChiPointer((int) outEdgeDataArray[idx], (int)outEdgeDataArray[idx + 1]),
                 (BytesToValueConverter<EdgeValue>) edgeValueConverter);
     }
 
@@ -311,15 +309,15 @@ public class ChiVertex<VertexValue, EdgeValue> {
 
 
     class Edge implements ChiEdge<EdgeValue> {
-        Edge(ChiPointer dataPtr, int vertexId) {
+        Edge(ChiPointer dataPtr, long vertexId) {
             this.dataPtr = dataPtr;
             this.vertexId = vertexId;
         }
 
         ChiPointer dataPtr;
-        int vertexId;
+        long vertexId;
 
-        public int getVertexId() {
+        public long getVertexId() {
             return  vertexId;
         }
 

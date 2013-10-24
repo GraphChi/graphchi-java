@@ -1,5 +1,6 @@
 package edu.cmu.graphchi.util;
 
+import edu.cmu.graphchi.datablocks.LongConverter;
 import edu.cmu.graphchi.vertexdata.ForeachCallback;
 import edu.cmu.graphchi.vertexdata.VertexAggregator;
 import edu.cmu.graphchi.datablocks.IntConverter;
@@ -31,13 +32,14 @@ public class LabelAnalysis {
      * @return
      * @throws IOException
      */
-    public static Collection<IdCount> computeLabels(String baseFilename, int numVertices,
+    public static Collection<IdCount> computeLabels(String baseFilename, long numVertices,
                                                     VertexIdTranslate translate) throws IOException {
-        final HashMap<Integer, IdCount> counts = new HashMap<Integer, IdCount>(1000000);
-        VertexAggregator.foreach(numVertices, baseFilename, new IntConverter(), new ForeachCallback<Integer>() {
-            public void callback(int vertexId, Integer vertexValue) {
+        final HashMap<Long, IdCount> counts = new HashMap<Long, IdCount>(1000000);
+        VertexAggregator.foreach(numVertices, baseFilename, new LongConverter(), new ForeachCallback<Long>() {
+            public void callback(long vertexId, Long vertexValue) {
                  if (vertexId != vertexValue) {
                     IdCount cnt = counts.get(vertexValue);
+                     System.out.println(vertexId + "===>" + vertexValue);
                      if (cnt == null) {
                          cnt = new IdCount(vertexValue, 1);
                          counts.put(vertexValue, cnt);

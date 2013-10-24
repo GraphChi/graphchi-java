@@ -7,6 +7,6 @@ package edu.cmu.graphchi.preprocessing;
  */
 public interface EdgeProcessor <ValueType>  {
 
-    public ValueType receiveEdge(int from, int to, String token);
+    public ValueType receiveEdge(long from, long to, String token);
 
 }

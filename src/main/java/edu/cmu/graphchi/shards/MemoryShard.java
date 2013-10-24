@@ -44,8 +44,8 @@ public class MemoryShard <EdgeDataType> {
 
     private String edgeDataFilename;
     private String adjDataFilename;
-    private int rangeStart;
-    private int rangeEnd;
+    private long rangeStart;
+    private long rangeEnd;
 
     private byte[] adjData;
     private int[] blockIds = new int[0];
@@ -56,12 +56,14 @@ public class MemoryShard <EdgeDataType> {
     private boolean onlyAdjacency = false;
     private boolean hasSetRangeOffset = false, hasSetOffset = false;
 
-    private int rangeStartOffset, rangeStartEdgePtr, rangeContVid;
+    private int rangeStartOffset, rangeStartEdgePtr;
+    private long rangeContVid;
     private int adjDataLength;
 
     private DataBlockManager dataBlockManager;
     private BytesToValueConverter<EdgeDataType> converter;
-    private int streamingOffset, streamingOffsetEdgePtr, streamingOffsetVid;
+    private int streamingOffset, streamingOffsetEdgePtr;
+    private long streamingOffsetVid;
     private int blocksize = 0;
 
     private final Timer loadAdjTimer = Metrics.defaultRegistry().newTimer(MemoryShard.class, "load-adj", TimeUnit.SECONDS, TimeUnit.MINUTES);
@@ -74,7 +76,7 @@ public class MemoryShard <EdgeDataType> {
 
     private MemoryShard() {}
 
-    public MemoryShard(String edgeDataFilename, String adjDataFilename, int rangeStart, int rangeEnd) {
+    public MemoryShard(String edgeDataFilename, String adjDataFilename, long rangeStart, long rangeEnd) {
         this.edgeDataFilename = edgeDataFilename;
         this.adjDataFilename = adjDataFilename;
         this.rangeStart = rangeStart;
@@ -127,7 +129,7 @@ public class MemoryShard <EdgeDataType> {
         }
     }
 
-    public void loadVertices(final int windowStart, final int windowEnd, final ChiVertex[] vertices, final boolean disableOutEdges, final ExecutorService parallelExecutor)
+    public void loadVertices(final long windowStart, final long windowEnd, final ChiVertex[] vertices, final boolean disableOutEdges, final ExecutorService parallelExecutor)
             throws IOException {
         DataInput compressedInput = null;
         if (adjData == null) {
@@ -185,11 +187,11 @@ public class MemoryShard <EdgeDataType> {
         _timer.stop();
     }
 
-    private void loadAdjChunk(int windowStart, int windowEnd, ChiVertex[] vertices, boolean disableOutEdges, DataInput compressedInput, int sizeOf, int chunk) throws IOException {
+    private void loadAdjChunk(long windowStart, long windowEnd, ChiVertex[] vertices, boolean disableOutEdges, DataInput compressedInput, int sizeOf, int chunk) throws IOException {
         ShardIndex.IndexEntry indexEntry = index.get(chunk);
 
-        int vid = indexEntry.vertex;
-        int viden = (chunk < index.size() - 1 ?  index.get(chunk + 1).vertex : Integer.MAX_VALUE);
+        long vid = indexEntry.vertex;
+        long viden = (chunk < index.size() - 1 ?  index.get(chunk + 1).vertex : Long.MAX_VALUE);
         int edataPtr = indexEntry.edgePointer * sizeOf;
         int adjOffset = indexEntry.fileOffset;
         int end = adjDataLength;
@@ -203,6 +205,7 @@ public class MemoryShard <EdgeDataType> {
         DataInput adjInput = (compressedInput != null ? compressedInput : new DataInputStream(new ByteArrayInputStream(adjData)));
 
         adjInput.skipBytes(adjOffset);
+
 
         try {
             while(adjOffset < end) {
@@ -233,6 +236,13 @@ public class MemoryShard <EdgeDataType> {
                     int nz = adjInput.readUnsignedByte();
                     adjOffset += 1;
                     vid += nz;
+
+                    if (nz == 254) {
+                        long nnz = adjInput.readLong();
+                        adjOffset += 8;
+                        vid += nnz + 1;
+                    }
+
                     continue;
                 }
                 if (ns == 0xff) {   // If 255 is not enough, then stores a 32-bit integer after.
@@ -242,14 +252,15 @@ public class MemoryShard <EdgeDataType> {
                     n = ns;
                 }
 
+
                 ChiVertex vertex = null;
                 if (vid >= windowStart && vid <= windowEnd) {
-                    vertex = vertices[vid - windowStart];
+                    vertex = vertices[(int) (vid - windowStart)];
                 }
 
                 while (--n >= 0) {
-                    int target = Integer.reverseBytes(adjInput.readInt());
-                    adjOffset += 4;
+                    long target = adjInput.readLong();
+                    adjOffset += 8;
                     if (!(target >= rangeStart && target <= rangeEnd))
                         throw new IllegalStateException("Target " + target + " not in range!");
                     if (vertex != null && !disableOutEdges) {
@@ -258,7 +269,7 @@ public class MemoryShard <EdgeDataType> {
 
                     if (target >= windowStart) {
                         if (target <= windowEnd) {
-                            ChiVertex dstVertex = vertices[target - windowStart];
+                            ChiVertex dstVertex = vertices[(int) (target - windowStart)];
                             if (dstVertex != null) {
                                 dstVertex.addInEdge((onlyAdjacency ? -1 : blockIds[edataPtr / blocksize]),
                                         (onlyAdjacency ? -1 : edataPtr % blocksize),
@@ -278,7 +289,10 @@ public class MemoryShard <EdgeDataType> {
             }
         } catch (EOFException eof) {
             return;
+        } catch (Exception e) {
+            e.printStackTrace();
         }
+
         if (adjInput instanceof InputStream) {
             ((InputStream) adjInput).close();
         }
@@ -370,7 +384,7 @@ public class MemoryShard <EdgeDataType> {
         return streamingOffsetEdgePtr;
     }
 
-    public int getStreamingOffsetVid() {
+    public long getStreamingOffsetVid() {
         return streamingOffsetVid;
     }
 

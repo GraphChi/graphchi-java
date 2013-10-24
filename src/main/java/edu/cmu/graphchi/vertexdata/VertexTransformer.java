@@ -37,10 +37,10 @@ public class VertexTransformer {
             if (en >= numVertices) en = numVertices - 1;
             int blockId =  vertexData.load(i, en);
 
-            Iterator<Integer> iter = vertexData.currentIterator();
+            Iterator<Long> iter = vertexData.currentIterator();
 
             while (iter.hasNext()) {
-                int j = iter.next();
+                long j = iter.next();
                 ChiPointer ptr = vertexData.getVertexValuePtr(j, blockId);
                 VertexDataType oldValue = blockManager.dereference(ptr, conv);
                 VertexDataType newValue = callback.map(j, oldValue);

@@ -37,10 +37,11 @@ public class DegreeData {
     private RandomAccessFile degreeFile;
 
     private byte[] degreeData;
-    private int vertexSt, vertexEn;
+    private long vertexSt, vertexEn;
 
     private boolean sparse = false;
-    private int lastQuery = 0, lastId = -1;
+    private long lastQuery = 0, lastId = -1;
+    private boolean intervalContainsAny = true;
 
     public DegreeData(String baseFilename) throws IOException {
         File sparseFile = new File(ChiFilenames.getFilenameOfDegreeData(baseFilename, true));
@@ -62,11 +63,15 @@ public class DegreeData {
      * @param _vertexEn last vertex (inclusive)
      * @throws IOException
      */
-    public void load(int _vertexSt, int _vertexEn) throws IOException {
+    public void load(long _vertexSt, long _vertexEn) throws IOException {
+        if (!intervalContainsAny && _vertexSt < lastId && _vertexEn < lastId && _vertexSt >= lastQuery) {
+             return; // Nothing to do for sure
+        }
 
-        int prevVertexEn = vertexEn;
-        int prevVertexSt = vertexSt;
+        long prevVertexEn = vertexEn;
+        long prevVertexSt = vertexSt;
 
+        intervalContainsAny = false;
         vertexSt = _vertexSt;
         vertexEn = _vertexEn;
 
@@ -93,9 +98,17 @@ public class DegreeData {
             try {
                 degreeFile.seek(dataStart);
                 degreeFile.readFully(degreeData, (int)(dataSize - adjLen), adjLen);
+
             } catch (EOFException eof) {
             	ChiLogger.getLogger("engine").info("Error: Tried to read past file: " + dataStart + " --- " + (dataStart + dataSize));
                 // But continue
+            }
+            /* Check if any edges */
+            for(long vid=vertexSt; vid<=vertexEn; vid++) {
+                if (getDegree(vid).getDegree() > 0) {
+                    intervalContainsAny = true;
+                    break;
+                }
             }
         } else {
             if (lastQuery > _vertexSt) {
@@ -105,11 +118,11 @@ public class DegreeData {
 
             try {
                 while(true) {
-                    int vertexId = (lastId < 0 ? degreeFile.readInt() : lastId);
+                    long vertexId = (lastId < 0 ? degreeFile.readLong() : lastId);
                     if (vertexId >= _vertexSt && vertexId <= _vertexEn) {
-                        degreeFile.readFully(degreeData, (vertexId - vertexSt) * 8, 8);
-                        VertexDegree deg = getDegree(vertexId);
+                        degreeFile.readFully(degreeData, (int) (vertexId - vertexSt) * 8, 8);
                         lastId = -1;
+                        intervalContainsAny = true;
                     } else if (vertexId > vertexEn){
                         lastId = vertexId; // Remember last one read
                         break;
@@ -128,11 +141,11 @@ public class DegreeData {
      * @param vertexId id of the vertex
      * @return  VertexDegree object
      */
-    public VertexDegree getDegree(int vertexId) {
+    public VertexDegree getDegree(long vertexId) {
         assert(vertexId >= vertexSt && vertexId <= vertexEn);
 
         byte[] tmp = new byte[4];
-        int idx = vertexId - vertexSt;
+        int idx = (int) (vertexId - vertexSt);
         System.arraycopy(degreeData, idx * 8, tmp, 0, 4);
 
         int indeg = ((tmp[3]  & 0xff) << 24) + ((tmp[2] & 0xff) << 16) + ((tmp[1] & 0xff) << 8) + (tmp[0] & 0xff);
@@ -141,5 +154,9 @@ public class DegreeData {
         int outdeg = ((tmp[3]  & 0xff) << 24) + ((tmp[2] & 0xff) << 16) + ((tmp[1] & 0xff) << 8) + (tmp[0] & 0xff);
 
         return new VertexDegree(indeg, outdeg);
+    }
+
+    public boolean doesIntervalContainAnyEdges() {
+        return intervalContainsAny;
     }
 }

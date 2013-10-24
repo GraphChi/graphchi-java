@@ -14,15 +14,15 @@ public interface Scheduler {
      * Ask a vertex to be updated.
      * @param vertexId
      */
-    public void addTask(int vertexId);
+    public void addTask(long vertexId);
 
-    public void removeTasks(int from, int to);
+    public void removeTasks(long from, long to);
 
     public void addAllTasks();
 
     public boolean hasTasks();
 
-    public boolean isScheduled(int i);
+    public boolean isScheduled(long i);
 
     public void removeAllTasks();
 

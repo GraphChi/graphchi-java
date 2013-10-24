@@ -32,24 +32,24 @@ import java.util.logging.Logger;
 public class VertexData <VertexDataType> {
 
     private byte[] vertexData;
-    private int vertexSt, vertexEn;
+    private long vertexSt, vertexEn;
     private String baseFilename;
     private RandomAccessFile vertexDataFile;
     private BytesToValueConverter <VertexDataType> converter;
     private DataBlockManager blockManager;
     private boolean sparse;
-    private int[] index;
-    private int lastOffset = 0;
-    private int lastStart = 0;
+    private long[] index;
+    private long lastOffset = 0;
+    private long lastStart = 0;
 
     private final static Logger logger = ChiLogger.getLogger("vertex-data");
 
-    public VertexData(int nvertices, String baseFilename,
+    public VertexData(long nvertices, String baseFilename,
                       BytesToValueConverter<VertexDataType> converter) throws IOException {
         this(nvertices, baseFilename, converter, true);
     }
 
-    public VertexData(int nvertices, String baseFilename,
+    public VertexData(long nvertices, String baseFilename,
                       BytesToValueConverter<VertexDataType> converter, boolean _sparse) throws IOException {
         this.baseFilename = baseFilename;
         this.converter = converter;
@@ -84,6 +84,7 @@ public class VertexData <VertexDataType> {
                 fos.close();
             }
         } else {
+            /* Initializes sparse vertex data file given sparse degree file */
             if (!vertexfile.exists()) {
                 BufferedDataInputStream dis = new BufferedDataInputStream(new FileInputStream(sparseDegreeFile));
                 DataOutputStream dos = new DataOutputStream(new BufferedOutputStream(new FileOutputStream(vertexfile)));
@@ -91,9 +92,9 @@ public class VertexData <VertexDataType> {
                 byte[] empty = new byte[converter.sizeOf()];
                 try {
                     while(true) {
-                        int vertexId = Integer.reverseBytes(dis.readInt());
+                        long vertexId = Long.reverseBytes(dis.readLong());
                         dis.skipBytes(8);
-                        dos.writeInt(Integer.reverseBytes(vertexId));
+                        dos.writeLong(Long.reverseBytes(vertexId));
                         dos.write(empty);
                     }
                 } catch (EOFException err) {}
@@ -106,7 +107,7 @@ public class VertexData <VertexDataType> {
         vertexEn = vertexSt = 0;
     }
 
-    public void releaseAndCommit(int firstVertex, int blockId) throws IOException {
+    public void releaseAndCommit(long firstVertex, int blockId) throws IOException {
         assert(blockId >= 0);
         byte[] data = blockManager.getRawBlock(blockId);
 
@@ -128,7 +129,7 @@ public class VertexData <VertexDataType> {
                 vertexDataFile.seek(lastOffset);
                 int sizeOf = converter.sizeOf();
                 for(int i=0; i < index.length; i++) {
-                    vertexDataFile.writeInt(Integer.reverseBytes(index[i]));  // Note: when writing, the random access file does not take byte order into account!
+                    vertexDataFile.writeLong(Long.reverseBytes(index[i]));  // Note: when writing, the random access file does not take byte order into account!
                     vertexDataFile.write(data, i * sizeOf, sizeOf);
                 }
                 blockManager.release(blockId);
@@ -145,15 +146,15 @@ public class VertexData <VertexDataType> {
      * @return
      * @throws IOException
      */
-    public int load(int _vertexSt, int _vertexEn) throws IOException {
+    public int load(long _vertexSt, long _vertexEn) throws IOException {
 
         vertexSt = _vertexSt;
         vertexEn = _vertexEn;
         synchronized (vertexDataFile) {
 
             if (!sparse) {
-                long dataSize = (long) (vertexEn - vertexSt + 1) *  (long)  converter.sizeOf();
-                long dataStart =  (long) vertexSt *  (long) converter.sizeOf();
+                long dataSize =  (vertexEn - vertexSt + 1) *  (long)  converter.sizeOf();
+                long dataStart =   vertexSt *  (long) converter.sizeOf();
 
                 int blockId =  blockManager.allocateBlock((int) dataSize);
                 vertexData = blockManager.getRawBlock(blockId);
@@ -174,9 +175,9 @@ public class VertexData <VertexDataType> {
                 boolean foundStart = false;
                 try {
                     while(true) {
-                        int vertexId = vertexDataFile.readInt();
+                        long vertexId = vertexDataFile.readLong();
                         if (!foundStart && vertexId >= _vertexSt) {
-                            startPos = vertexDataFile.getFilePointer() - 4;
+                            startPos = vertexDataFile.getFilePointer() - 8;
                             foundStart = true;
                         }
                         if (vertexId >= _vertexSt && vertexId <= _vertexEn) {
@@ -189,7 +190,7 @@ public class VertexData <VertexDataType> {
                     }
                 } catch (EOFException eof) {}
 
-                index = new int[n];
+                index = new long[n];
                 vertexDataFile.seek(startPos);
                 int blockId =  blockManager.allocateBlock(n * sizeOf);
                 vertexData = blockManager.getRawBlock(blockId);
@@ -197,7 +198,7 @@ public class VertexData <VertexDataType> {
                 int i = 0;
                 try {
                     while(i < n) {
-                        int vertexId = vertexDataFile.readInt();
+                        long vertexId = vertexDataFile.readLong();
                         if (vertexId >= _vertexSt && vertexId <= _vertexEn) {
                             index[i] = vertexId;
                             vertexDataFile.read(vertexData, i * sizeOf, sizeOf);
@@ -214,10 +215,10 @@ public class VertexData <VertexDataType> {
         }
     }
 
-    public ChiPointer getVertexValuePtr(int vertexId, int blockId) {
+    public ChiPointer getVertexValuePtr(long vertexId, int blockId) {
         assert(vertexId >= vertexSt && vertexId <= vertexEn);
         if (!sparse) {
-            return new ChiPointer(blockId, (vertexId - vertexSt) * converter.sizeOf());
+            return new ChiPointer(blockId, (int) ((vertexId - vertexSt) * converter.sizeOf()));
         } else {
             int idx = Arrays.binarySearch(index, vertexId);
             if (idx < 0) {
@@ -237,17 +238,17 @@ public class VertexData <VertexDataType> {
         return new int[n];
     }
 
-    public Iterator<Integer> currentIterator() {
+    public Iterator<Long> currentIterator() {
         if (!sparse) {
-            return new Iterator<Integer>() {
-                int j = vertexSt;
+            return new Iterator<Long>() {
+                long j = vertexSt;
                 @Override
                 public boolean hasNext() {
                     return (j <= vertexEn);
                 }
 
                 @Override
-                public Integer next() {
+                public Long next() {
                     return j++;
                 }
 
@@ -257,7 +258,7 @@ public class VertexData <VertexDataType> {
                 }
             };
         } else {
-            return new Iterator<Integer>() {
+            return new Iterator<Long>() {
                 int j = 0;
                 @Override
                 public boolean hasNext() {
@@ -265,7 +266,7 @@ public class VertexData <VertexDataType> {
                 }
 
                 @Override
-                public Integer next() {
+                public Long next() {
                     return index[j++];
                 }
 

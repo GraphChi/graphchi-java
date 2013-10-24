@@ -39,8 +39,8 @@ public class SlidingShard <EdgeDataType> {
 
     private String edgeDataFilename;
     private String adjDataFilename;
-    private int rangeStart;
-    private int rangeEnd;
+    private long rangeStart;
+    private long rangeEnd;
 
     private DataBlockManager blockManager;
 
@@ -52,7 +52,7 @@ public class SlidingShard <EdgeDataType> {
     private int blockSize = -1;
     private int sizeOf = -1;
     private int adjOffset = 0;
-    private int curvid = 0;
+    private long curvid = 0;
     private boolean onlyAdjacency = false;
     private boolean asyncEdataLoading = true;
 
@@ -64,7 +64,7 @@ public class SlidingShard <EdgeDataType> {
 
 
     public SlidingShard(String edgeDataFilename, String adjDataFilename,
-                        int rangeStart, int rangeEnd) throws IOException {
+                        long rangeStart, long rangeEnd) throws IOException {
         this.edgeDataFilename = edgeDataFilename;
         this.adjDataFilename = adjDataFilename;
         this.rangeStart = rangeStart;
@@ -122,7 +122,7 @@ public class SlidingShard <EdgeDataType> {
         }
     }
 
-    public void readNextVertices(ChiVertex[] vertices, int start, boolean disableWrites) throws IOException {
+    public void readNextVertices(ChiVertex[] vertices, long start, boolean disableWrites) throws IOException {
         int nvecs = vertices.length;
         curBlock = null;
         releasePriorToOffset(false, disableWrites);
@@ -148,7 +148,7 @@ public class SlidingShard <EdgeDataType> {
 
 
         try {
-            for(int i=(curvid - start); i < nvecs; i++) {
+            for(int i=(int)(curvid - start); i < nvecs; i++) {
                 int n;
                 int ns = adjFile.readUnsignedByte();
 
@@ -164,6 +164,17 @@ public class SlidingShard <EdgeDataType> {
                     assert(nz >= 0);
                     curvid += nz;
                     i += nz;
+
+                    if (nz == 254) {
+                        long nzz = adjFile.readLong();
+                        System.out.println("SS hop " + nzz + " --> " + (curvid + nzz + 1));
+
+                        curvid += nzz + 1;
+                        i += nzz + 1;
+                        adjOffset += 8;
+
+                    }
+
                     continue;
                 }
 
@@ -182,8 +193,8 @@ public class SlidingShard <EdgeDataType> {
 
                     if (vertex != null) {
                         while (--n >= 0) {
-                            int target = adjFile.readIntReversed();
-                            adjOffset += 4;
+                            long target = adjFile.readLong();
+                            adjOffset += 8;
                             ChiPointer eptr = readEdgePtr();
 
                             if (!onlyAdjacency) {
@@ -196,8 +207,12 @@ public class SlidingShard <EdgeDataType> {
                                 }
                                 curBlock.active = true;
                             }
-                            vertex.addOutEdge(eptr == null ? -1 : eptr.blockId, eptr == null ? -1 : eptr.offset, target);
-
+                            try {
+                                System.out.println("Add outedge: " + vertex.getId() + " --> " + target);
+                                vertex.addOutEdge(eptr == null ? -1 : eptr.blockId, eptr == null ? -1 : eptr.offset, target);
+                            } catch (ArrayIndexOutOfBoundsException aie) {
+                                aie.printStackTrace();;
+                            }
                             if (!(target >= rangeStart && target <= rangeEnd)) {
                                 throw new IllegalStateException("Target " + target + " not in range!");
                             }
@@ -215,7 +230,7 @@ public class SlidingShard <EdgeDataType> {
         releasePriorToOffset(true, false);
     }
 
-    public void setOffset(int newoff, int _curvid, int edgeptr) {
+    public void setOffset(int newoff, long _curvid, int edgeptr) {
         try {
            if (adjFile != null) adjFile.close();
         } catch (IOException ioe) {}

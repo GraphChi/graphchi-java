@@ -8,10 +8,10 @@ import java.io.Serializable;
  *         Date: 7/15/12
  */
 public class IdCount implements Comparable<IdCount>, Serializable {
-    public int id;
+    public long id;
     public int count;
 
-    public IdCount(int id, int count) {
+    public IdCount(long id, int count) {
         this.id = id;
         this.count = count;
     }
@@ -34,7 +34,7 @@ public class IdCount implements Comparable<IdCount>, Serializable {
 
     @Override
     public int hashCode() {
-        return id;
+        return (int) (id % Integer.MAX_VALUE);
     }
 
     public String toString() {

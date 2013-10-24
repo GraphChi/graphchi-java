@@ -139,7 +139,7 @@ public class HITSSmallMem extends PigGraphChiBase implements GraphChiProgram<Flo
 
                 leftNorm = (float) Math.sqrt(leftSideSqrSum);
                 VertexTransformer.transform((int) ctx.getNumVertices(), graphName, new FloatPairConverter(), new VertexTransformCallBack<FloatPair>() {
-                    public FloatPair map(int vertexId, FloatPair value) {
+                    public FloatPair map(long vertexId, FloatPair value) {
                         value.first /= leftNorm;
                         return value;
                     }
@@ -182,7 +182,7 @@ public class HITSSmallMem extends PigGraphChiBase implements GraphChiProgram<Flo
     private void outputResults(String graphName) throws IOException {
 
         VertexAggregator.foreach(engine.numVertices(), graphName, new FloatPairConverter(), new ForeachCallback<FloatPair>() {
-            public void callback(int vertexId, FloatPair vertexValue) {
+            public void callback(long vertexId, FloatPair vertexValue) {
                 if (vertexValue.first > 0) {
                     System.out.println(engine.getVertexIdTranslate().backward(vertexId)  + "\t" + vertexValue.first);
                 }
@@ -235,7 +235,7 @@ public class HITSSmallMem extends PigGraphChiBase implements GraphChiProgram<Flo
         // Collect results - into memory ... This may consume a lot of memory.
         // It would be better to have an iterator for the vertex data.
         VertexAggregator.foreach(engine.numVertices(), graphName, new FloatPairConverter(), new ForeachCallback<FloatPair>() {
-            public void callback(int vertexId, FloatPair vertexValue) {
+            public void callback(long vertexId, FloatPair vertexValue) {
                 if (vertexValue.first > 0) {
                     results.add(new IdFloat(engine.getVertexIdTranslate().backward(vertexId), vertexValue.first));
                 }
@@ -250,11 +250,11 @@ public class HITSSmallMem extends PigGraphChiBase implements GraphChiProgram<Flo
         this.numShards = numShards;
         return new FastSharder<FloatPair, Float>(graphName, numShards, new VertexProcessor<FloatPair>() {
             /* For lists (hubs), the vertex value will encode the total number of edges */
-            public FloatPair receiveVertexValue(int vertexId, String token) {
+            public FloatPair receiveVertexValue(long vertexId, String token) {
                 return new FloatPair(0.0f, Float.parseFloat(token));
             }
         }, new EdgeProcessor<Float>() {
-            public Float receiveEdge(int from, int to, String token) {
+            public Float receiveEdge(long from, long to, String token) {
                 return Float.parseFloat(token);
             }
         }, new FloatPairConverter(), new FloatConverter());

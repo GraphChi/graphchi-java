@@ -14,21 +14,24 @@ import java.util.BitSet;
  */
 public class BitsetScheduler implements Scheduler {
 
-    private int nvertices;
+    private long nvertices;
     private BitSet bitset;
     private boolean hasNewTasks;
 
-    public BitsetScheduler(int nvertices) {
+    public BitsetScheduler(long nvertices) {
         this.nvertices = nvertices;
-        bitset = new BitSet(nvertices);
+        if (nvertices > Integer.MAX_VALUE) {
+            throw new RuntimeException("BitSetScheduler currently supports only Integer.MAX_VALUE vertex ranges");
+        }
+        bitset = new BitSet((int) nvertices);
     }
 
     /**
      * Adds a vertex to schedule
      * @param vertexId
      */
-    public void addTask(int vertexId) {
-        bitset.set(vertexId, true);
+    public void addTask(long vertexId) {
+        bitset.set((int)vertexId, true);
         hasNewTasks = true;
     }
 
@@ -37,9 +40,9 @@ public class BitsetScheduler implements Scheduler {
      * @param from first vertex to remove
      * @param to last vertex (inclusive)
      */
-    public void removeTasks(int from, int to) {
-        for(int i=from; i<=to; i++) {
-            bitset.set(i, false);
+    public void removeTasks(long from, long to) {
+        for(long i=from; i<=to; i++) {
+            bitset.set((int)i, false);
         }
     }
 
@@ -64,8 +67,8 @@ public class BitsetScheduler implements Scheduler {
      * @param i
      * @return
      */
-    public boolean isScheduled(int i) {
-        return bitset.get(i);
+    public boolean isScheduled(long i) {
+        return bitset.get((int)i);
     }
 
     /**

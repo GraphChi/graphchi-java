@@ -1,7 +1,7 @@
 package edu.cmu.graphchi.apps;
 
 import edu.cmu.graphchi.*;
-import edu.cmu.graphchi.datablocks.IntConverter;
+import edu.cmu.graphchi.datablocks.LongConverter;
 import edu.cmu.graphchi.engine.GraphChiEngine;
 import edu.cmu.graphchi.engine.VertexInterval;
 import edu.cmu.graphchi.preprocessing.EdgeProcessor;
@@ -23,11 +23,11 @@ import java.util.logging.Logger;
  * to same component.
  * @author akyrola
  */
-public class ConnectedComponents implements GraphChiProgram<Integer, Integer> {
+public class ConnectedComponents implements GraphChiProgram<Long, Long> {
 
     private static Logger logger = ChiLogger.getLogger("connectedcomponents");
 
-    public void update(ChiVertex<Integer, Integer> vertex, GraphChiContext context) {
+    public void update(ChiVertex<Long, Long> vertex, GraphChiContext context) {
         final int iteration = context.getIteration();
         final int numEdges = vertex.numEdges();
 
@@ -43,20 +43,33 @@ public class ConnectedComponents implements GraphChiProgram<Integer, Integer> {
         /* Choose the smallest id of neighbor vertices. Each vertex
           writes its label to its edges, so it can be accessed by neighbors.
          */
-        int curMin = vertex.getValue();
+        long curMin = vertex.getValue();
+        if (curMin == 0) {
+            throw new RuntimeException();
+        }
         for(int i=0; i < numEdges; i++) {
-            int nbLabel = vertex.edge(i).getValue();
+            long nbLabel = vertex.edge(i).getValue();
             if (iteration == 0) nbLabel = vertex.edge(i).getVertexId(); // Note!
             if (nbLabel < curMin) {
                 curMin = nbLabel;
+                if (curMin == 0) {
+                    throw new RuntimeException();
+                }
             }
         }
+
+        System.out.println("UPdate " + vertex.getId() +  "--->"  + curMin);
 
         /**
          * Set my new label
          */
         vertex.setValue(curMin);
-        int label = curMin;
+        long label = curMin;
+
+
+        if (vertex.getId() == 5250000003L) {
+            System.out.println("debug");
+        }
 
         /**
          * Broadcast my value to neighbors by writing the value to my edges.
@@ -97,15 +110,15 @@ public class ConnectedComponents implements GraphChiProgram<Integer, Integer> {
      * @throws java.io.IOException
      */
     protected static FastSharder createSharder(String graphName, int numShards) throws IOException {
-        return new FastSharder<Integer, Integer>(graphName, numShards, new VertexProcessor<Integer>() {
-            public Integer receiveVertexValue(int vertexId, String token) {
-                return 0;
+        return new FastSharder<Long, Long>(graphName, numShards, new VertexProcessor<Long>() {
+            public Long receiveVertexValue(long vertexId, String token) {
+                return 0L;
             }
-        }, new EdgeProcessor<Integer>() {
-            public Integer receiveEdge(int from, int to, String token) {
-                return 0;
+        }, new EdgeProcessor<Long>() {
+            public Long receiveEdge(long from, long to, String token) {
+                return 0L;
             }
-        }, new IntConverter(), new IntConverter());
+        }, new LongConverter(), new LongConverter());
     }
 
 
@@ -131,10 +144,10 @@ public class ConnectedComponents implements GraphChiProgram<Integer, Integer> {
         }
 
         /* Run GraphChi ... */
-        GraphChiEngine<Integer, Integer> engine = new GraphChiEngine<Integer, Integer>(baseFilename, nShards);
-        engine.setEdataConverter(new IntConverter());
-        engine.setVertexDataConverter(new IntConverter());
-        engine.setEnableScheduler(true);
+        GraphChiEngine<Long, Long> engine = new GraphChiEngine<Long, Long>(baseFilename, nShards);
+        engine.setEdataConverter(new LongConverter());
+        engine.setVertexDataConverter(new LongConverter());
+       // engine.setEnableScheduler(true);
         engine.run(new ConnectedComponents(), 5);
 
         logger.info("Ready. Going to output...");

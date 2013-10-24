@@ -128,11 +128,11 @@ public class PigPagerank extends PigGraphChiBase implements GraphChiProgram<Floa
      */
     protected FastSharder createSharder(String graphName, int numShards) throws IOException {
         return new FastSharder<Float, Float>(graphName, numShards, new VertexProcessor<Float>() {
-            public Float receiveVertexValue(int vertexId, String token) {
+            public Float receiveVertexValue(long vertexId, String token) {
                 return (token == null ? 0.0f : Float.parseFloat(token));
             }
         }, new EdgeProcessor<Float>() {
-            public Float receiveEdge(int from, int to, String token) {
+            public Float receiveEdge(long from, long to, String token) {
                 return (token == null ? 0.0f : Float.parseFloat(token));
             }
         }, new FloatConverter(), new FloatConverter());

@@ -58,9 +58,9 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
     private DegreeData degreeHandler;
     private VertexData<VertexDataType> vertexDataHandler;
 
-    protected int subIntervalStart, subIntervalEnd;
+    protected long subIntervalStart, subIntervalEnd;
 
-    protected int maxWindow = 20000000;
+    protected long maxWindow = 20000000;
     protected boolean enableScheduler = false;
     protected boolean onlyAdjacency = false;
     protected BitsetScheduler scheduler = null;
@@ -77,7 +77,7 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
 
     /* Automatic loading of next window */
     private boolean autoLoadNext = false; // Only for only-adjacency cases!
-    private boolean skipZeroDegreeVertices = false;
+    private boolean skipZeroDegreeVertices = true;
 
     private FutureTask<IntervalData> nextWindow;
 
@@ -165,7 +165,7 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
     /**
      * @return the number of vertices in the current graph
      */
-    public int numVertices() {
+    public long numVertices() {
         return 1 + intervals.get(intervals.size() - 1).getLastVertex();
     }
 
@@ -194,7 +194,7 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
      * For definition of "memory shards", see http://code.google.com/p/graphchi/wiki/IntroductionToGraphChi
      * @throws IOException
      */
-    protected MemoryShard<EdgeDataType> createMemoryShard(int intervalStart, int intervalEnd, int execInterval) {
+    protected MemoryShard<EdgeDataType> createMemoryShard(long intervalStart, long intervalEnd, int execInterval) {
         String edataFilename = (onlyAdjacency ? null : ChiFilenames.getFilenameShardEdata(baseFilename, edataConverter, execInterval, nShards));
         String adjFilename = ChiFilenames.getFilenameShardsAdj(baseFilename, execInterval, nShards);
 
@@ -291,8 +291,8 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
             }
 
             for(int execInterval=0; execInterval < nShards; ++execInterval) {
-                int intervalSt = intervals.get(execInterval).getFirstVertex();
-                int intervalEn = intervals.get(execInterval).getLastVertex();
+                long intervalSt = intervals.get(execInterval).getFirstVertex();
+                long intervalEn = intervals.get(execInterval).getLastVertex();
 
                 logger.info((System.currentTimeMillis() - startTime) * 0.001 + "s: iteration: " + iter + ", interval: " + intervalSt + " -- " + intervalEn);
 
@@ -317,8 +317,7 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
                 subIntervalStart = intervalSt;
 
                 while (subIntervalStart <= intervalEn) {
-                    int adjMaxWindow = maxWindow;
-                    if (Integer.MAX_VALUE - subIntervalStart < maxWindow) adjMaxWindow = Integer.MAX_VALUE - subIntervalStart - 1;
+                    long adjMaxWindow = maxWindow;
 
                     if (anyVertexScheduled(subIntervalStart, Math.min(intervalEn, subIntervalStart + adjMaxWindow ))) {
                         ChiVertex<VertexDataType, EdgeDataType>[] vertices = null;
@@ -328,16 +327,16 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
                             try {
                                 subIntervalEnd = determineNextWindow(subIntervalStart, Math.min(intervalEn, subIntervalStart + adjMaxWindow ));
                             } catch (NoEdgesInIntervalException nie) {
-                                logger.info("No edges, skip: " + subIntervalStart + " -- " + subIntervalEnd);
+                          //      System.out.println("No edges, skip: " + subIntervalStart + " -- " + subIntervalEnd);
                                 subIntervalEnd = subIntervalStart + adjMaxWindow;
                                 subIntervalStart = subIntervalEnd + 1;
                                 continue;
                             }
-                            int nvertices = subIntervalEnd - subIntervalStart + 1;
+                            long nvertices = subIntervalEnd - subIntervalStart + 1;
 
                             logger.info("Subinterval:: " + subIntervalStart + " -- " + subIntervalEnd + " (iteration " + iter + ")");
 
-                            vertices = new ChiVertex[nvertices];
+                            vertices = new ChiVertex[(int)nvertices];
 
                             logger.info("Init vertices...");
                             vertexBlockId = initVertices(nvertices, subIntervalStart, vertices);
@@ -377,8 +376,8 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
                                 nextWindow = new FutureTask<IntervalData>(new AutoLoaderTask(new VertexInterval(subIntervalEnd + 1,
                                         Math.min(intervalEn, subIntervalEnd + 1 + adjMaxWindow)), execInterval, memoryShard));
                             } else if (execInterval < nShards - 1) {
-                                int nextIntervalSt = intervals.get(execInterval + 1).getFirstVertex();
-                                int nextIntervalEn = intervals.get(execInterval + 1).getLastVertex();
+                                long nextIntervalSt = intervals.get(execInterval + 1).getFirstVertex();
+                                long nextIntervalEn = intervals.get(execInterval + 1).getLastVertex();
 
                                 slidingShards.get(execInterval).setOffset(memoryShard.getStreamingOffset(),
                                         memoryShard.getStreamingOffsetVid(), memoryShard.getStreamingOffsetEdgePtr());
@@ -402,7 +401,7 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
                         logger.info("Update exec: " + (System.currentTimeMillis() - t1) + " ms.");
 
                         // Write vertices (async)
-                        final int _firstVertex = subIntervalStart;
+                        final long _firstVertex = subIntervalStart;
                         final int _blockId = vertexBlockId;
                         parallelExecutor.submit(new Runnable() {
                             @Override
@@ -454,10 +453,10 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
         logger.info("Updates: " + nupdates);
     }
 
-    private boolean anyVertexScheduled(int subIntervalStart, int lastVertex) {
+    private boolean anyVertexScheduled(long subIntervalStart, long lastVertex) {
         if (!enableScheduler) return true;
 
-        for(int i=subIntervalStart; i<= lastVertex; i++) {
+        for(long i=subIntervalStart; i<= lastVertex; i++) {
             if (scheduler.isScheduled(i)) return true;
         }
         return false;
@@ -576,7 +575,7 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
         _timer.stop();
     }
 
-    protected int initVertices(int nvertices, int firstVertexId, ChiVertex<VertexDataType, EdgeDataType>[] vertices) throws IOException
+    protected int initVertices(long nvertices, long firstVertexId, ChiVertex<VertexDataType, EdgeDataType>[] vertices) throws IOException
     {
         final TimerContext _timer = initVerticesTimer.time();
         ChiVertex.edgeValueConverter = edataConverter;
@@ -584,7 +583,7 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
         ChiVertex.blockManager = blockManager;
 
         int blockId = (vertexDataConverter != null ? vertexDataHandler.load(firstVertexId, firstVertexId + nvertices - 1) : -1);
-        for(int j=0; j < nvertices; j++) {
+        for(long j=0; j < nvertices; j++) {
             if (enableScheduler && !scheduler.isScheduled(j + firstVertexId)) {
                 continue;
             }
@@ -597,9 +596,10 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
             ChiVertex<VertexDataType, EdgeDataType> v = new ChiVertex<VertexDataType, EdgeDataType>(j + firstVertexId, degree);
 
             if (vertexDataConverter != null) {
+
                 v.setDataPtr(vertexDataHandler.getVertexValuePtr(j + firstVertexId, blockId));
             }
-            vertices[j] = v;
+            vertices[(int)j] = v;
         }
 
 
@@ -608,7 +608,7 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
     }
 
     private void loadBeforeUpdates(int interval, final ChiVertex<VertexDataType, EdgeDataType>[] vertices,  final MemoryShard<EdgeDataType> memShard,
-                                   final int startVertex, final int endVertex) throws IOException {
+                                   final long startVertex, final long endVertex) throws IOException {
         final Object terminationLock = new Object();
         final TimerContext _timer = loadTimer.time();
         // TODO: make easier to read
@@ -640,7 +640,6 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
             if (!disableOutEdges) {
                 for(int p=0; p < nShards; p++) {
                     if (p != interval || disableInEdges) {
-                        final int _p = p;
                         final SlidingShard<EdgeDataType> shard = slidingShards.get(p);
                         loadingExecutor.submit(new Runnable() {
 
@@ -750,9 +749,9 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
         @Override
         public IntervalData call() {
             try {
-                int lastVertex  = determineNextWindow(interval.getFirstVertex(), interval.getLastVertex());
-                int nVertices = lastVertex - interval.getFirstVertex() + 1;
-                this.vertices = (ChiVertex<VertexDataType, EdgeDataType>[]) new ChiVertex[nVertices];
+                long lastVertex  = determineNextWindow(interval.getFirstVertex(), interval.getLastVertex());
+                long nVertices = lastVertex - interval.getFirstVertex() + 1;
+                this.vertices = (ChiVertex<VertexDataType, EdgeDataType>[]) new ChiVertex[(int)nVertices];
                 int vertexBlockid = initVertices(nVertices, interval.getFirstVertex(), vertices);
 
                 loadBeforeUpdates(intervalNum, vertices, memShard, interval.getFirstVertex(), lastVertex);
@@ -770,18 +769,22 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
 
     }
 
-    private int determineNextWindow(int subIntervalStart, int maxVertex) throws IOException, NoEdgesInIntervalException {
+    private long determineNextWindow(long subIntervalStart, long maxVertex) throws IOException, NoEdgesInIntervalException {
         final TimerContext _timer = determineNextWindowTimer.time();
         long totalDegree = 0;
         try {
             degreeHandler.load(subIntervalStart, maxVertex);
+
+            if (!degreeHandler.doesIntervalContainAnyEdges()) {
+                throw new NoEdgesInIntervalException();
+            }
 
             if (useStaticWindowSize) {
                 return maxVertex;
             }
 
             long memReq = 0;
-            int maxInterval = maxVertex - subIntervalStart;
+            long maxInterval = maxVertex - subIntervalStart;
             int vertexDataSizeOf = (vertexDataConverter != null ? vertexDataConverter.sizeOf() : 0);
             int edataSizeOf = (onlyAdjacency ? 0 : edataConverter.sizeOf());
 
@@ -918,7 +921,7 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
         return disableInEdges;
     }
 
-    public int getMaxWindow() {
+    public long getMaxWindow() {
         return maxWindow;
     }
 
@@ -961,11 +964,11 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
 
     private class MockScheduler implements Scheduler {
 
-        public void addTask(int vertexId) {
+        public void addTask(long vertexId) {
 
         }
 
-        public void removeTasks(int from, int to) {
+        public void removeTasks(long from, long to) {
         }
 
         public void addAllTasks() {
@@ -976,7 +979,7 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
             return true;
         }
 
-        public boolean isScheduled(int i) {
+        public boolean isScheduled(long i) {
             return true;
         }
 

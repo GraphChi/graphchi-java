@@ -91,7 +91,7 @@ public class ALSMatrixFactorization implements GraphChiProgram<Integer, Float> {
             for(int e=0; e < vertex.numEdges(); e++) {
                 ChiEdge<Float> edge = vertex.edge(e);
                 float observation = edge.getValue();
-                vertexValueMatrix.getRow(edge.getVertexId(), neighborLatent);
+                vertexValueMatrix.getRow((int)edge.getVertexId(), neighborLatent);
 
                 for(int i=0; i < D; i++) {
                     Xty.setEntry(i, Xty.getEntry(i) + neighborLatent[i] * observation);
@@ -114,7 +114,7 @@ public class ALSMatrixFactorization implements GraphChiProgram<Integer, Float> {
 
             // Set the new latent factor for this vector
             for(int i=0; i < D; i++) {
-                vertexValueMatrix.setValue(vertex.getId(), i, newLatentFactor.getEntry(i));
+                vertexValueMatrix.setValue((int)vertex.getId(), i, newLatentFactor.getEntry(i));
             }
 
             if (context.isLastIteration()) {
@@ -130,7 +130,7 @@ public class ALSMatrixFactorization implements GraphChiProgram<Integer, Float> {
                         // Compute RMSE
                         ChiEdge<Float> edge = vertex.edge(e);
                         float observation = edge.getValue();
-                        vertexValueMatrix.getRow(edge.getVertexId(), neighborLatent);
+                        vertexValueMatrix.getRow((int)edge.getVertexId(), neighborLatent);
                         double prediction = new ArrayRealVector(neighborLatent).dotProduct(newLatentFactor);
                         squaredError += (prediction - observation) * (prediction - observation);
                     }
@@ -193,7 +193,7 @@ public class ALSMatrixFactorization implements GraphChiProgram<Integer, Float> {
      */
     protected static FastSharder createSharder(String graphName, int numShards) throws IOException {
         return new FastSharder<Integer, Float>(graphName, numShards, null, new EdgeProcessor<Float>() {
-            public Float receiveEdge(int from, int to, String token) {
+            public Float receiveEdge(long from, long to, String token) {
                 return (token == null ? 0.0f : Float.parseFloat(token));
             }
         }, new IntConverter(), new FloatConverter());
@@ -313,7 +313,7 @@ public class ALSMatrixFactorization implements GraphChiProgram<Integer, Float> {
         wr.write(this.D + " " + numLeft + "\n");
 
         for(int j=0; j < numLeft; j++) {
-            int vertexId = vertexIdTranslate.forward(j);  // Translate to internal vertex id
+            int vertexId = (int)vertexIdTranslate.forward(j);  // Translate to internal vertex id
             for(int i=0; i < D; i++) {
                 wr.write(vertexValueMatrix.getValue(vertexId, i) + "\n");
             }
@@ -327,7 +327,7 @@ public class ALSMatrixFactorization implements GraphChiProgram<Integer, Float> {
         wr.write(this.D + " " + numRight + "\n");
 
         for(int j=0; j < numRight; j++) {
-            int vertexId = vertexIdTranslate.forward(numLeft + j);   // Translate to internal vertex id
+            int vertexId = (int)vertexIdTranslate.forward(numLeft + j);   // Translate to internal vertex id
             for(int i=0; i < D; i++) {
                 wr.write(vertexValueMatrix.getValue(vertexId, i) + "\n");
             }

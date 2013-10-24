@@ -10,7 +10,7 @@ import java.util.Arrays;
  */
 public class ShardIndex {
     File indexFile;
-    private int[] vertices;
+    private long[] vertices;
     private int[] edgePointer;
     private int[] fileOffset;
 
@@ -20,8 +20,8 @@ public class ShardIndex {
     }
 
     private void load() throws IOException {
-        int n = (int) (indexFile.length() / 12) + 1;
-        vertices = new int[n];
+        int n = (int) (indexFile.length() / 16) + 1;
+        vertices = new long[n];
         edgePointer = new int[n];
         fileOffset = new int[n];
 
@@ -32,7 +32,7 @@ public class ShardIndex {
         DataInputStream dis = new DataInputStream(new BufferedInputStream(new FileInputStream(indexFile)));
         int i = 1;
         while (i < n) {
-            vertices[i] = dis.readInt();
+            vertices[i] = dis.readLong();
             fileOffset[i] = dis.readInt();
             edgePointer[i] = dis.readInt();
             i++;
@@ -76,9 +76,10 @@ public class ShardIndex {
 
     public static class IndexEntry {
 
-        public int vertex, edgePointer, fileOffset;
+        public long vertex;
+        public int edgePointer, fileOffset;
 
-        IndexEntry(int vertex, int edgePointer, int fileOffset) {
+        IndexEntry(long vertex, int edgePointer, int fileOffset) {
             this.vertex = vertex;
             this.edgePointer = edgePointer;
             this.fileOffset = fileOffset;
@@ -100,7 +101,7 @@ public class ShardIndex {
 
         @Override
         public int hashCode() {
-            int result = vertex;
+            int result = (int)vertex;
             result = 31 * result + edgePointer;
             result = 31 * result + fileOffset;
             return result;

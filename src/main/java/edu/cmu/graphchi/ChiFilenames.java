@@ -27,11 +27,11 @@ public class ChiFilenames {
     public static String vertexDataSuffix = "";
 
     public static String getFilenameOfVertexData(String baseFilename, BytesToValueConverter valueConv, boolean sparse) {
-        return baseFilename + "." + valueConv.sizeOf() + "Bj.vout" + vertexDataSuffix  + (sparse ? ".sparse" : "");
+        return baseFilename + "." + valueConv.sizeOf() + "BjLong.vout" + vertexDataSuffix  + (sparse ? ".sparse" : "");
     }
 
     public static String getFilenameOfDegreeData(String baseFilename, boolean sparse) {
-        return baseFilename + "_degsj.bin" + (sparse ? ".sparse" : "");
+        return baseFilename + "_degsjLong.bin" + (sparse ? ".sparse" : "");
     }
 
     public static String getPartStr(int p, int nShards) {
@@ -63,11 +63,11 @@ public class ChiFilenames {
     }
 
     public static String getFilenameShardsAdj(String baseFilename, int p, int nShards) {
-        return baseFilename + ".edata_java." + p + "_" + nShards + ".adj";
+        return baseFilename + ".edata_java." + p + "_" + nShards + ".adjLong";
     }
 
     public static String getFilenameIntervals(String baseFilename, int nShards) {
-        return baseFilename + "." + nShards + ".intervalsjava";
+        return baseFilename + "." + nShards + ".intervalsjavaLong";
     }
 
     public static String getVertexTranslateDefFile(String baseFilename, int nshards) {
@@ -101,10 +101,10 @@ public class ChiFilenames {
 
         BufferedReader rd = new BufferedReader(new FileReader(new File(intervalFilename)));
         String line;
-        int lastId = 0;
+        long lastId = 0;
         ArrayList<VertexInterval> intervals = new ArrayList<VertexInterval>(nShards);
         while((line = rd.readLine()) != null) {
-            int vid = Integer.parseInt(line);
+            long vid = Long.parseLong(line);
             intervals.add(new VertexInterval(lastId, vid));
             lastId = vid + 1;
         }
@@ -112,7 +112,7 @@ public class ChiFilenames {
     }
 
 
-    public static int numVertices(String baseFilename, int numShards) throws IOException {
+    public static long numVertices(String baseFilename, int numShards) throws IOException {
         ArrayList<VertexInterval> intervals = loadIntervals(baseFilename, numShards);
         return intervals.get(intervals.size() - 1).getLastVertex() + 1;
     }

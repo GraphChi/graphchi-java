@@ -6,15 +6,15 @@ package edu.cmu.graphchi.util;
  * @author Aapo Kyrola
  */
 public class IdFloat {
-    int vertexId;
+    long vertexId;
     float value;
 
-    public IdFloat(int vertexId, float value) {
+    public IdFloat(long vertexId, float value) {
         this.vertexId = vertexId;
         this.value = value;
     }
 
-    public int getVertexId() {
+    public long getVertexId() {
         return vertexId;
     }
 
