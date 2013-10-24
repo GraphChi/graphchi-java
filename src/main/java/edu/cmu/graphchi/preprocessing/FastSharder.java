@@ -604,7 +604,7 @@ public class FastSharder <VertexValueType, EdgeValueType> {
                 File blockFile = new File(ChiFilenames.getFilenameShardEdataBlock(edataFileName, blockIdx, blockSize));
                 OutputStream blockOs = (CompressedIO.isCompressionEnabled() ?
                         new DeflaterOutputStream(new BufferedOutputStream(new FileOutputStream(blockFile))) :
-                                new FileOutputStream(blockFile));
+                        new FileOutputStream(blockFile));
                 long len = Math.min(blockSize, edatasize - idx);
                 byte[] block = new byte[(int)len];
 
@@ -657,11 +657,13 @@ public class FastSharder <VertexValueType, EdgeValueType> {
     }
 
     static void quickSort(long arr[], byte[] values, int sizeOf, int left, int right) {
-        int index = partition(arr, values, sizeOf, left, right);
-        if (left < index - 1)
-            quickSort(arr, values, sizeOf, left, index - 1);
-        if (index < right)
-            quickSort(arr, values, sizeOf, index, right);
+        if (left < right) {
+            int index = partition(arr, values, sizeOf, left, right);
+            if (left < index - 1)
+                quickSort(arr, values, sizeOf, left, index - 1);
+            if (index < right)
+                quickSort(arr, values, sizeOf, index, right);
+        }
     }
 
 
