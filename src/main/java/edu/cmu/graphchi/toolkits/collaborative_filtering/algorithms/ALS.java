@@ -1,7 +1,10 @@
 package edu.cmu.graphchi.toolkits.collaborative_filtering.algorithms;
 
 import java.io.BufferedWriter;
+import java.io.File;
+import java.io.FileInputStream;
 import java.io.FileWriter;
+import java.io.IOException;
 import java.util.Map;
 import java.util.logging.Logger;
 
@@ -20,8 +23,10 @@ import edu.cmu.graphchi.GraphChiProgram;
 import edu.cmu.graphchi.datablocks.FloatConverter;
 import edu.cmu.graphchi.engine.GraphChiEngine;
 import edu.cmu.graphchi.engine.VertexInterval;
+import edu.cmu.graphchi.io.MatrixMarketDataReader;
 import edu.cmu.graphchi.preprocessing.FastSharder;
 import edu.cmu.graphchi.preprocessing.VertexIdTranslate;
+import edu.cmu.graphchi.toolkits.collaborative_filtering.utils.FileInputData;
 import edu.cmu.graphchi.toolkits.collaborative_filtering.utils.IO;
 import edu.cmu.graphchi.toolkits.collaborative_filtering.utils.ModelParameters;
 import edu.cmu.graphchi.toolkits.collaborative_filtering.utils.ModelTester;
@@ -106,19 +111,14 @@ class ALSParams extends ModelParameters {
 
 public class ALS implements GraphChiProgram<Integer, Float>{
     
-	double LAMBDA = 0.065;
 	private ProblemSetup problemSetup;
 	private ALSParams params;
 	protected Logger logger = ChiLogger.getLogger("ALS");
     double train_rmse = 0.0;
-
-    ModelTester validationTester;
     
     public ALS(ProblemSetup problemSetup, ModelParameters params) {
     	this.problemSetup = problemSetup;
     	this.params = (ALSParams)params;
-    	if(this.problemSetup.validation != null)
-    		this.validationTester = new ModelTester(this.problemSetup.validation);
     }
 
     public double predict(RealVector user, RealVector item){
@@ -132,13 +132,11 @@ public class ALS implements GraphChiProgram<Integer, Float>{
     public void update(ChiVertex<Integer, Float> vertex, GraphChiContext context) {
         if (vertex.numEdges() == 0) return;
 
+        int vertexId = context.getVertexIdTranslate().backward(vertex.getId());
+        
         RealMatrix XtX = new BlockRealMatrix(params.D, params.D);
         RealVector Xty = new ArrayRealVector(params.D);
-        RealVector latent_factor = params.latentFactors.getRowAsVector(vertex.getId());
-
-        if(vertex.getId() == 12) {
-        	System.out.print(" ");
-        }
+        RealVector latent_factor = params.latentFactors.getRowAsVector(vertexId);
         
         try {
             double squaredError = 0;
@@ -146,7 +144,8 @@ public class ALS implements GraphChiProgram<Integer, Float>{
             // Compute XtX and Xty (NOTE: unweighted)
             for(int e=0; e < vertex.numEdges(); e++) {
                 float observation = vertex.edge(e).getValue();
-                RealVector neighbor = params.latentFactors.getRowAsVector(vertex.edge(e).getVertexId());
+                int nbrId = context.getVertexIdTranslate().backward(vertex.edge(e).getVertexId());
+                RealVector neighbor = params.latentFactors.getRowAsVector(nbrId);
             
                 //Xty.add(neighbor * observation);
                 //XtX.add(neighbor.outerProduct(neighbor));
@@ -170,11 +169,11 @@ public class ALS implements GraphChiProgram<Integer, Float>{
             
             // Diagonal -- add regularization
             for (int i=0; i < params.D; i++) 
-            	XtX.setEntry(i, i, XtX.getEntry(i, i) + LAMBDA * vertex.numEdges());
+            	XtX.setEntry(i, i, XtX.getEntry(i, i) + this.params.LAMBDA * vertex.numEdges());
 
             // Solve the least-squares optimization using Cholesky Decomposition
             RealVector newLatentFactor = new CholeskyDecompositionImpl(XtX).getSolver().solve(Xty);
-            params.latentFactors.setRow(vertex.getId(), newLatentFactor.getData());
+            params.latentFactors.setRow(vertexId, newLatentFactor.getData());
 
            if (is_user){
         	   synchronized (this) {
@@ -207,21 +206,28 @@ public class ALS implements GraphChiProgram<Integer, Float>{
         this.train_rmse = Math.sqrt(this.train_rmse / (1.0 * ctx.getNumEdges()));
         this.logger.info("Train RMSE: " + this.train_rmse);
 
-        if(validationTester != null) {
-	        validationTester.init();
-	        double validationRMSE = 0;
-	        while(validationTester.next()) {
-	        	double obs = validationTester.getCurrRating();
-	        	int userId = ctx.getVertexIdTranslate().forward(validationTester.getCurrUser());
-	        	RealVector user = params.latentFactors.getRowAsVector(userId);
-	        	int itemId = ctx.getVertexIdTranslate().forward(validationTester.getCurrItem());
-	        	RealVector item = params.latentFactors.getRowAsVector(itemId);
-	        	
-	        	double estVal = predict(user, item);
-	        	validationRMSE += (obs - estVal)*(obs - estVal);
+        try {
+	        if(this.problemSetup.validation != null) {
+    			FileInputData valInput = new FileInputData(this.problemSetup.validation, null, null, null);
+		        valInput.initRatingData();
+		        double validationRMSE = 0;
+		        while(valInput.nextRatingData()) {
+		        	double obs = valInput.getNextRating();
+		        	int userId = valInput.getNextRatingFrom();
+		        	RealVector user = params.latentFactors.getRowAsVector(userId);
+		        	
+		        	//TODO: Change this to check that numLeft in both metadata and validation file is the same
+		        	int itemId = valInput.getMetadata().getNumUsers() + valInput.getNextRatingTo();
+		        	RealVector item = params.latentFactors.getRowAsVector(itemId);
+		        	
+		        	double estVal = predict(user, item);
+		        	validationRMSE += (obs - estVal)*(obs - estVal);
+		        }
+		        validationRMSE = Math.sqrt(validationRMSE / (1.0 * valInput.getMetadata().getNumRatings()));
+		        this.logger.info("Validation RMSE: " + validationRMSE);
 	        }
-	        validationRMSE = Math.sqrt(validationRMSE / (1.0 * this.validationTester.getNumTestCases()));
-	        this.logger.info("Validation RMSE: " + validationRMSE);
+        } catch (Exception e) {
+        	e.printStackTrace();
         }
     }
 
