@@ -931,6 +931,7 @@ public class FastSharder <VertexValueType, EdgeValueType> {
                             degreeOut.writeInt(Integer.reverseBytes(verts[i].numInEdges()));
                             degreeOut.writeInt(Integer.reverseBytes(verts[i].numOutEdges()));
                         } else {
+
                             if (verts[i].numEdges() > 0 ){
                                 degreeOut.writeLong(Long.reverseBytes(subIntervalSt + i));
                                 degreeOut.writeInt(Integer.reverseBytes(verts[i].numInEdges()));

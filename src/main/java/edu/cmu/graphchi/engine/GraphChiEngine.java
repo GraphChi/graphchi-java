@@ -338,7 +338,6 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
 
                             vertices = new ChiVertex[(int)nvertices];
 
-                            logger.info("Init vertices...");
                             vertexBlockId = initVertices(nvertices, subIntervalStart, vertices);
 
                             logger.info("Loading...");

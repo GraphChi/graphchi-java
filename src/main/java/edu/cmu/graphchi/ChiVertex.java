@@ -200,6 +200,7 @@ public class ChiVertex<VertexValue, EdgeValue> {
      * INTERNAL USE ONLY  (TODO: separate better)
      */
     public void addOutEdge(int chunkId, int offset,  long vertexId) {
+
         int tmpOutEdges;
         /* Note: it would be nicer to use AtomicInteger, but I want to save as much memory as possible */
         for (;;) {

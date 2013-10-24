@@ -44,21 +44,14 @@ public class ConnectedComponents implements GraphChiProgram<Long, Long> {
           writes its label to its edges, so it can be accessed by neighbors.
          */
         long curMin = vertex.getValue();
-        if (curMin == 0) {
-            throw new RuntimeException();
-        }
         for(int i=0; i < numEdges; i++) {
             long nbLabel = vertex.edge(i).getValue();
             if (iteration == 0) nbLabel = vertex.edge(i).getVertexId(); // Note!
             if (nbLabel < curMin) {
                 curMin = nbLabel;
-                if (curMin == 0) {
-                    throw new RuntimeException();
-                }
             }
         }
 
-        System.out.println("UPdate " + vertex.getId() +  "--->"  + curMin);
 
         /**
          * Set my new label
@@ -67,9 +60,6 @@ public class ConnectedComponents implements GraphChiProgram<Long, Long> {
         long label = curMin;
 
 
-        if (vertex.getId() == 5250000003L) {
-            System.out.println("debug");
-        }
 
         /**
          * Broadcast my value to neighbors by writing the value to my edges.

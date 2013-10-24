@@ -61,10 +61,8 @@ public class VertexAggregator {
 
             Iterator<Long> iter = vertexData.currentIterator();
 
-            System.out.println("# " + i);
             while (iter.hasNext()) {
                 long j = iter.next();
-                System.out.println("* " + i + ", " + j);
 
                 ChiPointer ptr = vertexData.getVertexValuePtr(j, blockId);
                 VertexDataType value = blockManager.dereference(ptr, conv);

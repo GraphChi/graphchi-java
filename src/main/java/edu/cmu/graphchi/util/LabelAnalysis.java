@@ -39,7 +39,6 @@ public class LabelAnalysis {
             public void callback(long vertexId, Long vertexValue) {
                  if (vertexId != vertexValue) {
                     IdCount cnt = counts.get(vertexValue);
-                     System.out.println(vertexId + "===>" + vertexValue);
                      if (cnt == null) {
                          cnt = new IdCount(vertexValue, 1);
                          counts.put(vertexValue, cnt);

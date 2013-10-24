@@ -148,7 +148,7 @@ public class SlidingShard <EdgeDataType> {
 
 
         try {
-            for(int i=(int)(curvid - start); i < nvecs; i++) {
+            for(long i=(curvid - start); i < nvecs; i++) {
                 int n;
                 int ns = adjFile.readUnsignedByte();
 
@@ -167,7 +167,6 @@ public class SlidingShard <EdgeDataType> {
 
                     if (nz == 254) {
                         long nzz = adjFile.readLong();
-                        System.out.println("SS hop " + nzz + " --> " + (curvid + nzz + 1));
 
                         curvid += nzz + 1;
                         i += nzz + 1;
@@ -188,7 +187,7 @@ public class SlidingShard <EdgeDataType> {
                 if (i < 0) {
                     skip(n);
                 } else {
-                    ChiVertex vertex = vertices[i];
+                    ChiVertex vertex = vertices[(int)i];
                     assert(vertex == null || vertex.getId() == curvid);
 
                     if (vertex != null) {
@@ -208,7 +207,6 @@ public class SlidingShard <EdgeDataType> {
                                 curBlock.active = true;
                             }
                             try {
-                                System.out.println("Add outedge: " + vertex.getId() + " --> " + target);
                                 vertex.addOutEdge(eptr == null ? -1 : eptr.blockId, eptr == null ? -1 : eptr.offset, target);
                             } catch (ArrayIndexOutOfBoundsException aie) {
                                 aie.printStackTrace();;
