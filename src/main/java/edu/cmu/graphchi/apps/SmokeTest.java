@@ -28,7 +28,7 @@ public class SmokeTest implements GraphChiProgram<Integer, Integer> {
     private static Logger logger = ChiLogger.getLogger("smoketest");
 
     // Keep track of loaded vertex values to check vertex value loading works
-    private static HashMap<Integer, Integer> loadedVertexValues = new HashMap<Integer, Integer>();
+    private static HashMap<Long, Long> loadedVertexValues = new HashMap<Long, Long>();
 
     public void update(ChiVertex<Integer, Integer> vertex, GraphChiContext context) {
         if (context.getIteration() == 0) {
@@ -69,7 +69,6 @@ public class SmokeTest implements GraphChiProgram<Integer, Integer> {
             vertex.outEdge(i).setValue(val);
         }
 
-
     }
 
 
@@ -104,7 +103,7 @@ public class SmokeTest implements GraphChiProgram<Integer, Integer> {
                     return 0;
                 } else {
                     synchronized (this) {
-                       loadedVertexValues.put((int)vertexId, Integer.parseInt(token));
+                       loadedVertexValues.put(vertexId, Long.parseLong(token));
                     }
                     return Integer.parseInt(token);
                 }
@@ -145,17 +144,20 @@ public class SmokeTest implements GraphChiProgram<Integer, Integer> {
         while(iter.hasNext()) {
             VertexIdValue<Integer> x = iter.next();
             long internalId = engine.getVertexIdTranslate().forward(x.getVertexId());
+
+            logger.info(i + ". Scan: " + internalId + " " + x.getVertexId());
+
             long expectedValue = internalId % 100000000L + 4;
             if (expectedValue != x.getValue()) {
                 throw new IllegalStateException("Expected internal value to be " + expectedValue
                         + ", but it was " + x.getValue() + "; internal id=" + internalId + "; orig=" + x.getVertexId());
             }
             if (i % 10000 == 0) {
-                logger.info("Scanning vertices: " + i);
+                logger.info("Scanning vertices: " + i + ", " + internalId);
             }
             i++;
         }
 
-        logger.info("Ready.");
+        logger.info("Ready. Vertices:" + i);
     }
 }

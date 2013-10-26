@@ -42,6 +42,7 @@ public class DegreeData {
     private boolean sparse = false;
     private long lastQuery = 0, lastId = -1;
     private boolean intervalContainsAny = true;
+    private boolean hitEnd;
 
     public DegreeData(String baseFilename) throws IOException {
         File sparseFile = new File(ChiFilenames.getFilenameOfDegreeData(baseFilename, true));
@@ -55,6 +56,11 @@ public class DegreeData {
             degreeFile = new RandomAccessFile(denseFile.getAbsolutePath(), "r");
         }
         vertexEn = vertexSt = 0;
+        hitEnd = false;
+    }
+
+    public boolean wasLast() {
+         return (hitEnd);
     }
 
     /**
@@ -67,6 +73,7 @@ public class DegreeData {
         if (sparse && !intervalContainsAny && _vertexSt < lastId && _vertexEn < lastId && _vertexSt >= lastQuery) {
              return; // Nothing to do for sure
         }
+        hitEnd = false;
 
         long prevVertexEn = vertexEn;
         long prevVertexSt = vertexSt;
@@ -134,7 +141,7 @@ public class DegreeData {
                     }
                 }
             } catch (EOFException eof) {
-                degreeFile.seek(0);
+                hitEnd = true;
             }
             lastQuery = _vertexEn;
         }
@@ -163,5 +170,14 @@ public class DegreeData {
 
     public boolean doesIntervalContainAnyEdges() {
         return intervalContainsAny;
+    }
+
+    public long next() {
+        if (!sparse) throw new IllegalStateException("Can be only called when sparse data!");
+        return lastId;
+    }
+
+    public boolean sparse() {
+        return sparse;
     }
 }

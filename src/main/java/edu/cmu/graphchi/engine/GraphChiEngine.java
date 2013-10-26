@@ -5,6 +5,7 @@ import com.yammer.metrics.core.Timer;
 import com.yammer.metrics.core.TimerContext;
 import edu.cmu.graphchi.*;
 import edu.cmu.graphchi.datablocks.BytesToValueConverter;
+import edu.cmu.graphchi.datablocks.ChiPointer;
 import edu.cmu.graphchi.datablocks.DataBlockManager;
 import edu.cmu.graphchi.engine.auxdata.DegreeData;
 import edu.cmu.graphchi.engine.auxdata.VertexData;
@@ -323,13 +324,26 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
                         ChiVertex<VertexDataType, EdgeDataType>[] vertices = null;
                         int vertexBlockId = -1;
 
+                        logger.info("Consider subIntervalStart: " + subIntervalStart);
+
                         if (!autoLoadNext || nextWindow == null) {
                             try {
-                                subIntervalEnd = determineNextWindow(subIntervalStart, Math.min(intervalEn, subIntervalStart + adjMaxWindow ));
+                                long maxEnd =  Math.min(intervalEn, subIntervalStart + adjMaxWindow);
+                                if (maxEnd < 0) maxEnd = intervalEn; // Overflow
+                                subIntervalEnd =
+                                        determineNextWindow(subIntervalStart, maxEnd);
                             } catch (NoEdgesInIntervalException nie) {
-                          //      System.out.println("No edges, skip: " + subIntervalStart + " -- " + subIntervalEnd);
-                                subIntervalEnd = subIntervalStart + adjMaxWindow;
+                                logger.info("No edges, skip: " + subIntervalStart + " -- " + subIntervalEnd);
+                                if (degreeHandler.sparse()) {
+                                    subIntervalEnd = degreeHandler.next() - 1;
+                                } else {
+                                    subIntervalEnd = subIntervalStart + adjMaxWindow;
+                                }
                                 subIntervalStart = subIntervalEnd + 1;
+                                if (degreeHandler.wasLast()) {
+                                    logger.info("degreehandler - was last");
+                                    subIntervalStart = intervalEn + 1;
+                                }
                                 continue;
                             }
                             long nvertices = subIntervalEnd - subIntervalStart + 1;
@@ -465,6 +479,8 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
         scheduler = new BitsetScheduler(numVertices());
     }
 
+    private Exception errWhileUpdates;
+
     private void execUpdates(final GraphChiProgram<VertexDataType, EdgeDataType> program,
                              final ChiVertex<VertexDataType, EdgeDataType>[] vertices) {
         if (vertices == null || vertices.length == 0) return;
@@ -483,6 +499,7 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
 
             final int nWorkers = vertices.length / chunkSize + 1;
             final AtomicInteger countDown = new AtomicInteger(1 + nWorkers);
+            errWhileUpdates = null;
 
             if (!enableDeterministicExecution) {
                 for(ChiVertex<VertexDataType, EdgeDataType> vertex : vertices) {
@@ -508,6 +525,7 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
 
                     } catch (Exception e) {
                         e.printStackTrace();
+                        errWhileUpdates = e;
                     }  finally {
                         int pending = countDown.decrementAndGet();
                         synchronized (termlock) {
@@ -546,6 +564,7 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
 
                         } catch (Exception e) {
                             e.printStackTrace();
+                            errWhileUpdates = e;
                         } finally {
                             int pending = countDown.decrementAndGet();
                             synchronized (termlock) {
@@ -568,6 +587,10 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
                     }
                     if (countDown.get() > 0) logger.info("Waiting for execution to finish: countDown:" + countDown.get());
                 }
+            }
+
+            if (errWhileUpdates != null) {
+                throw new RuntimeException(errWhileUpdates);
             }
 
         }
@@ -596,7 +619,11 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
 
             if (vertexDataConverter != null) {
 
-                v.setDataPtr(vertexDataHandler.getVertexValuePtr(j + firstVertexId, blockId));
+                ChiPointer ptr = vertexDataHandler.getVertexValuePtr(j + firstVertexId, blockId);
+                v.setDataPtr(ptr);
+                if (ptr == null) {
+                 assert(ptr != null);
+                }
             }
             vertices[(int)j] = v;
         }
@@ -770,6 +797,7 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
 
     private long determineNextWindow(long subIntervalStart, long maxVertex) throws IOException, NoEdgesInIntervalException {
         final TimerContext _timer = determineNextWindowTimer.time();
+        assert(maxVertex >= subIntervalStart);
         long totalDegree = 0;
         try {
             degreeHandler.load(subIntervalStart, maxVertex);

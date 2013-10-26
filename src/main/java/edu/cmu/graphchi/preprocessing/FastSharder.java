@@ -14,6 +14,7 @@ import edu.cmu.graphchi.shards.SlidingShard;
 import nom.tam.util.BufferedDataInputStream;
 
 import java.io.*;
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Random;
@@ -69,7 +70,7 @@ public class FastSharder <VertexValueType, EdgeValueType> {
     private int[] inDegrees;
     private int[] outDegrees;
     private boolean memoryEfficientDegreeCount = false;
-    private long numEdges = 0;
+    private long numEdges = 0, shoveledEdges = 0;
     private boolean useSparseDegrees = false;
     private boolean allowSparseDegreesAndVertexData = true;
 
@@ -554,6 +555,8 @@ public class FastSharder <VertexValueType, EdgeValueType> {
                     edgeCounter++;
                 }
 
+                shoveledEdges += i - istart;
+
                 istart = i;
 
                 // Handle zeros
@@ -579,6 +582,7 @@ public class FastSharder <VertexValueType, EdgeValueType> {
                 /* Optimization for very sparse vertex intervals */
                 if (curvid - lastSparseSetEntry >= DEGCOUNT_SUBINTERVAL) {
                     representedIntervals.add(curvid / DEGCOUNT_SUBINTERVAL);
+                    lastSparseSetEntry = curvid;
                 }
 
                 curvid = from;
@@ -882,6 +886,8 @@ public class FastSharder <VertexValueType, EdgeValueType> {
      * vertex degrees in-memory.
      */
     private void computeVertexDegrees() {
+        long totalEdges = 0;
+
         try {
             logger.info("Use sparse degrees: " + useSparseDegrees);
 
@@ -901,26 +907,45 @@ public class FastSharder <VertexValueType, EdgeValueType> {
 
             ExecutorService parallelExecutor = Executors.newFixedThreadPool(4);
 
+            /* Efficiently handly only intervals that have any vertices */
+            long[] representedArray = new long[representedIntervals.size()];
+            int k = 0;
+            for(Long l : representedIntervals) {
+                representedArray[k++] = l;
+            }
+            Arrays.sort(representedArray);
+
+            for(int l=0; l<representedArray.length; l++) {
+                logger.info("RepArr: " + l + " : " + representedArray[l] +
+                        " = " + representedArray[l] * DEGCOUNT_SUBINTERVAL + " check: " + (representedArray[l] * DEGCOUNT_SUBINTERVAL - 4611686020927387903L));
+            }
+
+            k = 0;
+
             for(int p=0; p < numShards; p++) {
-                logger.info("Degree computation round " + p + " / " + numShards);
                 long intervalSt = p * finalIdTranslate.getVertexIntervalLength();
-                long intervalEn = (p + 1) * finalIdTranslate.getVertexIntervalLength() - 1;
+                long intervalEn = (Long.MAX_VALUE - intervalSt > finalIdTranslate.getVertexIntervalLength() ?
+                        (p + 1) * finalIdTranslate.getVertexIntervalLength() - 1 : Long.MAX_VALUE);
+                logger.info("Degree computation round " + p + " / " + numShards + " [[" + intervalSt + " -- " + intervalEn + "]]");
+
+                /* Hacky - TODO rewrite! */
+                k = 0;
+                while (k < representedArray.length - 1 && representedArray[k] * DEGCOUNT_SUBINTERVAL <= intervalSt) {
+                    k++;
+                }
 
                 MemoryShard<Float> memoryShard = new MemoryShard<Float>(null, ChiFilenames.getFilenameShardsAdj(baseFilename, p, numShards),
                         intervalSt, intervalEn);
                 memoryShard.setOnlyAdjacency(true);
 
 
-                for(long subIntervalSt=intervalSt; subIntervalSt < intervalEn; subIntervalSt += DEGCOUNT_SUBINTERVAL) {
+                for(long subIntervalSt=intervalSt; subIntervalSt < intervalEn && subIntervalSt >= 0; ) {
                     long subIntervalEn = subIntervalSt + DEGCOUNT_SUBINTERVAL - 1;
-                    if (subIntervalEn > intervalEn) subIntervalEn = intervalEn;
+                    if (subIntervalEn > intervalEn || subIntervalEn < 0) subIntervalEn = intervalEn;
 
                     /* Do we have any vertices in this range? */
-                    if (!representedIntervals.contains(new Long(subIntervalSt / DEGCOUNT_SUBINTERVAL))) {
-                        continue;
-                    }
 
-                    System.out.println("[[ " + subIntervalSt + " -- " + subIntervalEn + "]]");
+                    logger.info("Degree computation: [[ " + subIntervalSt + " -- " + subIntervalEn + "]]");
 
                     ChiVertex[] verts = new ChiVertex[(int) (subIntervalEn - subIntervalSt + 1)];
                     for(int i=0; i < verts.length; i++) {
@@ -931,7 +956,7 @@ public class FastSharder <VertexValueType, EdgeValueType> {
                     for(int i=0; i < numShards; i++) {
                         if (i != p) {
                             try {
-                            slidingShards[i].readNextVertices(verts, subIntervalSt, true);
+                                slidingShards[i].readNextVertices(verts, subIntervalSt, true);
                             } catch (Exception err) {
                                 System.err.println("Error when loading sliding shard " + i + " interval:" +
                                     slidingShards[i].rangeStart + " -- " + slidingShards[i].rangeEnd);
@@ -943,6 +968,8 @@ public class FastSharder <VertexValueType, EdgeValueType> {
                     }
 
                     for(int i=0; i < verts.length; i++) {
+                        totalEdges += verts[i].numEdges();
+
                         if (!useSparseDegrees) {
                             degreeOut.writeInt(Integer.reverseBytes(verts[i].numInEdges()));
                             degreeOut.writeInt(Integer.reverseBytes(verts[i].numOutEdges()));
@@ -952,8 +979,20 @@ public class FastSharder <VertexValueType, EdgeValueType> {
                                 degreeOut.writeLong(Long.reverseBytes(subIntervalSt + i));
                                 degreeOut.writeInt(Integer.reverseBytes(verts[i].numInEdges()));
                                 degreeOut.writeInt(Integer.reverseBytes(verts[i].numOutEdges()));
+
                             }
+
                         }
+                    }
+                    /* Jump to next interval that has any vertices */
+                    if (k <= representedArray.length - 1) {
+                        subIntervalSt = representedArray[k] * DEGCOUNT_SUBINTERVAL;
+                        if (subIntervalSt < intervalEn) {
+                            k++;
+                        }
+                    } else {
+                        subIntervalSt += DEGCOUNT_SUBINTERVAL;
+                        break;
                     }
                 }
                 slidingShards[p].setOffset(memoryShard.getStreamingOffset(),
@@ -964,6 +1003,12 @@ public class FastSharder <VertexValueType, EdgeValueType> {
         } catch (Exception err) {
             err.printStackTrace();
             throw new RuntimeException(err);
+        }
+
+        if (shoveledEdges * 2 != totalEdges) {
+            logger.warning("Mismatch in degree counting: shoveled " + shoveledEdges * 2 + " but counted  " + totalEdges);
+            assert(shoveledEdges == totalEdges);
+
         }
     }
 

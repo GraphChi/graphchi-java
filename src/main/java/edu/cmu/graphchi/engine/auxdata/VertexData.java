@@ -41,6 +41,7 @@ public class VertexData <VertexDataType> {
     private long[] index;
     private long lastOffset = 0;
     private long lastStart = 0;
+    private long lastVertex = 0;
 
     private final static Logger logger = ChiLogger.getLogger("vertex-data");
 
@@ -180,6 +181,7 @@ public class VertexData <VertexDataType> {
                             startPos = vertexDataFile.getFilePointer() - 8;
                             foundStart = true;
                         }
+                        lastVertex = vertexId;
                         if (vertexId >= _vertexSt && vertexId <= _vertexEn) {
                             n++;
                         } else if (vertexId > vertexEn) {
@@ -188,7 +190,9 @@ public class VertexData <VertexDataType> {
 
                         vertexDataFile.skipBytes(sizeOf);
                     }
-                } catch (EOFException eof) {}
+                } catch (EOFException eof) {
+                    logger.info("Reached end of vertex data");
+                }
 
                 index = new long[n];
                 vertexDataFile.seek(startPos);
@@ -238,6 +242,7 @@ public class VertexData <VertexDataType> {
         return new int[n];
     }
 
+
     public Iterator<Long> currentIterator() {
         if (!sparse) {
             return new Iterator<Long>() {
@@ -262,7 +267,7 @@ public class VertexData <VertexDataType> {
                 int j = 0;
                 @Override
                 public boolean hasNext() {
-                    return (j < index.length - 1);
+                    return (j <= index.length - 1);
                 }
 
                 @Override
@@ -286,6 +291,14 @@ public class VertexData <VertexDataType> {
             vertexDataFile.close();
         } catch (IOException ie) {
             ie.printStackTrace();
+        }
+    }
+
+    public long nextChunkStart() {
+        if (!sparse) {
+            return vertexEn;
+        } else {
+            return lastVertex;
         }
     }
 }

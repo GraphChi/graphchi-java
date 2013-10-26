@@ -46,7 +46,7 @@ public class VertexAggregator {
      * @throws IOException if the vertex data file is not found
      */
     public static <VertexDataType> void foreach(long numVertices, String baseFilename, BytesToValueConverter<VertexDataType> conv,
-                                                 ForeachCallback<VertexDataType> callback) throws IOException {
+                                                ForeachCallback<VertexDataType> callback) throws IOException {
 
         VertexData<VertexDataType> vertexData = new VertexData<VertexDataType>(numVertices, baseFilename, conv, true);
 
@@ -82,9 +82,9 @@ public class VertexAggregator {
      * @return
      */
     public static <VertexDataType> Iterator<VertexIdValue<VertexDataType> > vertexIterator(final long numVertices,
-                                                                                            String baseFilename,
-                                                                                            final BytesToValueConverter<VertexDataType> conv,
-                                                                                            final VertexIdTranslate idTranslate) throws IOException {
+                                                                                           String baseFilename,
+                                                                                           final BytesToValueConverter<VertexDataType> conv,
+                                                                                           final VertexIdTranslate idTranslate) throws IOException {
         final VertexData<VertexDataType> vertexData = new VertexData<VertexDataType>(numVertices, baseFilename, conv, true);
 
         final DataBlockManager blockManager = new DataBlockManager();
@@ -96,17 +96,17 @@ public class VertexAggregator {
 
             long i=0;
             int blockId;
-            Iterator<Long> curIter;
+            Iterator<Long> curIter = null;
 
             @Override
             public boolean hasNext() {
                 if (i >= numVertices - 1) return false;
                 while (curIter == null || !curIter.hasNext()) {
                     long en = i + CHUNK;
-                    if (en >= numVertices) en = numVertices - 1;
+                    if (en >= numVertices || en < 0) en = numVertices - 1;
 
                     try {
-                        blockId =  vertexData.load(i, en);
+                        blockId = vertexData.load(i, en);
                     } catch (IOException e) {
                         throw new RuntimeException(e);
                     }
@@ -115,7 +115,7 @@ public class VertexAggregator {
                         return false;
                     }
                     if (!this.curIter.hasNext()) {
-                         i = en;
+                        i = vertexData.nextChunkStart();
                     }
                 }
                 return true;
@@ -125,7 +125,7 @@ public class VertexAggregator {
             public VertexIdValue next() {
                 if (hasNext()) {
                     try {
-                     i = curIter.next();
+                        i = curIter.next();
                     } catch (ArrayIndexOutOfBoundsException aie) {
                         throw aie;
                     }
