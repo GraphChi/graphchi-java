@@ -200,7 +200,7 @@ public class MemoryShard <EdgeDataType> {
         }
 
         boolean containsRangeEnd = (vid < rangeEnd && viden > rangeEnd);
-        boolean containsRangeSt = (vid <= rangeStart && viden > rangeStart);
+        boolean containsRangeSt = (vid <= rangeStart && viden >= rangeStart);
 
         DataInput adjInput = (compressedInput != null ? compressedInput : new DataInputStream(new ByteArrayInputStream(adjData)));
 
@@ -377,15 +377,24 @@ public class MemoryShard <EdgeDataType> {
     }
 
     public int getStreamingOffset() {
+        assert(hasSetOffset);
+        if (!hasSetOffset) throw new IllegalStateException("Asked for streaming offset, although not set");
         return streamingOffset;
     }
 
     public int getStreamingOffsetEdgePtr() {
+        assert(hasSetOffset);
+        if (!hasSetOffset) throw new IllegalStateException("Asked for streaming offset, although not set");
+
         return streamingOffsetEdgePtr;
     }
 
     public long getStreamingOffsetVid() {
         return streamingOffsetVid;
+    }
+
+    public boolean isHasSetOffset() {
+        return hasSetOffset;
     }
 
     public void setOnlyAdjacency(boolean onlyAdjacency) {

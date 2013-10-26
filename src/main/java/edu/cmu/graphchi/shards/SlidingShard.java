@@ -151,8 +151,6 @@ public class SlidingShard <EdgeDataType> {
             for(long i=(curvid - start); i < nvecs; i++) {
                 int n;
                 int ns = adjFile.readUnsignedByte();
-
-
                 assert(ns >= 0);
                 adjOffset++;
 
@@ -212,7 +210,8 @@ public class SlidingShard <EdgeDataType> {
                                 aie.printStackTrace();;
                             }
                             if (!(target >= rangeStart && target <= rangeEnd)) {
-                                throw new IllegalStateException("Target " + target + " not in range!");
+                                throw new IllegalStateException("Target " + target + " not in range! Range="
+                                    + rangeStart + " -- " + rangeEnd + "; offset:" + adjOffset + ", foff=");
                             }
                         }
                     } else {

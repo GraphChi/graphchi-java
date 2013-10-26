@@ -161,6 +161,8 @@ public class FastSharder <VertexValueType, EdgeValueType> {
         if (maxVertexId < from) maxVertexId = from;
         if (maxVertexId < to)  maxVertexId = to;
 
+        if (from < 0 || to < 0) throw new IllegalStateException("Added negative edge! " + from + ", " + to);
+
         /* If the from and to ids are same, this entry is assumed to contain value
            for the vertex, and it is passed to the vertexProcessor.
          */
@@ -179,7 +181,7 @@ public class FastSharder <VertexValueType, EdgeValueType> {
 
         if (preTranslatedIdFrom < 0 || preTranslatedTo < 0) {
             throw new IllegalStateException("Translation produced negative value: " + from +
-                        "->" + preTranslatedIdFrom +" ; to: " + to + "-> " + preTranslatedTo + "; " + preIdTranslate.stringRepresentation());
+                    "->" + preTranslatedIdFrom +" ; to: " + to + "-> " + preTranslatedTo + "; " + preIdTranslate.stringRepresentation());
         }
 
         addToShovel((int) (to % numShards), preTranslatedIdFrom, preTranslatedTo,
@@ -204,6 +206,11 @@ public class FastSharder <VertexValueType, EdgeValueType> {
      */
     private void addToShovel(int shard, long preTranslatedIdFrom, long preTranslatedTo,
                              EdgeValueType value) throws IOException {
+
+        if (preTranslatedIdFrom < 0 || preTranslatedTo < 0) {
+            throw new IllegalStateException("Pretranslated id was < 0!");
+        }
+
         DataOutputStream strm = shovelStreams[shard];
         strm.writeLong(preTranslatedIdFrom);
         strm.writeLong(preTranslatedTo);
@@ -357,6 +364,9 @@ public class FastSharder <VertexValueType, EdgeValueType> {
         FileWriter wr = new FileWriter(ChiFilenames.getFilenameIntervals(baseFilename, numShards));
         for(int j=1; j<=numShards; j++) {
             long a =(j * finalIdTranslate.getVertexIntervalLength() -1);
+            if (a < 0) {
+                throw new RuntimeException("Overflow!" + a);
+            }
             wr.write(a + "\n");
             if (a > maxVertexId) {
                 maxVertexId = a;
@@ -959,7 +969,7 @@ public class FastSharder <VertexValueType, EdgeValueType> {
                                 slidingShards[i].readNextVertices(verts, subIntervalSt, true);
                             } catch (Exception err) {
                                 System.err.println("Error when loading sliding shard " + i + " interval:" +
-                                    slidingShards[i].rangeStart + " -- " + slidingShards[i].rangeEnd);
+                                        slidingShards[i].rangeStart + " -- " + slidingShards[i].rangeEnd);
 
                                 throw err;
                             }
@@ -995,8 +1005,10 @@ public class FastSharder <VertexValueType, EdgeValueType> {
                         break;
                     }
                 }
-                slidingShards[p].setOffset(memoryShard.getStreamingOffset(),
-                        memoryShard.getStreamingOffsetVid(), memoryShard.getStreamingOffsetEdgePtr());
+                if (memoryShard.isHasSetOffset()) {
+                    slidingShards[p].setOffset(memoryShard.getStreamingOffset(),
+                            memoryShard.getStreamingOffsetVid(), memoryShard.getStreamingOffsetEdgePtr());
+                }
             }
             parallelExecutor.shutdown();
             degreeOut.close();
