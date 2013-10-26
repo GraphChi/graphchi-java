@@ -113,6 +113,6 @@ public interface InputData {
 	 * TODO:
 	 * @return 
 	 */
-	public DataMetadata getMetadata();
+	public DataSetDescription getDataSetDescription();
 	
 }

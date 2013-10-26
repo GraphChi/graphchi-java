@@ -23,8 +23,7 @@ public class FileInputData implements InputData {
 	String ratingFile;
 	String userFile;
 	String itemFile;
-	String globalDataFile;
-	DataMetadata metadata;
+	DataSetDescription metadata;
 	
 	private MatrixMarketDataReader ratingsReader;
 	
@@ -35,17 +34,17 @@ public class FileInputData implements InputData {
 	BufferedReader userBr = null;
 	BufferedReader itemBr = null;
 	
+	public FileInputData(DataSetDescription datasetDesc) {
+		this.metadata = datasetDesc;
+		
+		this.ratingFile = datasetDesc.getRatingsFile();
+		this.userFile = datasetDesc.getUserFeaturesFile();
+		this.itemFile = datasetDesc.getItemFeaturesFile();
+	}
 	
-	public FileInputData(String ratingFile, String userFile, String itemFile, 
-			String globalDataFile) {
-		this.ratingFile = ratingFile;
-		this.userFile = userFile;
-		this.itemFile = itemFile;
-		this.globalDataFile = globalDataFile;
-		
-		
-		this.metadata = new DataMetadata();
-		readMetadata();
+	public FileInputData(String dataSetDescFile) {
+		DataSetDescription datasetDesc = new DataSetDescription();
+		datasetDesc.loadFromJsonFile(dataSetDescFile);
 	}
 	
 	@Override
@@ -161,7 +160,8 @@ public class FileInputData implements InputData {
 		if(this.currItemLine == null) {
 			return -1;
 		} else {
-			return Integer.parseInt(this.currItemLine.split(DELIM)[0]);
+			return this.metadata.getNumUsers() + 
+				Integer.parseInt(this.currItemLine.split(DELIM)[0]);
 		}
 	}
 
@@ -180,24 +180,9 @@ public class FileInputData implements InputData {
 	}
 
 	@Override
-	public DataMetadata getMetadata() {
+	public DataSetDescription getDataSetDescription() {
 		// TODO Auto-generated method stub
 		return this.metadata;
-	}
-	
-	private void readMetadata() {
-		if(this.globalDataFile != null) {
-			File metadataFile = new File(this.globalDataFile);
-	    	if(metadataFile.exists()) {
-	    		try {
-	    			ObjectMapper mapper = new ObjectMapper();
-	    			Map<String, String> map = (Map<String, String>) mapper.readValue(metadataFile, Map.class);
-	    			this.metadata = new DataMetadata(map);
-	    		} catch (IOException e) {
-	    			e.printStackTrace();
-	    		}
-	    	}
-		}
 	}
 	
 	private String progressLine(BufferedReader br) throws IOException {

@@ -1,4 +1,4 @@
-package edu.cmu.graphchi.toolkits.collaborative_filtering.algorithms;
+/*package edu.cmu.graphchi.toolkits.collaborative_filtering.algorithms;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -35,7 +35,7 @@ import gov.sandia.cognition.statistics.distribution.InverseWishartDistribution;
 
 
 class PMFParameters extends ModelParameters {
-	/*
+	
 	 * Graphical Model for Bayesian Probabilistic Matrix Factorization.
 	 * From the paper: 
 	 * Salakhutdinov and Mnih, Bayesian Probabilistic Matrix Factorization using Markov Chain Monte Carlo. 
@@ -57,7 +57,7 @@ class PMFParameters extends ModelParameters {
 					  	|
 					  	|
 					  alpha
-	 */
+	 
 	
 	//Hyper-parameters and Hyperpriors in the above Gaussian Model.
 	double alpha;
@@ -174,7 +174,7 @@ class PMFParameters extends ModelParameters {
 public class PMF implements GraphChiProgram<Integer, EdgeDataType> {
 
 	private static final boolean DEBUG = true;
-	PMFProblemSetup setup;
+	ProblemSetup setup;
 	PMFParameters params;
 	
 	//Root Mean Squared Error
@@ -182,12 +182,12 @@ public class PMF implements GraphChiProgram<Integer, EdgeDataType> {
 	protected Logger logger = ChiLogger.getLogger("PMF");
 	
 	//Constructor
-	public PMF(PMFProblemSetup setup, ModelParameters params) {
+	public PMF(ProblemSetup setup, ModelParameters params) {
 		this.setup = setup;
 		this.params = (PMFParameters) params;
 	}
 	
-	/**
+	*//**
 	 * meanU = (SUM U_i)/N
 	 * meanS = (SUM (U_i*U_i')/N)
 	 * mu0 = (beta0*mu0 + meanU)/(beta0 + N)
@@ -195,7 +195,7 @@ public class PMF implements GraphChiProgram<Integer, EdgeDataType> {
 	 * nu0 = nu0 + N
 	 * W0 = inv( inv(W0) + N*meanS + (beta0*N/(beta0 + N))(mu0 - meanU)*(mu0 - meanU)'
 	 * 
-	 */
+	 *//*
 	public void sample_U() {
 		//Note, sumU and sumUUT are update in the update function itself. Hence, when
 		//sample_U is called after the 1 iteration of all vertices, we already have the sum.
@@ -240,7 +240,7 @@ public class PMF implements GraphChiProgram<Integer, EdgeDataType> {
 		params.sumUUT.scalarMultiply(0);
 	}
 	
-	/**
+	*//**
 	 * Sample hyperparameters for V.
 	 * TODO: Can common functionalities from sample_U and sample_V be refactored into 1 function?
 	 * meanU = (SUM U_i)/N
@@ -249,7 +249,7 @@ public class PMF implements GraphChiProgram<Integer, EdgeDataType> {
 	 * beta0 = beta0 + N
 	 * nu0 = nu0 + N
 	 * W0 = inv( inv(W0) + N*meanS + (beta0*N/(beta0 + N))(mu0 - meanU)*(mu0 - meanU)'
-	 */
+	 *//*
 	public void sample_V() {
 		//Note, sumV and sumVVT are update in the update function itself. Hence, when
 		//sample_V is called after the 1 iteration of all vertices, we already have the sum.
@@ -319,7 +319,7 @@ public class PMF implements GraphChiProgram<Integer, EdgeDataType> {
 		return mat;
 	}
 	
-	/**
+	*//**
 	 * The update function draws a sample for U_i / V_j
 	 * p(U_i | R, V, mu_U, lambda_U, alpha) = 
 	 * 		[PROD_j(N(R_ij|U_i'*V_j, 1/alpha)] *P(U_i|mu_U, lambda_U) )
@@ -328,7 +328,7 @@ public class PMF implements GraphChiProgram<Integer, EdgeDataType> {
 	 * 
 	 * @param vertex
 	 * @param context
-	 */
+	 *//*
 	
 	@Override
 	public void update(ChiVertex<Integer, EdgeDataType> vertex, GraphChiContext context) {
@@ -499,14 +499,6 @@ public class PMF implements GraphChiProgram<Integer, EdgeDataType> {
 		return (float)prediction;
 	}
 		
-	static class PMFProblemSetup extends ProblemSetup {
-		//Parameters - hyperpriors
-		
-		public PMFProblemSetup(String[] args) {
-			super(args);
-		}
-	}
-	
 	protected static FastSharder createSharder(String graphName, int numShards) throws IOException {
         return new FastSharder<Integer, EdgeDataType>(graphName, numShards, null, 
         		new EdgeProcessor<EdgeDataType>() {
@@ -519,7 +511,7 @@ public class PMF implements GraphChiProgram<Integer, EdgeDataType> {
 	
     public static void main(String[] args) throws Exception {
 
-    	PMFProblemSetup problemSetup = new PMFProblemSetup(args);
+    	ProblemSetup problemSetup = new ProblemSetup(args);
     	ModelParameters params = new PMFParameters(problemSetup.getRunId("PMF"), problemSetup.paramJson);
 
     	FastSharder sharder = PMF.createSharder(problemSetup.training, problemSetup.nShards);
@@ -591,3 +583,4 @@ class EdgeDataTypeConvertor implements  BytesToValueConverter<EdgeDataType> {
     	  }
     }
 }
+*/

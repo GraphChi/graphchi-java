@@ -1,0 +1,24 @@
+[
+    {
+        "algorithm": "ALS",
+        "id": "<TIMESTAMP>",
+        "reg": "0.065",
+        "latentFactors": "10"
+    },
+    {
+        "algorithm": "ALS",
+        "id": "<TIMESTAMP>",
+        "reg": "0.01",
+        "latentFactors": "16"
+    },
+    {
+        "algorithm": "LibFM_SGD",
+        "id": "<TIMESTAMP>",
+        "lambda_0": "0.01",
+        "lambda_w": "0.01",
+        "lambda_v": "0.01",
+        "num_latent": "10",
+        "eta": "0.01",
+        "init_dev": "0.1"
+    }
+]

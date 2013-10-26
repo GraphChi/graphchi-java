@@ -1,0 +1,14 @@
+{
+    "ratingsFile" : "",
+    "userFeaturesFile" : "",
+    "itemFeaturesFile" " "",
+    "numUsers":"",
+    "numItems":"",
+    "numRatings":"",
+    "meanRatings":"",
+    "numUserFeatures":"",
+    "numItemFeatures":"",
+    "numRatingFeatures":"",
+    "minval":""
+    "maxval":""
+}

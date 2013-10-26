@@ -734,7 +734,7 @@ public class FastSharder <VertexValueType, EdgeValueType> {
         	MatrixMarketDataReader in = new MatrixMarketDataReader(inputStream);
         	in.init();
             while (in.next()) {
-                this.addEdge(in.getCurrSource(), in.numLeft + in.getCurrDestination(), in.getCurrEdgeVal());
+                this.addEdge(in.getCurrSource(), in.getCurrDestination(), in.getCurrEdgeVal());
             }
             this.metadataMap.put("numLeft", in.numLeft + "");
             this.metadataMap.put("numRight", in.numRight + "");

@@ -64,7 +64,7 @@ public class MatrixMarketDataReader {
 		if(this.currLine == null) {
 			return -1;
 		} else {
-			return Integer.parseInt(this.currLine.split(DELIM)[1]);
+			return this.numLeft + Integer.parseInt(this.currLine.split(DELIM)[1]);
 		}
 	}
 
