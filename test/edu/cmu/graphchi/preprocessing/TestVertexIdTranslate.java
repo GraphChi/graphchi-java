@@ -20,6 +20,7 @@ public class TestVertexIdTranslate {
                      assertEquals(j, back);
                 }
 
+
                 for(int e=0; e<100; e++) {
                     assertEquals(e, trans.backward(trans.forward(e)));
                 }

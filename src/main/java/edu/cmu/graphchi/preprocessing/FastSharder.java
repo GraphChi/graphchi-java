@@ -176,6 +176,11 @@ public class FastSharder <VertexValueType, EdgeValueType> {
         long preTranslatedIdFrom = preIdTranslate.forward(from);
         long preTranslatedTo = preIdTranslate.forward(to);
 
+        if (preTranslatedIdFrom < 0 || preTranslatedTo < 0) {
+            throw new IllegalStateException("Translation produced negative value: " + from +
+                        "->" + preTranslatedIdFrom +" ; to: " + to + "-> " + preTranslatedTo + "; " + preIdTranslate.stringRepresentation());
+        }
+
         addToShovel((int) (to % numShards), preTranslatedIdFrom, preTranslatedTo,
                 (edgeProcessor != null ? edgeProcessor.receiveEdge(from, to, edgeValueToken) : null));
     }
@@ -471,6 +476,10 @@ public class FastSharder <VertexValueType, EdgeValueType> {
             shoveled[i] = newFrom;
             shoveled2[i] = newTo;
 
+            if (newFrom < 0 || newTo < 0) {
+                throw new IllegalStateException("Negative value: " + from + " --> " + newFrom + ", to: " + to + " --> " + newTo + "; " + finalIdTranslate.stringRepresentation());
+            }
+
             /* Edge value */
             int valueIdx = i * sizeOf;
             System.arraycopy(valueTemplate, 0, edgeValues, valueIdx, sizeOf);
@@ -551,7 +560,7 @@ public class FastSharder <VertexValueType, EdgeValueType> {
                 if (from != (-1)) {
                     if (from - curvid > 1 || (i == 0 && from > 0)) {
                         long nz = (from - curvid - 1);
-                        if (i ==0 && from >0) nz = (int) from;
+                        if (i ==0 && from >0 ) nz = from;
                         do {
                             adjOut.writeByte(0);
                             nz--;
@@ -559,7 +568,7 @@ public class FastSharder <VertexValueType, EdgeValueType> {
                             adjOut.writeByte(tnz);
 
                             nz -= tnz;
-                            if (tnz == 254) {
+                            if (tnz == 254) {    // Check if this right
                                 adjOut.writeLong(nz - 1);
                                 nz = 0;
                             }
@@ -922,7 +931,15 @@ public class FastSharder <VertexValueType, EdgeValueType> {
                     memoryShard.loadVertices(subIntervalSt, subIntervalEn, verts, false, parallelExecutor);
                     for(int i=0; i < numShards; i++) {
                         if (i != p) {
+                            try {
                             slidingShards[i].readNextVertices(verts, subIntervalSt, true);
+                            } catch (Exception err) {
+                                System.err.println("Error when loading sliding shard " + i + " interval:" +
+                                    slidingShards[i].rangeStart + " -- " + slidingShards[i].rangeEnd);
+
+                                throw err;
+                            }
+
                         }
                     }
 
@@ -947,6 +964,7 @@ public class FastSharder <VertexValueType, EdgeValueType> {
             degreeOut.close();
         } catch (Exception err) {
             err.printStackTrace();
+            throw new RuntimeException(err);
         }
     }
 

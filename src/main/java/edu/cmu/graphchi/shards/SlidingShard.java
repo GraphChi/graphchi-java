@@ -39,8 +39,8 @@ public class SlidingShard <EdgeDataType> {
 
     private String edgeDataFilename;
     private String adjDataFilename;
-    private long rangeStart;
-    private long rangeEnd;
+    public final long rangeStart;
+    public final long rangeEnd;
 
     private DataBlockManager blockManager;
 
