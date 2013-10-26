@@ -145,7 +145,7 @@ public class SmokeTest implements GraphChiProgram<Integer, Integer> {
         while(iter.hasNext()) {
             VertexIdValue<Integer> x = iter.next();
             long internalId = engine.getVertexIdTranslate().forward(x.getVertexId());
-            long expectedValue = internalId + 4;
+            long expectedValue = internalId % 100000000L + 4;
             if (expectedValue != x.getValue()) {
                 throw new IllegalStateException("Expected internal value to be " + expectedValue
                         + ", but it was " + x.getValue() + "; internal id=" + internalId + "; orig=" + x.getVertexId());

@@ -102,7 +102,7 @@ public class SlidingShard <EdgeDataType> {
     }
 
     private ChiPointer readEdgePtr() {
-        assert(sizeOf >= 0);
+        assert(onlyAdjacency || sizeOf >= 0);
         if (onlyAdjacency) return null;
         checkCurblock(sizeOf);
         ChiPointer ptr = new ChiPointer(curBlock.blockId, curBlock.ptr);
@@ -126,7 +126,7 @@ public class SlidingShard <EdgeDataType> {
         int nvecs = vertices.length;
         curBlock = null;
         releasePriorToOffset(false, disableWrites);
-        assert(activeBlocks.size() <= 1);
+        assert(onlyAdjacency || activeBlocks.size() <= 1);
 
         /* Read next */
         if (!onlyAdjacency && !activeBlocks.isEmpty()) {

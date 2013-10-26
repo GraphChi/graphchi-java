@@ -639,7 +639,6 @@ public class FastSharder <VertexValueType, EdgeValueType> {
                 blockIdx++;
             }
 
-            assert(edgeIdx == edgeValues.length);
         }
     }
 

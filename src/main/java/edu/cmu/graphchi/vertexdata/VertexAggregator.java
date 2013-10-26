@@ -101,7 +101,7 @@ public class VertexAggregator {
             @Override
             public boolean hasNext() {
                 if (i >= numVertices - 1) return false;
-                if (curIter == null || !curIter.hasNext()) {
+                while (curIter == null || !curIter.hasNext()) {
                     long en = i + CHUNK;
                     if (en >= numVertices) en = numVertices - 1;
 
@@ -111,6 +111,12 @@ public class VertexAggregator {
                         throw new RuntimeException(e);
                     }
                     this.curIter = vertexData.currentIterator();
+                    if (!this.curIter.hasNext() && en >= numVertices - 1) {
+                        return false;
+                    }
+                    if (!this.curIter.hasNext()) {
+                         i = en;
+                    }
                 }
                 return true;
             }
@@ -118,7 +124,11 @@ public class VertexAggregator {
             @Override
             public VertexIdValue next() {
                 if (hasNext()) {
-                    i = curIter.next();
+                    try {
+                     i = curIter.next();
+                    } catch (ArrayIndexOutOfBoundsException aie) {
+                        throw aie;
+                    }
                     ChiPointer ptr = vertexData.getVertexValuePtr(i, blockId);
                     return new VertexIdValue<VertexDataType>(idTranslate.backward(i), blockManager.dereference(ptr, conv));
                 } else throw new IllegalStateException("No more elements in the iterator!");

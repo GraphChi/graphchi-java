@@ -262,7 +262,7 @@ public class VertexData <VertexDataType> {
                 int j = 0;
                 @Override
                 public boolean hasNext() {
-                    return (j < index.length);
+                    return (j < index.length - 1);
                 }
 
                 @Override
