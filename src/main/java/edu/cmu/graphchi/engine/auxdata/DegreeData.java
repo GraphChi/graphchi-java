@@ -129,8 +129,12 @@ public class DegreeData {
         } else {
             if (lastQuery > _vertexSt) {
                 lastId = -1;
-                degreeFile.seek(lastStart);
-                logger.info("Rewind because lastQuery: " + lastQuery + " > " + _vertexSt + ", lastId:" + lastId + " -->" + lastStart);
+                if (prevVertexSt <= _vertexSt) {
+                    degreeFile.seek(lastStart);
+                } else {
+                    degreeFile.seek(0);
+                }
+                logger.info("Rewind because lastQuery: " + lastQuery + " > " + _vertexSt + ", lastId:" + lastId + " -->" + degreeFile.getFilePointer());
             }
 
             lastStart = 0;
