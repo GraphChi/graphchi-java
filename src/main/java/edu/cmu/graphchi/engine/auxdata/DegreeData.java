@@ -113,6 +113,8 @@ public class DegreeData {
                     } else if (vertexId > vertexEn){
                         lastId = vertexId; // Remember last one read
                         break;
+                    } else {
+                        degreeFile.skipBytes(8);
                     }
                 }
             } catch (EOFException eof) {
