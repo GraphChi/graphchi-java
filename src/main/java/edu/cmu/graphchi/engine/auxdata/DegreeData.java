@@ -41,7 +41,7 @@ public class DegreeData {
     private long vertexSt, vertexEn;
 
     private boolean sparse = false;
-    private long lastQuery = 0, lastId = -1;
+    private long lastQuery = 0, lastId = -1, lastStart = 0;
     private boolean intervalContainsAny = true;
     private boolean hitEnd;
     private final static Logger logger = ChiLogger.getLogger("degree-data");
@@ -129,23 +129,31 @@ public class DegreeData {
         } else {
             if (lastQuery > _vertexSt) {
                 lastId = -1;
-                degreeFile.seek(0);
-                logger.info("Rewind because lastQuery: " + lastQuery + " > " + _vertexSt);
+                degreeFile.seek(lastStart);
+                logger.info("Rewind because lastQuery: " + lastQuery + " > " + _vertexSt + ", lastId:" + lastId + " -->" + lastStart);
             }
 
+            lastStart = 0;
             try {
                 intervalContainsAny = false;
 
                 while(true) {
                     long vertexId = (lastId < 0 ? degreeFile.readLong() : lastId);
                     if (vertexId >= _vertexSt && vertexId <= _vertexEn) {
+                        if (lastStart == 0 && !intervalContainsAny) {
+                            lastStart = degreeFile.getFilePointer() - 8;
+                        }
                         degreeFile.readFully(degreeData, (int) (vertexId - vertexSt) * 8, 8);
                         lastId = -1;
+
+
                         intervalContainsAny = true;
                     } else if (vertexId > vertexEn){
                         lastId = vertexId; // Remember last one read
                         logger.info("Finished scan, next one will be: " + lastId);
                         break;
+                    } else {
+                        degreeFile.skipBytes(8);
                     }
                 }
             } catch (EOFException eof) {

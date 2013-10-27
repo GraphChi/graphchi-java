@@ -299,11 +299,6 @@ public class FastSharder <VertexValueType, EdgeValueType> {
         shovelStreams = null;
 
         /**
-         *  Store the vertex intervals.
-         */
-        writeIntervals();
-
-        /**
          * Process each shovel to create a final shard.
          */
         for(int i=0; i<numShards; i++) {
@@ -337,6 +332,13 @@ public class FastSharder <VertexValueType, EdgeValueType> {
         if (vertexProcessor != null) {
             processVertexValues(useSparseDegrees);
         }
+
+
+        /**
+         *  Store the vertex intervals.
+         */
+        writeIntervals();
+
     }
 
 
@@ -782,6 +784,10 @@ public class FastSharder <VertexValueType, EdgeValueType> {
         String ln;
         long lineNum = 0;
 
+        /* Special debug mode */
+        boolean shuffledIds = "1".equals(System.getProperty("shuffleids"));
+        if (shuffledIds) logger.info("Going to shuffle IDs");
+
 
         if (!format.equals(GraphInputFormat.MATRIXMARKET)) {
             while ((ln = ins.readLine()) != null) {
@@ -796,7 +802,17 @@ public class FastSharder <VertexValueType, EdgeValueType> {
                         if (format == GraphInputFormat.EDGELIST) {
                         /* Edge list: <src> <dst> <value> */
                             if (tok.length == 2) {
-                                this.addEdge(Long.parseLong(tok[0]), Long.parseLong(tok[1]), null);
+                                if (!shuffledIds) {
+                                     this.addEdge(Long.parseLong(tok[0]), Long.parseLong(tok[1]), null);
+                                } else {
+                                    long from = Long.parseLong(tok[0]);
+                                    long to = Long.parseLong(tok[1]);
+
+                                    if (from > 4100000L) from = 9999999999L + from * 6789L ;
+                                    if (to > 4100000L) to = 9999999999L + to * 6789L;
+                                    this.addEdge(from, to, null);
+
+                                }
                             } else if (tok.length == 3) {
                                 this.addEdge(Long.parseLong(tok[0]), Long.parseLong(tok[1]), tok[2]);
                             }
@@ -937,7 +953,7 @@ public class FastSharder <VertexValueType, EdgeValueType> {
 
             for(int l=0; l<representedArray.length; l++) {
                 logger.info("RepArr: " + l + " : " + representedArray[l] +
-                        " = " + representedArray[l] * DEGCOUNT_SUBINTERVAL + " check: " + (representedArray[l] * DEGCOUNT_SUBINTERVAL - 4611686020927387903L));
+                        " = " + representedArray[l] * DEGCOUNT_SUBINTERVAL);
             }
 
             k = 0;
