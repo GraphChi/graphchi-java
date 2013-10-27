@@ -162,6 +162,11 @@ public class MemoryShard <EdgeDataType> {
                         } catch (IOException ioe) {
                             ioe.printStackTrace();
                             throw new RuntimeException(ioe);
+                        } catch (Exception err) {
+                            logger.info("Error when loading memory shard chunk " + _chunk);
+                            err.printStackTrace();
+                            throw new RuntimeException(err);
+
                         } finally {
                             countDown.decrementAndGet();
                             synchronized (waitLock) {
@@ -291,6 +296,7 @@ public class MemoryShard <EdgeDataType> {
             return;
         } catch (Exception e) {
             e.printStackTrace();
+            throw new RuntimeException(e);
         }
 
         if (adjInput instanceof InputStream) {

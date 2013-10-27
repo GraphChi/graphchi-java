@@ -659,6 +659,7 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
                     throw new RuntimeException(ioe);
                 }  catch (Exception err) {
                     err.printStackTrace();
+                    throw new RuntimeException(err);
                 }
             }
 
@@ -683,6 +684,7 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
                                     throw new RuntimeException(ioe);
                                 }  catch (Exception err) {
                                     err.printStackTrace();
+                                    throw new RuntimeException(err);
                                 }
                             }
                         });
