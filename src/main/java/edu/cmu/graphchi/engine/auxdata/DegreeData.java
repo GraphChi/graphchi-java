@@ -70,9 +70,9 @@ public class DegreeData {
      * @throws IOException
      */
     public void load(long _vertexSt, long _vertexEn) throws IOException {
-        if (sparse && !intervalContainsAny && _vertexSt < lastId && _vertexEn < lastId && _vertexSt >= lastQuery) {
+    /*    if (sparse && !intervalContainsAny && _vertexSt < lastId && _vertexEn < lastId && _vertexSt >= lastQuery) {
              return; // Nothing to do for sure
-        }
+        }*/
         hitEnd = false;
 
         long prevVertexEn = vertexEn;
