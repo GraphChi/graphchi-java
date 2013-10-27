@@ -444,8 +444,10 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
                 if (!disableInEdges) {
                     memoryShard.commitAndRelease(modifiesInedges, modifiesOutedges);
                     if (!disableOutEdges && !autoLoadNext) {
-                        slidingShards.get(execInterval).setOffset(memoryShard.getStreamingOffset(),
+                        if (memoryShard.isHasSetOffset()) {
+                             slidingShards.get(execInterval).setOffset(memoryShard.getStreamingOffset(),
                                 memoryShard.getStreamingOffsetVid(), memoryShard.getStreamingOffsetEdgePtr());
+                        }
                     }
                 }
             }

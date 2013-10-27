@@ -85,6 +85,7 @@ public class VertexData <VertexDataType> {
                 fos.close();
             }
         } else {
+
             /* Initializes sparse vertex data file given sparse degree file */
             if (!vertexfile.exists()) {
                 BufferedDataInputStream dis = new BufferedDataInputStream(new FileInputStream(sparseDegreeFile));

@@ -207,6 +207,7 @@ public class MemoryShard <EdgeDataType> {
         boolean containsRangeEnd = (vid < rangeEnd && viden > rangeEnd);
         boolean containsRangeSt = (vid <= rangeStart && viden >= rangeStart);
 
+
         DataInput adjInput = (compressedInput != null ? compressedInput : new DataInputStream(new ByteArrayInputStream(adjData)));
 
         adjInput.skipBytes(adjOffset);

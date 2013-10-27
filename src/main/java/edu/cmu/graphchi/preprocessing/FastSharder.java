@@ -277,11 +277,13 @@ public class FastSharder <VertexValueType, EdgeValueType> {
             outDegrees = new int[(int)maxVertexId + numShards];
         }
 
+        logger.info("Max vertex id: " + maxVertexId);
+
         /**
          * Now when we have the total number of vertices known, we can
          * construct the final translator.
          */
-        finalIdTranslate = new VertexIdTranslate((1 + maxVertexId) / numShards + 1, numShards);
+        finalIdTranslate = new VertexIdTranslate((1L + maxVertexId) / (long)numShards + 1L, numShards);
 
         /**
          * Store information on how to translate internal vertex id to the original id.
@@ -387,8 +389,15 @@ public class FastSharder <VertexValueType, EdgeValueType> {
      * @throws IOException
      */
     private void processVertexValues(boolean sparse) throws IOException {
+
+        /* Delete files */
+        File vDataFile = new File(ChiFilenames.getFilenameOfVertexData(baseFilename, vertexValueTypeBytesToValueConverter, sparse));
+        if (vDataFile.exists()) {
+            vDataFile.delete();
+        }
+
         DataBlockManager dataBlockManager = new DataBlockManager();
-        VertexData<VertexValueType> vertexData = new VertexData<VertexValueType>(maxVertexId + 1, baseFilename,
+        VertexData<VertexValueType> vertexData = new VertexData<VertexValueType>(maxVertexId + 1L, baseFilename,
                 vertexValueTypeBytesToValueConverter, sparse);
         vertexData.setBlockManager(dataBlockManager);
         for(int p=0; p < numShards; p++) {
@@ -997,8 +1006,14 @@ public class FastSharder <VertexValueType, EdgeValueType> {
                     /* Jump to next interval that has any vertices */
                     if (k <= representedArray.length - 1) {
                         subIntervalSt = representedArray[k] * DEGCOUNT_SUBINTERVAL;
+                        if (subIntervalSt < 0) {
+                            subIntervalSt = Long.MAX_VALUE; // Overflow;
+                        }
                         if (subIntervalSt < intervalEn) {
                             k++;
+                        }
+                        if (subIntervalSt < subIntervalEn) {
+                            subIntervalSt = subIntervalEn + 1;
                         }
                     } else {
                         subIntervalSt += DEGCOUNT_SUBINTERVAL;
