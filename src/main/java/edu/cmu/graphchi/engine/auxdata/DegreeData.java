@@ -7,6 +7,7 @@ import ucar.unidata.io.RandomAccessFile;
 import java.io.EOFException;
 import java.io.File;
 import java.io.IOException;
+import java.util.logging.Logger;
 /**
  * Copyright [2012] [Aapo Kyrola, Guy Blelloch, Carlos Guestrin / Carnegie Mellon University]
  *
@@ -43,6 +44,7 @@ public class DegreeData {
     private long lastQuery = 0, lastId = -1;
     private boolean intervalContainsAny = true;
     private boolean hitEnd;
+    private final static Logger logger = ChiLogger.getLogger("degree-data");
 
     public DegreeData(String baseFilename) throws IOException {
         File sparseFile = new File(ChiFilenames.getFilenameOfDegreeData(baseFilename, true));
@@ -87,11 +89,15 @@ public class DegreeData {
         degreeData = new byte[(int)dataSize];
         int len = 0;
 
+        logger.info("Load degree: " + vertexSt + " -- " + _vertexEn);
+
         // Little bit cmoplicated book keeping to avoid redundant reads
         if (prevVertexEn > _vertexSt && prevVertexSt <= _vertexSt) {
             // Copy previous
             len = (int) ((prevVertexEn - vertexSt + 1) * 8);
             System.arraycopy(prevData, prevData.length - len, degreeData, 0, len);
+            logger.info("Copied previous data: " + len + " , prevVertexEn:" + prevVertexEn);
+
         }
 
 
@@ -124,6 +130,7 @@ public class DegreeData {
             if (lastQuery > _vertexSt) {
                 lastId = -1;
                 degreeFile.seek(0);
+                logger.info("Rewind because lastQuery: " + lastQuery + " > " + _vertexSt);
             }
 
             try {
@@ -137,6 +144,7 @@ public class DegreeData {
                         intervalContainsAny = true;
                     } else if (vertexId > vertexEn){
                         lastId = vertexId; // Remember last one read
+                        logger.info("Finished scan, next one will be: " + lastId);
                         break;
                     }
                 }

@@ -906,6 +906,7 @@ public class FastSharder <VertexValueType, EdgeValueType> {
      */
     private void computeVertexDegrees() {
         long totalEdges = 0;
+        long emittedDegrees = 0;
 
         try {
             logger.info("Use sparse degrees: " + useSparseDegrees);
@@ -940,6 +941,7 @@ public class FastSharder <VertexValueType, EdgeValueType> {
             }
 
             k = 0;
+            long lastVertexId = -1;
 
             for(int p=0; p < numShards; p++) {
                 long intervalSt = p * finalIdTranslate.getVertexIntervalLength();
@@ -989,18 +991,22 @@ public class FastSharder <VertexValueType, EdgeValueType> {
                     for(int i=0; i < verts.length; i++) {
                         totalEdges += verts[i].numEdges();
 
-                        if (!useSparseDegrees) {
-                            degreeOut.writeInt(Integer.reverseBytes(verts[i].numInEdges()));
-                            degreeOut.writeInt(Integer.reverseBytes(verts[i].numOutEdges()));
-                        } else {
-
-                            if (verts[i].numEdges() > 0 ){
-                                degreeOut.writeLong(Long.reverseBytes(subIntervalSt + i));
+                        if ((subIntervalSt + (long)i) > lastVertexId) {
+                            if (!useSparseDegrees) {
                                 degreeOut.writeInt(Integer.reverseBytes(verts[i].numInEdges()));
                                 degreeOut.writeInt(Integer.reverseBytes(verts[i].numOutEdges()));
+                            } else {
 
+                                if (verts[i].numEdges() > 0 ){
+                                    degreeOut.writeLong(Long.reverseBytes(subIntervalSt + (long)i));
+                                    degreeOut.writeInt(Integer.reverseBytes(verts[i].numInEdges()));
+                                    degreeOut.writeInt(Integer.reverseBytes(verts[i].numOutEdges()));
+                                    emittedDegrees++;
+                                }
                             }
-
+                            lastVertexId = (subIntervalSt + (long)i);
+                        } else {
+                            logger.warning("Out-of-order degree computation: " + (subIntervalSt + (long)i) + "  <= " + lastVertexId);
                         }
                     }
                     /* Jump to next interval that has any vertices */
@@ -1032,10 +1038,17 @@ public class FastSharder <VertexValueType, EdgeValueType> {
             throw new RuntimeException(err);
         }
 
+        if (useSparseDegrees) {
+            logger.info("Emitted " + emittedDegrees + " unique vertices.");
+            long degreeFileSizeShouldBe = emittedDegrees * (8L + 4L + 4L);
+            File f = new File(ChiFilenames.getFilenameOfDegreeData(baseFilename, useSparseDegrees));
+            if (f.length() != degreeFileSizeShouldBe) {
+                throw new IllegalStateException("Degree file size incorrect: " + f.length() + " != " + degreeFileSizeShouldBe);
+            }
+        }
         if (shoveledEdges * 2 != totalEdges) {
             logger.warning("Mismatch in degree counting: shoveled " + shoveledEdges * 2 + " but counted  " + totalEdges);
             assert(shoveledEdges == totalEdges);
-
         }
     }
 
