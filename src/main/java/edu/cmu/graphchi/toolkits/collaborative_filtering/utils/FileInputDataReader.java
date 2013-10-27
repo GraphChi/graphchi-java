@@ -15,10 +15,37 @@ import org.codehaus.jackson.map.ObjectMapper;
 
 import edu.cmu.graphchi.io.MatrixMarketDataReader;
 
-public class FileInputData implements InputData {
+/**
+ * This class gives access to recommendation systems data persisted in a file and
+ * also in a specific format.
+ * All the data should live in at most 3 files
+ 	i. Ratings and Graph (edge) file: 
+	 	This file will be in Matrix market format with slight modification. 
+		Matrix Market file contains the first 3 columns. 
+		<from>    <to>    <value>   <sparse vector of edge features>". 
+		The additional 4th column here, "sparse vector" is a delimited string of format 
+		"<Feature Id>:<Feature Value>". For example, an edge feature could be some time related feature 
+		like day (Eg: "March 30, 2013" is a boolean feature) or a numerical feature like days after movie release 
+		(For example, reviews for the movie rated 5 days after movie release might be different than review 
+		after 500 days after movie release)
+
+	ii. User Feature File: 
+		This file contains all user features in the following format:
+		"<user id> <sparse vector of user features>". These sparse vector is similar to one described above, 
+		where the features can be boolean features like "Gender Male", "Age 10-20" or numerical features 
+		like "average rating by this user"
+
+	iii. Item Feature File: 
+	`	All item feature information in the similar format 
+		<user id> <sparse vector of user features>
+		 
+ * @author mayank
+ */
+
+public class FileInputDataReader implements InputDataReader {
 	
 	public static final String DELIM = "\t| ";
-	public static final String FEATURE_DELIM = "\t| ";
+	public static final String FEATURE_DELIM = ":";
 	
 	String ratingFile;
 	String userFile;
@@ -34,15 +61,15 @@ public class FileInputData implements InputData {
 	BufferedReader userBr = null;
 	BufferedReader itemBr = null;
 	
-	public FileInputData(DataSetDescription datasetDesc) {
+	public FileInputDataReader(DataSetDescription datasetDesc) {
 		this.metadata = datasetDesc;
 		
-		this.ratingFile = datasetDesc.getRatingsFile();
-		this.userFile = datasetDesc.getUserFeaturesFile();
-		this.itemFile = datasetDesc.getItemFeaturesFile();
+		this.ratingFile = datasetDesc.getRatingsUrl();
+		this.userFile = datasetDesc.getUserFeaturesUrl();
+		this.itemFile = datasetDesc.getItemFeaturesUrl();
 	}
 	
-	public FileInputData(String dataSetDescFile) {
+	public FileInputDataReader(String dataSetDescFile) {
 		DataSetDescription datasetDesc = new DataSetDescription();
 		datasetDesc.loadFromJsonFile(dataSetDescFile);
 	}
@@ -198,7 +225,7 @@ public class FileInputData implements InputData {
 		List<Feature> features = new ArrayList<Feature>();
 		for(String tok : tokens) {
 			int featureId = Integer.parseInt(tok.split(FEATURE_DELIM)[0]);
-			float featureVal = Float.parseFloat(tok.split(FEATURE_DELIM)[0]);
+			float featureVal = Float.parseFloat(tok.split(FEATURE_DELIM)[1]);
 			features.add(new Feature(featureId, featureVal));
 		}
 		return features;

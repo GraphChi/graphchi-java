@@ -4,7 +4,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-public interface InputData {
+public interface InputDataReader {
 
 	/**
 	 * Initializes the rating data from underlying data source. It is only valid to

@@ -5,11 +5,21 @@ import java.util.Map;
 
 import org.codehaus.jackson.map.ObjectMapper;
 
+/**
+ * This class encapsulates the description of recommendation system data. It contains
+ * certain metadata about the data like number of users, number of items, number of user
+ * features etc. and also contains the locations (urls) from which the data can be loaded.
+ * This class is used by any class of type InputDataReader to read in input data and represent
+ * it as required by the graphchi program.
+ * @author mayank
+ *
+ */
+
 public class DataSetDescription {
-	public static final String RATING_FILE_NAME = "ratingsFile";
-	public static final String USER_FEATURE_FILE = "userFeaturesFile";
-	public static final String ITEM_FEATURE_FILE = "itemFeaturesFile";
-	public static final String VALIDATION_RATING_FILE = "validation";
+	public static final String RATINGS_LOCATION = "ratingsUrl";
+	public static final String USER_FEATURE_LOCATION = "userFeaturesUrl";
+	public static final String ITEM_FEATURE_LOCATION = "itemFeaturesUrl";
+	public static final String VALIDATION_RATINGS_LOCATION = "validationUrl";
 	
 	public static final String NUM_USERS = "numUsers";
 	public static final String NUM_ITEMS = "numItems";
@@ -23,10 +33,10 @@ public class DataSetDescription {
 	public static final String MAX_VALUE = "maxval";
 	public static final String MIN_VALUE = "minval";
 
-	private String ratingsFile;
-	private String userFeaturesFile;
-	private String itemFeaturesFile;
-	private String validationFile;
+	private String ratingsUrl;
+	private String userFeaturesUrl;
+	private String itemFeaturesUrl;
+	private String validationUrl;
 	
 	private int numUsers = -1;
 	private int numItems = -1;
@@ -40,8 +50,13 @@ public class DataSetDescription {
 	private float maxval = 100;
 	private float minval= -100;
 	
+	
 	public DataSetDescription() {
 		
+	}
+	
+	public DataSetDescription(String fileName) {
+		loadFromJsonFile(fileName);
 	}
 	
 	public void loadFromJsonFile(String fileName) {
@@ -75,14 +90,14 @@ public class DataSetDescription {
 		if(map.get(NUM_RATING_FEATURES) != null && map.get(NUM_RATING_FEATURES).length() > 0) {
 			this.numRatingFeatures = Integer.parseInt(map.get(NUM_RATING_FEATURES));
 		} 
-		if(map.get(RATING_FILE_NAME) != null && map.get(RATING_FILE_NAME).length() > 0) {
-			this.ratingsFile = map.get(RATING_FILE_NAME);
+		if(map.get(RATINGS_LOCATION) != null && map.get(RATINGS_LOCATION).length() > 0) {
+			this.ratingsUrl = map.get(RATINGS_LOCATION);
 		}
-		if(map.get(USER_FEATURE_FILE) != null) {
-			this.userFeaturesFile = map.get(USER_FEATURE_FILE);
+		if(map.get(USER_FEATURE_LOCATION) != null) {
+			this.userFeaturesUrl = map.get(USER_FEATURE_LOCATION);
 		}
-		if(map.get(ITEM_FEATURE_FILE) != null) {
-			this.itemFeaturesFile = map.get(ITEM_FEATURE_FILE);
+		if(map.get(ITEM_FEATURE_LOCATION) != null) {
+			this.itemFeaturesUrl = map.get(ITEM_FEATURE_LOCATION);
 		}
 		if(map.get(MIN_VALUE) != null) {
 			this.minval = Float.parseFloat(map.get(MIN_VALUE));
@@ -166,20 +181,20 @@ public class DataSetDescription {
 		this.meanRating = meanRating;
 	}
 	
-	public String getRatingsFile() {
-		return ratingsFile;
+	public String getRatingsUrl() {
+		return ratingsUrl;
 	}
 	
-	public String getUserFeaturesFile() {
-		return userFeaturesFile;
+	public String getUserFeaturesUrl() {
+		return userFeaturesUrl;
 	}
 
-	public String getItemFeaturesFile() {
-		return itemFeaturesFile;
+	public String getItemFeaturesUrl() {
+		return itemFeaturesUrl;
 	}
 	
-	public String getValidationFile() {
-		return validationFile;
+	public String getValidationUrl() {
+		return validationUrl;
 	}
 
 	public int getNumUserFeatures() {

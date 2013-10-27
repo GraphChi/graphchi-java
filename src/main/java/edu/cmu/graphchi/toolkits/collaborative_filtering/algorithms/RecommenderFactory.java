@@ -1,7 +1,10 @@
 package edu.cmu.graphchi.toolkits.collaborative_filtering.algorithms;
 
 import java.io.File;
+import java.text.DateFormat;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.List;
 import java.util.Map;
 
@@ -10,10 +13,14 @@ import org.codehaus.jackson.map.type.TypeFactory;
 
 import edu.cmu.graphchi.GraphChiProgram;
 import edu.cmu.graphchi.toolkits.collaborative_filtering.utils.DataSetDescription;
+import edu.cmu.graphchi.toolkits.collaborative_filtering.utils.VertexDataCache;
 
 public class RecommenderFactory {
 	public static final String MODEL_NAME_KEY = "algorithm";
 	public static final String MODEL_ID_KEY = "id";
+	public static final String DEFAULT_MODEL_ID = "<DEFAULT>";
+	
+	private static final DateFormat DF = new SimpleDateFormat("MM/dd/yyyy_HH:mm:ss");
 	
 	public static final String REC_ALS = "ALS";
 	public static final String REC_SVDPP = "SVDPP";
@@ -25,20 +32,23 @@ public class RecommenderFactory {
 		// TODO Auto-generated constructor stub
 	}
 	
-	public static List<GraphChiProgram> buildRecommenders(DataSetDescription dataDesc, String modelDescJsonFile) {
+	public static List<GraphChiProgram> buildRecommenders(DataSetDescription dataDesc, 
+		String modelDescJsonFile, VertexDataCache vertexDataCache) {
 		
 		List<Map<String,  String>> modelDescMaps = getRecommederParamsFromJson(modelDescJsonFile);
 		
 		List<GraphChiProgram> recommenders = new ArrayList<GraphChiProgram>();
 		
 		for(Map<String, String> modelDescMap : modelDescMaps) {
+			String id = parseModelId(modelDescMap.get(MODEL_ID_KEY), modelDescMap.get(MODEL_NAME_KEY));
+			
 			if(modelDescMap.get(MODEL_NAME_KEY).equals(REC_ALS)) {
 				//Build an ALS recommender engine
-				ALSParams params = new ALSParams(modelDescMap.get(MODEL_ID_KEY), modelDescMap);
+				ALSParams params = new ALSParams(id, modelDescMap);
 				recommenders.add(new ALS(dataDesc, params));
 			} else if(modelDescMap.get(MODEL_NAME_KEY).equals(REC_SVDPP)) {
 				//Build a SVDPP recommender engine
-				SVDPPParams params = new SVDPPParams(modelDescMap.get(MODEL_ID_KEY), modelDescMap);
+				SVDPPParams params = new SVDPPParams(id, modelDescMap);
 				recommenders.add(new SVDPP(dataDesc, params));
 			} else if(modelDescMap.get(MODEL_NAME_KEY).equals(REC_PMF)) {
 				//Build PMF parameters.
@@ -46,8 +56,10 @@ public class RecommenderFactory {
 				recommenders.add(new PMF(dataDesc, params));*/
 			} else if(modelDescMap.get(MODEL_NAME_KEY).equals(REC_LIBFM_SGD)) {
 				//Build a LibFM_SGD recommender. 
-				LibFM_SGDParams params = new LibFM_SGDParams(modelDescMap.get(MODEL_ID_KEY), modelDescMap);
-				recommenders.add(new LibFM_SGD(dataDesc, params));
+				LibFM_SGDParams params = new LibFM_SGDParams(id, modelDescMap);
+				LibFM_SGD rec = new LibFM_SGD(dataDesc, params);
+				rec.vertexDataCache = vertexDataCache;
+				recommenders.add(rec);
 			} else {
 				//No model by the given name found.
 			}
@@ -80,6 +92,18 @@ public class RecommenderFactory {
 			System.exit(2);
 		}
 		return null;
+	}
+	
+	public static String parseModelId(String modelId, String algorithm) {
+		if(modelId == null || algorithm == null) {
+			return null;
+		} else if(modelId.length() == 0 || modelId.equals(DEFAULT_MODEL_ID)) {
+			return algorithm + "_" + DF.format(new Date());
+		} else {
+			return modelId;
+		}
+		
+		
 	}
 
 }

@@ -1,14 +1,14 @@
 {
-    "ratingsFile" : "",
-    "userFeaturesFile" : "",
-    "itemFeaturesFile" " "",
-    "numUsers":"",
-    "numItems":"",
-    "numRatings":"",
-    "meanRatings":"",
-    "numUserFeatures":"",
-    "numItemFeatures":"",
-    "numRatingFeatures":"",
-    "minval":""
-    "maxval":""
+    "ratingsUrl": "",
+    "userFeaturesUrl": "",
+    "itemFeaturesUrl": "",
+    "numUsers": "",
+    "numItems": "",
+    "numRatings": "",
+    "meanRatings": "",
+    "numUserFeatures": "",
+    "numItemFeatures": "",
+    "numRatingFeatures": "",
+    "minval": "",
+    "maxval": ""
 }

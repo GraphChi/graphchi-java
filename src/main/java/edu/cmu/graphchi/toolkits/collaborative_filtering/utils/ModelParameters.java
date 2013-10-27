@@ -2,6 +2,9 @@ package edu.cmu.graphchi.toolkits.collaborative_filtering.utils;
 
 import java.util.Map;
 
+import edu.cmu.graphchi.toolkits.collaborative_filtering.algorithms.RatingEdge;
+import gov.sandia.cognition.math.matrix.mtj.SparseVector;
+
 public abstract class ModelParameters {
 
 	protected String id;
@@ -16,4 +19,7 @@ public abstract class ModelParameters {
 	
 	abstract public void deserialize(String file);
 	
+	abstract public double predict(int userId, int itemId, 
+			SparseVector userFeatures, SparseVector itemFeatures, SparseVector edgeFeatures,
+			DataSetDescription datasetDesc);
 }

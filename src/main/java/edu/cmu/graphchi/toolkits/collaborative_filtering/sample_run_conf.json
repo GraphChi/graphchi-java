@@ -1,23 +1,31 @@
 [
     {
         "algorithm": "ALS",
-        "id": "<TIMESTAMP>",
+        "id": "<DEFAULT>",
         "reg": "0.065",
         "latentFactors": "10"
     },
     {
-        "algorithm": "ALS",
+        "algorithm": "SVDPP",
         "id": "<TIMESTAMP>",
-        "reg": "0.01",
-        "latentFactors": "16"
+        "latentFactors": "10",
+		"itemFactorStep": "0.001",
+		"itemFactorReg": "0.001",
+		"userFactorStep": "0.001",
+		"userFactorReg": "0.001",
+		"itemBiasStep": "0.001",
+		"itemBiasReg": "0.001",
+		"userBiasStep": "0.001",
+		"userBiasReg": "0.001",
+		"stepDec": "0.9"    
     },
     {
         "algorithm": "LibFM_SGD",
-        "id": "<TIMESTAMP>",
-        "lambda_0": "0.01",
-        "lambda_w": "0.01",
-        "lambda_v": "0.01",
-        "num_latent": "10",
+        "id": "<DEFAULT>",
+        "lambda_0": "0.065",
+        "lambda_w": "0.065",
+        "lambda_v": "0.065",
+        "num_latent_factors": "10",
         "eta": "0.01",
         "init_dev": "0.1"
     }

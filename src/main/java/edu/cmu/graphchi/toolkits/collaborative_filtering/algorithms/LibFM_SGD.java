@@ -24,7 +24,7 @@ import edu.cmu.graphchi.engine.VertexInterval;
 import edu.cmu.graphchi.preprocessing.EdgeProcessor;
 import edu.cmu.graphchi.preprocessing.FastSharder;
 import edu.cmu.graphchi.toolkits.collaborative_filtering.utils.DataSetDescription;
-import edu.cmu.graphchi.toolkits.collaborative_filtering.utils.FileInputData;
+import edu.cmu.graphchi.toolkits.collaborative_filtering.utils.FileInputDataReader;
 import edu.cmu.graphchi.toolkits.collaborative_filtering.utils.IO;
 import edu.cmu.graphchi.toolkits.collaborative_filtering.utils.ModelParameters;
 import edu.cmu.graphchi.toolkits.collaborative_filtering.utils.ProblemSetup;
@@ -141,6 +141,111 @@ class LibFM_SGDParams extends ModelParameters  {
 		// TODO Auto-generated method stub
 		
 	}
+
+	@Override
+	public double predict(int userId, int itemId, SparseVector userFeatures,
+			SparseVector itemFeatures, SparseVector edgeFeatures,
+			DataSetDescription datasetDesc) {
+		SparseVector row = createAllFeatureVec(userId, itemId, 
+				userFeatures, itemFeatures, datasetDesc);
+		return predict(row, datasetDesc);
+	}
+	
+	public double predict(SparseVector row, DataSetDescription datasetDesc) {
+		//y = w0 +
+		double estVal = this.w_0;
+		
+		double sumTwoWay = 0;
+		Iterator<VectorEntry> it = row.iterator();
+		while(it.hasNext()) {
+			VectorEntry vec = it.next();
+			int i = vec.getIndex();
+			double xi = vec.getValue();
+			double wi = this.w[i];
+			double[] vi = this.v[i];  
+			
+			// wi*xi +
+			estVal += wi*xi;
+			if(Double.isNaN(estVal)) {
+				System.out.println();
+			}
+			
+			Iterator<VectorEntry> it2 = row.iterator();
+			while(it2.hasNext()) {
+				vec = it2.next();
+				int j = vec.getIndex();
+				double xj = vec.getValue();
+				double[] vj = this.v[j];
+				double dotProd = 0;
+				for(int f = 0; f < this.D; f++) {
+					dotProd += vi[f]*vj[f];
+				}
+				
+				// <vi, vj>*xi*xj +
+				sumTwoWay += dotProd*xi*xj;
+				if(Double.isNaN(sumTwoWay)) {
+					System.out.println();
+				}
+			}
+		}
+		estVal = estVal + sumTwoWay/2;
+
+		estVal = Math.max(estVal, datasetDesc.getMinval());
+		estVal = Math.min(estVal, datasetDesc.getMaxval());
+
+		return estVal;
+	}
+	
+	public SparseVector createAllFeatureVec(int user, int item, SparseVector userFeatures, 
+			SparseVector itemFeatures, DataSetDescription datasetDesc) {
+		//Construct a row of the design matrix.
+		int numTotalFeatures = getEdgeFeaturesBase(datasetDesc) + datasetDesc.getNumRatingFeatures(); 
+		SparseVector allFeatures = (new SparseVectorFactoryMTJ()).createVector(numTotalFeatures);
+		
+		//Set feature representing an user.
+		allFeatures.setElement(user, 1);
+		//Set feature representing an item.
+		allFeatures.setElement(item, 1);
+		
+		//Set features representing user attributes.
+		Iterator<VectorEntry> it = userFeatures.iterator();
+		while(it.hasNext()) {
+			VectorEntry feature = it.next();
+			int featureIndex = getUserFeatureBase(datasetDesc) + feature.getIndex(); 
+			allFeatures.setElement(featureIndex, feature.getValue());
+		}
+		
+		//Set features representing item attributes.
+		it = itemFeatures.iterator();
+		while(it.hasNext()) {
+			VectorEntry feature = it.next();
+			int featureIndex = getItemFeatureBase(datasetDesc) + feature.getIndex();
+			allFeatures.setElement(featureIndex, feature.getValue());
+		}
+		
+		return allFeatures;
+	}
+	
+	private int getUserBase(DataSetDescription datasetDesc){
+		return 0;
+	}
+	
+	private int getItemBase(DataSetDescription datasetDesc) {
+		return getUserBase(datasetDesc) + datasetDesc.getNumUsers();
+	}
+	
+	private int getUserFeatureBase(DataSetDescription datasetDesc) {
+		return getItemBase(datasetDesc) + datasetDesc.getNumItems();
+	}
+	
+	private int getItemFeatureBase(DataSetDescription datasetDesc) {
+		return getUserFeatureBase(datasetDesc) + datasetDesc.getNumUserFeatures();
+	}
+	
+	private int getEdgeFeaturesBase(DataSetDescription datasetDesc) {
+		return getItemFeatureBase(datasetDesc) + datasetDesc.getNumItemFeatures();
+	}
+	
 }
 
 public class LibFM_SGD  implements GraphChiProgram<Integer, RatingEdge> {
@@ -158,80 +263,6 @@ public class LibFM_SGD  implements GraphChiProgram<Integer, RatingEdge> {
 	public LibFM_SGD(DataSetDescription dataDesc, ModelParameters par) {
 		this.params = (LibFM_SGDParams)par;
 		this.datasetDesc = dataDesc;
-	}
-	
-	public double predict(SparseVector row) {
-		//y = w0 +
-		double estVal = this.params.w_0;
-		
-		Iterator<VectorEntry> it = row.iterator();
-		while(it.hasNext()) {
-			VectorEntry vec = it.next();
-			int i = vec.getIndex();
-			double xi = vec.getValue();
-			double wi = this.params.w[i];
-			double[] vi = this.params.v[i];  
-			
-			// wi*xi +
-			estVal += wi*xi;
-			if(Double.isNaN(estVal)) {
-				//System.out.println();
-			}
-			
-			Iterator<VectorEntry> it2 = row.iterator();
-			while(it2.hasNext()) {
-				vec = it2.next();
-				int j = vec.getIndex();
-				double xj = vec.getValue();
-				double[] vj = this.params.v[j];
-				double dotProd = 0;
-				for(int f = 0; f < this.params.D; f++) {
-					dotProd += vi[f]*vj[f];
-				}
-				
-				// <vi, vj>*xi*xj +
-				estVal += dotProd*xi*xj;
-				if(Double.isNaN(estVal)) {
-					//System.out.println();
-				}
-			}
-		}
-		estVal = estVal/2;
-
-		estVal = Math.max(estVal, this.datasetDesc.getMinval());
-		estVal = Math.min(estVal, this.datasetDesc.getMaxval());
-
-		return estVal;
-	}
-
-	private SparseVector createAllFeatureVec(int user, int item, SparseVector userFeatures, 
-			SparseVector itemFeatures) {
-		//Construct a row of the design matrix.
-		int numTotalFeatures = getEdgeFeaturesBase() + datasetDesc.getNumRatingFeatures(); 
-		SparseVector allFeatures = (new SparseVectorFactoryMTJ()).createVector(numTotalFeatures);
-		
-		//Set feature representing an user.
-		allFeatures.setElement(user, 1);
-		//Set feature representing an item.
-		allFeatures.setElement(item, 1);
-		
-		//Set features representing user attributes.
-		Iterator<VectorEntry> it = userFeatures.iterator();
-		while(it.hasNext()) {
-			VectorEntry feature = it.next();
-			int featureIndex = getUserFeatureBase() + feature.getIndex(); 
-			allFeatures.setElement(featureIndex, feature.getValue());
-		}
-		
-		//Set features representing item attributes.
-		it = itemFeatures.iterator();
-		while(it.hasNext()) {
-			VectorEntry feature = it.next();
-			int featureIndex = getItemFeatureBase() + feature.getIndex();
-			allFeatures.setElement(featureIndex, feature.getValue());
-		}
-		
-		return allFeatures;
 	}
 	
 	@Override
@@ -252,11 +283,11 @@ public class LibFM_SGD  implements GraphChiProgram<Integer, RatingEdge> {
 				
 				RatingEdge edge = vertex.edge(e).getValue();
 
-				SparseVector allFeatures = createAllFeatureVec(user, item, 
-						userFeatures, itemFeatures);
+				SparseVector allFeatures = this.params.createAllFeatureVec(user, item, 
+						userFeatures, itemFeatures, this.datasetDesc);
 				
 				//TODO: Set features representing edge attributes (like time stamp)
-				double estVal = predict(allFeatures);
+				double estVal = this.params.predict(allFeatures, this.datasetDesc);
 				double err = edge.observation - estVal; 
 
 				//Compute sum vj,f * xj for this observations
@@ -317,7 +348,7 @@ public class LibFM_SGD  implements GraphChiProgram<Integer, RatingEdge> {
 				int numVertices = (int)(ctx.getNumVertices() + 1);
 				this.vertexDataCache = new VertexDataCache(numVertices, numFeatures);
 				try {
-					this.vertexDataCache.loadVertexDataCache(new FileInputData(this.datasetDesc));
+					this.vertexDataCache.loadVertexDataCache(new FileInputDataReader(this.datasetDesc));
 				} catch (Exception e) {
 					e.printStackTrace();
 				}
@@ -359,27 +390,6 @@ public class LibFM_SGD  implements GraphChiProgram<Integer, RatingEdge> {
 		
 	}
 	
-	private int getUserBase(){
-		return 0;
-	}
-	
-	private int getItemBase() {
-		return getUserBase() + this.datasetDesc.getNumUsers();
-	}
-	
-	private int getUserFeatureBase() {
-		return getItemBase() + this.datasetDesc.getNumItems();
-	}
-	
-	
-	private int getItemFeatureBase() {
-		return getUserFeatureBase() + this.datasetDesc.getNumUserFeatures();
-	}
-	
-	private int getEdgeFeaturesBase() {
-		return getItemFeatureBase() + this.datasetDesc.getNumItemFeatures();
-	}
-	
 	public static void main(String[] args) throws Exception {
 		
 		ProblemSetup problemSetup = new ProblemSetup(args);
@@ -387,11 +397,11 @@ public class LibFM_SGD  implements GraphChiProgram<Integer, RatingEdge> {
     	DataSetDescription dataDesc = new DataSetDescription();
     	dataDesc.loadFromJsonFile(problemSetup.dataMetadataFile);
 
-    	FastSharder<Integer, RatingEdge> sharder = AggregateRecommender.createSharder(dataDesc.getRatingsFile(), 
+    	FastSharder<Integer, RatingEdge> sharder = AggregateRecommender.createSharder(dataDesc.getRatingsUrl(), 
 				problemSetup.nShards, 0); 
-		IO.convertMatrixMarket(dataDesc.getRatingsFile(), problemSetup.nShards, sharder);
+		IO.convertMatrixMarket(dataDesc.getRatingsUrl(), problemSetup.nShards, sharder);
         
-		List<GraphChiProgram> algosToRun = RecommenderFactory.buildRecommenders(dataDesc, problemSetup.paramFile);
+		List<GraphChiProgram> algosToRun = RecommenderFactory.buildRecommenders(dataDesc, problemSetup.paramFile, null);
 
 		//Just run the first one. It should be ALS.
 		if(!(algosToRun.get(0) instanceof LibFM_SGD)) {
@@ -403,7 +413,7 @@ public class LibFM_SGD  implements GraphChiProgram<Integer, RatingEdge> {
 		
         // Run GraphChi 
         GraphChiEngine<Integer, RatingEdge> engine = new GraphChiEngine<Integer, RatingEdge>(
-        	dataDesc.getRatingsFile(), problemSetup.nShards);
+        	dataDesc.getRatingsUrl(), problemSetup.nShards);
         
         //TODO: Edge features.
         engine.setEdataConverter(new RatingEdgeConvertor(0));
@@ -412,7 +422,6 @@ public class LibFM_SGD  implements GraphChiProgram<Integer, RatingEdge> {
         engine.setModifiesInedges(false); // Important optimization
         engine.setModifiesOutedges(false); // Important optimization
         engine.run(libfm, 15);
-		
 	}
 
 }

@@ -17,6 +17,7 @@ import edu.cmu.graphchi.toolkits.collaborative_filtering.utils.IO;
 import edu.cmu.graphchi.toolkits.collaborative_filtering.utils.ModelParameters;
 import edu.cmu.graphchi.toolkits.collaborative_filtering.utils.ProblemSetup;
 import edu.cmu.graphchi.util.HugeDoubleMatrix;
+import gov.sandia.cognition.math.matrix.mtj.SparseVector;
 
 /**
  * SVD++ algorithm with Stochastic Gradient Descent.
@@ -44,7 +45,8 @@ class SVDPPParams extends ModelParameters {
 	
 	HugeDoubleMatrix latentFactors;	//latent factors for both users and items (numUsers+numItems) x D
 	double[] bias;					//Bias terms for both users and items. (numUsers+numItems) x 1
-	HugeDoubleMatrix itemWeights;	//weights of items. numItems x 1.
+	HugeDoubleMatrix weights;		//(numUsers+numItems) x D  For items, this contains weights.  
+									// For users it contains sum of weights of neighboring items.
 	
 	//meta parameters.
 	int D;	//Num features
@@ -100,9 +102,31 @@ class SVDPPParams extends ModelParameters {
 	
 	public void initParameterValues() {
 		this.latentFactors = new HugeDoubleMatrix(this.numUsers + this.numItems, D);
-		this.itemWeights = new HugeDoubleMatrix(this.numUsers + this.numItems, this.D, 0);
+		this.weights = new HugeDoubleMatrix(this.numUsers + this.numItems, this.D, 0);
 		this.latentFactors.randomize(0, 1);
 		this.bias = new double[this.numUsers + this.numItems];
+	}
+
+	@Override
+	public double predict(int userId, int itemId, SparseVector userFeatures,
+			SparseVector itemFeatures, SparseVector edgeFeatures,
+			DataSetDescription datasetDesc) {
+		// \hat(r_ui) = \mu +
+		double prediction = this.globalMean;
+		
+		// + b_u + b_i
+		prediction += this.bias[userId] + this.bias[itemId];
+		
+		// + q_i^T*(p_u + sum y_j/sqrt(|N(u)|))
+		for(int f = 0; f < this.D; f++) {
+			prediction += this.latentFactors.getValue(itemId, f)*(
+					this.latentFactors.getValue(userId, f) + this.weights.getValue(userId, f));
+		}
+		
+		prediction = Math.max(prediction, datasetDesc.getMinval());
+		prediction = Math.min(prediction, datasetDesc.getMaxval());
+		
+		return prediction;
 	}
 }
 
@@ -121,24 +145,6 @@ public class SVDPP implements GraphChiProgram<Integer, RatingEdge>{
 		
 		//metadataMap contains global information computed by sharder?
 		this.train_rmse = 0;
-	}
-	
-	private double predict(int user, int item, double observation, double[] sumWeight) {
-		// \hat(r_ui) = \mu +
-		double prediction = params.globalMean;
-		
-		// + b_u + b_i
-		prediction += params.bias[user] + params.bias[item];
-		
-		// + q_i^T*(p_u + sum y_j/sqrt(|N(u)|))
-		for(int f = 0; f < params.D; f++)
-			prediction += params.latentFactors.getValue(item, f)*(
-					params.latentFactors.getValue(user, f) + sumWeight[f]);
-		
-		prediction = Math.max(prediction, this.datasetDesc.getMinval());
-		prediction = Math.min(prediction, this.datasetDesc.getMaxval());
-		
-		return prediction;
 	}
 	
 	@Override
@@ -176,13 +182,15 @@ public class SVDPP implements GraphChiProgram<Integer, RatingEdge>{
 			double[] sumWeights = new double[params.D];
 			for(int i = 0; i < vertex.numOutEdges(); i++) {
 				double[] itemWeight = new double[params.D];
-				params.itemWeights.getRow(vertex.getOutEdgeId(i), itemWeight);
+				params.weights.getRow(vertex.getOutEdgeId(i), itemWeight);
 				for(int f = 0; f < params.D; f++)
 					sumWeights[f] += itemWeight[f];
 			}
 			
-			for(int f = 0; f < params.D; f++)
+			for(int f = 0; f < params.D; f++) {
 				sumWeights[f] *= usrNorm;
+				params.weights.setValue(user, f, sumWeights[f]);
+			}
 			
 	        // main algorithm, see Koren's paper, just below below equation (16)
 	        for(int e=0; e < vertex.numOutEdges(); e++) {
@@ -192,7 +200,10 @@ public class SVDPP implements GraphChiProgram<Integer, RatingEdge>{
 	        	params.latentFactors.getRow(item, itemFactors);
 	        	
 	        	float observation = vertex.getOutEdgeValue(e).observation;
-	        	double estScore = predict(user, item, observation, sumWeights);
+	        	
+	        	//TODO: Change this to use the predict method in ModelParameters.
+	        	double estScore = this.params.predict(user, item, null, null, null, this.datasetDesc);
+	        	//double estScore = predict(user, item, observation, sumWeights);
 	        	
 	        	 // e_ui = r_ui - \hat{r_ui}
 	        	double err = observation - estScore;
@@ -233,6 +244,8 @@ public class SVDPP implements GraphChiProgram<Integer, RatingEdge>{
 	        	//wherein, for each rating r_ui, the weights y_j are updated. However, the results
 	        	//are similar in training RMSE.
 	        	for(int f = 0; f < params.D; f++) {
+	        		//Persist the sum of weights and get ready for next iteration.
+	        		this.params.weights.setValue(user, f, sumWeights[f]);
 	    			sumWeights[f] = 0;
 	    		}
 	        	//For all neighbors of u
@@ -240,11 +253,11 @@ public class SVDPP implements GraphChiProgram<Integer, RatingEdge>{
 	        	for(int i = 0; i < vertex.numOutEdges(); i++) {
 	        		double[] nbrItemWt = new double[params.D];
 	        		int itemWtIndex = vertex.getOutEdgeId(i);
-		        	params.itemWeights.getRow(itemWtIndex, nbrItemWt);
+		        	params.weights.getRow(itemWtIndex, nbrItemWt);
 		        	for(int f = 0; f < params.D; f++) {
 		        		double tmp = params.itemFactorStep*(err*usrNorm*itemFactors[f] - params.itemFactorReg*nbrItemWt[f]);
 		        		nbrItemWt[f] = nbrItemWt[f] + tmp;
-		        		params.itemWeights.setValue(itemWtIndex, f, nbrItemWt[f]);
+		        		params.weights.setValue(itemWtIndex, f, nbrItemWt[f]);
 		        		
 		        		//For the next iteration
 		        		sumWeights[f] += nbrItemWt[f];
@@ -317,11 +330,11 @@ public class SVDPP implements GraphChiProgram<Integer, RatingEdge>{
     	DataSetDescription dataDesc = new DataSetDescription();
     	dataDesc.loadFromJsonFile(problemSetup.dataMetadataFile);
 
-    	FastSharder<Integer, RatingEdge> sharder = AggregateRecommender.createSharder(dataDesc.getRatingsFile(), 
+    	FastSharder<Integer, RatingEdge> sharder = AggregateRecommender.createSharder(dataDesc.getRatingsUrl(), 
 				problemSetup.nShards, 0); 
-		IO.convertMatrixMarket(dataDesc.getRatingsFile(), problemSetup.nShards, sharder);
+		IO.convertMatrixMarket(dataDesc.getRatingsUrl(), problemSetup.nShards, sharder);
         
-		List<GraphChiProgram> algosToRun = RecommenderFactory.buildRecommenders(dataDesc, problemSetup.paramFile);
+		List<GraphChiProgram> algosToRun = RecommenderFactory.buildRecommenders(dataDesc, problemSetup.paramFile, null);
 
 		//Just run the first one. It should be ALS.
 		if(!(algosToRun.get(0) instanceof SVDPP)) {
@@ -332,7 +345,7 @@ public class SVDPP implements GraphChiProgram<Integer, RatingEdge>{
 		GraphChiProgram<Integer, RatingEdge> svdpp = algosToRun.get(0);
         
 		/* Run GraphChi */
-        GraphChiEngine<Integer, RatingEdge> engine = new GraphChiEngine<Integer, RatingEdge>(dataDesc.getRatingsFile(), problemSetup.nShards);
+        GraphChiEngine<Integer, RatingEdge> engine = new GraphChiEngine<Integer, RatingEdge>(dataDesc.getRatingsUrl(), problemSetup.nShards);
 		
         engine.setEdataConverter(new RatingEdgeConvertor(0));
         engine.setEnableDeterministicExecution(false);

@@ -23,6 +23,7 @@ import edu.cmu.graphchi.toolkits.collaborative_filtering.utils.IO;
 import edu.cmu.graphchi.toolkits.collaborative_filtering.utils.ModelParameters;
 import edu.cmu.graphchi.toolkits.collaborative_filtering.utils.ProblemSetup;
 import edu.cmu.graphchi.util.HugeDoubleMatrix;
+import gov.sandia.cognition.math.matrix.mtj.SparseVector;
 
 /**
  * Matrix factorization with the Alternative Least Squares (ALS) algorithm.
@@ -41,14 +42,6 @@ import edu.cmu.graphchi.util.HugeDoubleMatrix;
  * Each edge stores a "rating" and the purpose of this algorithm is to
  * find a matrix factorization U x V so that U x V approximates the rating
  * matrix R.
- *
- * This application reads Matrix Market format (similar to the C++ version)
- * and outputs the latent factors in two files in the matrix market format.
- * To test, you can download small-netflix data from here:
- * http://select.cs.cmu.edu/code/graphlab/smallnetflix_mme
- *
- * <i>Note:</i>  in this case the vertex values are not used, but as GraphChi does
- * not currently support "no-vertex-values", integer-type is used as placeholder.
  *
  * @author Aapo Kyrola, akyrola@cs.cmu.edu, 2013
  * @author Modifications by Danny Bickson, CMU, 2013
@@ -105,7 +98,18 @@ class ALSParams extends ModelParameters {
 		// TODO Auto-generated method stub
 		
 	}
-	
+
+	@Override
+	public double predict(int userId, int itemId, SparseVector userFeatures,
+			SparseVector itemFeatures, SparseVector edgeFetures, DataSetDescription datasetDesc) {
+		RealVector userFactors = this.latentFactors.getRowAsVector(userId);
+		RealVector itemFactors = this.latentFactors.getRowAsVector(itemId);
+		
+		double prediction = userFactors.dotProduct(itemFactors);
+    	prediction = Math.min(prediction, datasetDesc.getMaxval());
+    	prediction = Math.max(prediction, datasetDesc.getMinval());
+    	return prediction;
+	}
 }
 
 public class ALS implements GraphChiProgram<Integer, RatingEdge>{
@@ -120,12 +124,6 @@ public class ALS implements GraphChiProgram<Integer, RatingEdge>{
     	this.params = (ALSParams)params;
     }
 
-    public double predict(RealVector user, RealVector item){
-    	double prediction = user.dotProduct(item);
-    	prediction = Math.min(prediction, this.dataMetadata.getMaxval() );
-    	prediction = Math.max(prediction, this.dataMetadata.getMinval());
-    	return prediction;
-    }
     
     @Override
     public void update(ChiVertex<Integer, RatingEdge> vertex, GraphChiContext context) {
@@ -161,7 +159,7 @@ public class ALS implements GraphChiProgram<Integer, RatingEdge>{
                 }
                 
                 if (is_user){
-                  double prediction = predict(neighbor, new ArrayRealVector(latent_factor));
+                  double prediction = this.params.predict(vertexId, nbrId, null, null, null, this.dataMetadata);
                   squaredError += Math.pow(prediction - observation,2);
                 }
             }
@@ -235,11 +233,12 @@ public class ALS implements GraphChiProgram<Integer, RatingEdge>{
     	DataSetDescription dataDesc = new DataSetDescription();
     	dataDesc.loadFromJsonFile(problemSetup.dataMetadataFile);
 
-    	FastSharder<Integer, RatingEdge> sharder = AggregateRecommender.createSharder(dataDesc.getRatingsFile(), 
+    	FastSharder<Integer, RatingEdge> sharder = AggregateRecommender.createSharder(dataDesc.getRatingsUrl(), 
 				problemSetup.nShards, 0); 
-		IO.convertMatrixMarket(dataDesc.getRatingsFile(), problemSetup.nShards, sharder);
+		IO.convertMatrixMarket(dataDesc.getRatingsUrl(), problemSetup.nShards, sharder);
         
-		List<GraphChiProgram> algosToRun = RecommenderFactory.buildRecommenders(dataDesc, problemSetup.paramFile);
+		List<GraphChiProgram> algosToRun = RecommenderFactory.buildRecommenders(dataDesc, 
+				problemSetup.paramFile, null);
 
 		//Just run the first one. It should be ALS.
 		if(!(algosToRun.get(0) instanceof ALS)) {
@@ -250,7 +249,7 @@ public class ALS implements GraphChiProgram<Integer, RatingEdge>{
 		GraphChiProgram<Integer, RatingEdge> als = algosToRun.get(0);
 		
         /* Run GraphChi */
-        GraphChiEngine<Integer, RatingEdge> engine = new GraphChiEngine<Integer, RatingEdge>(dataDesc.getRatingsFile(), problemSetup.nShards);
+        GraphChiEngine<Integer, RatingEdge> engine = new GraphChiEngine<Integer, RatingEdge>(dataDesc.getRatingsUrl(), problemSetup.nShards);
         
         engine.setEdataConverter(new RatingEdgeConvertor(0));
         engine.setEnableDeterministicExecution(false);

@@ -11,7 +11,7 @@ import edu.cmu.graphchi.engine.auxdata.VertexData;
 import edu.cmu.graphchi.io.MatrixMarketDataReader;
 import edu.cmu.graphchi.shards.MemoryShard;
 import edu.cmu.graphchi.shards.SlidingShard;
-import edu.cmu.graphchi.toolkits.collaborative_filtering.utils.FileInputData;
+import edu.cmu.graphchi.toolkits.collaborative_filtering.utils.FileInputDataReader;
 import nom.tam.util.BufferedDataInputStream;
 
 import java.io.*;

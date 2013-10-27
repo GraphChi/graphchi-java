@@ -1,15 +1,12 @@
 package edu.cmu.graphchi.toolkits.collaborative_filtering.utils;
 
-import java.text.DateFormat;
-import java.text.SimpleDateFormat;
-import java.util.Date;
 import java.util.logging.Level;
 
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.CommandLineParser;
+import org.apache.commons.cli.GnuParser;
 import org.apache.commons.cli.HelpFormatter;
 import org.apache.commons.cli.Options;
-import org.apache.commons.cli.GnuParser;
 
 import edu.cmu.graphchi.ChiLogger;
 
@@ -26,9 +23,6 @@ import edu.cmu.graphchi.ChiLogger;
 
 public class ProblemSetup {
 	
-		private static final DateFormat DF = new SimpleDateFormat("MM/dd/yyyy_HH:mm:ss");
-
-        
         public int nShards;						//Number of shards to run with GraphChi
         public int quiet;							//Debug information?
         public String dataMetadataFile;
@@ -77,13 +71,4 @@ public class ProblemSetup {
     		    ChiLogger.getLogger("memoryshard").setLevel(Level.SEVERE);
     		}
         }
-
-		public String getRunId(String algo, String runId) {
-			if(runId == null) {
-				return algo + "_" + DF.format(new Date());
-			} else {
-				return runId;
-			}
-		}
-      
 }

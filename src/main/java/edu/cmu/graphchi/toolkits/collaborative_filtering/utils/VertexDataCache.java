@@ -22,7 +22,7 @@ public class VertexDataCache {
 		return this.vertexFeatures.getRow(vertexId);
 	}
 	
-	public void loadVertexDataCache(InputData data) throws Exception {
+	public void loadVertexDataCache(InputDataReader data) throws Exception {
 		data.initUserData();
 		while(data.nextUser()) {
 			int userId = data.getNextUser();
@@ -35,11 +35,11 @@ public class VertexDataCache {
 		
 		data.initItemData();
 		while(data.nextItem()) {
-			int userId = data.getDataSetDescription().getNumUsers() + data.getNextItem();
+			int itemId = data.getNextItem();
 			List<Feature> features = data.getNextItemFeatures();
 			
 			for(Feature f : features) {
-				this.vertexFeatures.setElement(userId, f.featureId , f.featureVal);
+				this.vertexFeatures.setElement(itemId, f.featureId , f.featureVal);
 			}
 		}
 		
