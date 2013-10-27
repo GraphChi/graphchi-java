@@ -13,23 +13,23 @@ import edu.cmu.graphchi.preprocessing.FastSharder;
 
 public class IO {
 
-	public static void convertMatrixMarket(ProblemSetup problemSetup) throws IOException{
+	public static void convertMatrixMarket(String trainingFile, int nshards) throws IOException{
 		  /* Run sharding (preprocessing) if the files do not exist yet */
-        FastSharder sharder = createSharder(problemSetup.training, problemSetup.nShards);
-        if (!new File(ChiFilenames.getFilenameIntervals(problemSetup.training, problemSetup.nShards)).exists() ||
-                !new File(problemSetup.training + ".matrixinfo").exists()) {
-            sharder.shard(new FileInputStream(new File(problemSetup.training)), FastSharder.GraphInputFormat.MATRIXMARKET);
+        FastSharder sharder = createSharder(trainingFile, nshards);
+        if (!new File(ChiFilenames.getFilenameIntervals(trainingFile, nshards)).exists() ||
+                !new File(trainingFile + ".matrixinfo").exists()) {
+            sharder.shard(new FileInputStream(new File(trainingFile)), FastSharder.GraphInputFormat.MATRIXMARKET);
         } else {
             //problemSetup.logger.info("Found shards -- no need to preprocess");
         }
 	}
 	
-	public static void convertMatrixMarket(ProblemSetup problemSetup, FastSharder sharder) 
+	public static void convertMatrixMarket(String trainingFile, int nshards, FastSharder sharder) 
 			throws IOException{
 		  /* Run sharding (preprocessing) if the files do not exist yet */
-      if (!new File(ChiFilenames.getFilenameIntervals(problemSetup.training, problemSetup.nShards)).exists() ||
-              !new File(problemSetup.training + ".matrixinfo").exists()) {
-          sharder.shard(new FileInputStream(new File(problemSetup.training)), FastSharder.GraphInputFormat.MATRIXMARKET);
+      if (!new File(ChiFilenames.getFilenameIntervals(trainingFile, nshards)).exists() ||
+              !new File(trainingFile + ".matrixinfo").exists()) {
+          sharder.shard(new FileInputStream(new File(trainingFile)), FastSharder.GraphInputFormat.MATRIXMARKET);
       } else {
           //problemSetup.logger.info("Found shards -- no need to preprocess");
       }
@@ -49,22 +49,5 @@ public class IO {
             }
         }, new IntConverter(), new FloatConverter());
     }
-
-    static class GlobalMeanEdgeProcessor implements EdgeProcessor<Float> {
-    	private long globalSum;
-    	private long count;
-		@Override
-		public Float receiveEdge(int from, int to, String token) {
-			float edgeVal = (token == null ? 0.0f : Float.parseFloat(token));
-			globalSum += edgeVal;
-			count++;
-			return edgeVal;
-		}
-    	
-		public double getGlobalMean() {
-			return ((double) globalSum)/count;
-		}
-    }
-    
     
 }

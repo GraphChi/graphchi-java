@@ -1,5 +1,7 @@
 package edu.cmu.graphchi.toolkits.collaborative_filtering.algorithms;
 
+import java.util.List;
+import java.util.Map;
 import java.util.logging.Logger;
 
 import edu.cmu.graphchi.ChiLogger;
@@ -9,10 +11,13 @@ import edu.cmu.graphchi.GraphChiProgram;
 import edu.cmu.graphchi.datablocks.FloatConverter;
 import edu.cmu.graphchi.engine.GraphChiEngine;
 import edu.cmu.graphchi.engine.VertexInterval;
+import edu.cmu.graphchi.preprocessing.FastSharder;
+import edu.cmu.graphchi.toolkits.collaborative_filtering.utils.DataSetDescription;
 import edu.cmu.graphchi.toolkits.collaborative_filtering.utils.IO;
 import edu.cmu.graphchi.toolkits.collaborative_filtering.utils.ModelParameters;
 import edu.cmu.graphchi.toolkits.collaborative_filtering.utils.ProblemSetup;
 import edu.cmu.graphchi.util.HugeDoubleMatrix;
+import gov.sandia.cognition.math.matrix.mtj.SparseVector;
 
 /**
  * SVD++ algorithm with Stochastic Gradient Descent.
@@ -40,7 +45,8 @@ class SVDPPParams extends ModelParameters {
 	
 	HugeDoubleMatrix latentFactors;	//latent factors for both users and items (numUsers+numItems) x D
 	double[] bias;					//Bias terms for both users and items. (numUsers+numItems) x 1
-	HugeDoubleMatrix itemWeights;	//weights of items. numItems x 1.
+	HugeDoubleMatrix weights;		//(numUsers+numItems) x D  For items, this contains weights.  
+									// For users it contains sum of weights of neighboring items.
 	
 	//meta parameters.
 	int D;	//Num features
@@ -56,11 +62,11 @@ class SVDPPParams extends ModelParameters {
 	double userBiasStep;	//gamma1
 	double stepDec; 		//Amount by which step size should be reduced.
 	
-	public SVDPPParams(String id, String json) {
-		super(id, json);
+	public SVDPPParams(String id, Map<String, String> paramsMap) {
+		super(id, paramsMap);
 		setDefaults();
 		
-		parseParameters(json);
+		parseParameters();
 	}
 	
 	private void setDefaults() {
@@ -79,7 +85,7 @@ class SVDPPParams extends ModelParameters {
 		this.stepDec = 0.9;
 	}
 	
-	public void parseParameters(String json) {
+	public void parseParameters() {
 		//TODO: Parse parameters from the json string and set the values
 	}
 
@@ -96,55 +102,60 @@ class SVDPPParams extends ModelParameters {
 	
 	public void initParameterValues() {
 		this.latentFactors = new HugeDoubleMatrix(this.numUsers + this.numItems, D);
-		this.itemWeights = new HugeDoubleMatrix(this.numUsers + this.numItems, this.D, 0);
+		this.weights = new HugeDoubleMatrix(this.numUsers + this.numItems, this.D, 0);
 		this.latentFactors.randomize(0, 1);
 		this.bias = new double[this.numUsers + this.numItems];
 	}
+
+	@Override
+	public double predict(int userId, int itemId, SparseVector userFeatures,
+			SparseVector itemFeatures, SparseVector edgeFeatures,
+			DataSetDescription datasetDesc) {
+		// \hat(r_ui) = \mu +
+		double prediction = this.globalMean;
+		
+		// + b_u + b_i
+		prediction += this.bias[userId] + this.bias[itemId];
+		
+		// + q_i^T*(p_u + sum y_j/sqrt(|N(u)|))
+		for(int f = 0; f < this.D; f++) {
+			prediction += this.latentFactors.getValue(itemId, f)*(
+					this.latentFactors.getValue(userId, f) + this.weights.getValue(userId, f));
+		}
+		
+		prediction = Math.max(prediction, datasetDesc.getMinval());
+		prediction = Math.min(prediction, datasetDesc.getMaxval());
+		
+		return prediction;
+	}
 }
 
-public class SVDPP implements GraphChiProgram<Integer, Float>{
-	private SVDPPParams params;
-	private ProblemSetup setup;
+public class SVDPP implements GraphChiProgram<Integer, RatingEdge>{
+	SVDPPParams params;
+	DataSetDescription datasetDesc;
+	
 	protected Logger logger = ChiLogger.getLogger("SVDPP");
 	
 	private double train_rmse;
 	
-	public SVDPP(ModelParameters parameters, ProblemSetup setup) {
+	public SVDPP(DataSetDescription datasetDesc, ModelParameters parameters) {
 		//Initialize the model parameters
 		this.params = (SVDPPParams)parameters;
-		this.setup = setup;
+		this.datasetDesc = datasetDesc;
 		
 		//metadataMap contains global information computed by sharder?
 		this.train_rmse = 0;
 	}
 	
-	private double predict(int user, int item, double observation, double[] sumWeight) {
-		// \hat(r_ui) = \mu +
-		double prediction = params.globalMean;
-		
-		// + b_u + b_i
-		prediction += params.bias[user] + params.bias[item];
-		
-		// + q_i^T*(p_u + sum y_j/sqrt(|N(u)|))
-		for(int f = 0; f < params.D; f++)
-			prediction += params.latentFactors.getValue(item, f)*(
-					params.latentFactors.getValue(user, f) + sumWeight[f]);
-		
-		prediction = Math.max(prediction, setup.minval);
-		prediction = Math.min(prediction, setup.maxval);
-		
-		return prediction;
-	}
-	
 	@Override
-	public void update(ChiVertex<Integer, Float> vertex, GraphChiContext context) {
+	public void update(ChiVertex<Integer, RatingEdge> vertex, GraphChiContext context) {
 		//On first iteration just compute the globalMean, number of users and number of items.
 		//TODO: Is computing these values here the right thing to do?
 		if(context.getIteration() == 0) {
 			if(vertex.numOutEdges() > 0) {
 				double sum = 0;
 				for(int e = 0; e < vertex.numOutEdges(); e++) 
-					sum +=  vertex.getOutEdgeValue(e);
+					sum +=  vertex.getOutEdgeValue(e).observation;
 
 				synchronized (params) {
 					params.numUsers++;
@@ -171,13 +182,15 @@ public class SVDPP implements GraphChiProgram<Integer, Float>{
 			double[] sumWeights = new double[params.D];
 			for(int i = 0; i < vertex.numOutEdges(); i++) {
 				double[] itemWeight = new double[params.D];
-				params.itemWeights.getRow(vertex.getOutEdgeId(i), itemWeight);
+				params.weights.getRow(vertex.getOutEdgeId(i), itemWeight);
 				for(int f = 0; f < params.D; f++)
 					sumWeights[f] += itemWeight[f];
 			}
 			
-			for(int f = 0; f < params.D; f++)
+			for(int f = 0; f < params.D; f++) {
 				sumWeights[f] *= usrNorm;
+				params.weights.setValue(user, f, sumWeights[f]);
+			}
 			
 	        // main algorithm, see Koren's paper, just below below equation (16)
 	        for(int e=0; e < vertex.numOutEdges(); e++) {
@@ -186,8 +199,11 @@ public class SVDPP implements GraphChiProgram<Integer, Float>{
 	        	double[] itemFactors = new double[params.D];
 	        	params.latentFactors.getRow(item, itemFactors);
 	        	
-	        	float observation = vertex.getOutEdgeValue(e);
-	        	double estScore = predict(user, item, observation, sumWeights);
+	        	float observation = vertex.getOutEdgeValue(e).observation;
+	        	
+	        	//TODO: Change this to use the predict method in ModelParameters.
+	        	double estScore = this.params.predict(user, item, null, null, null, this.datasetDesc);
+	        	//double estScore = predict(user, item, observation, sumWeights);
 	        	
 	        	 // e_ui = r_ui - \hat{r_ui}
 	        	double err = observation - estScore;
@@ -228,6 +244,8 @@ public class SVDPP implements GraphChiProgram<Integer, Float>{
 	        	//wherein, for each rating r_ui, the weights y_j are updated. However, the results
 	        	//are similar in training RMSE.
 	        	for(int f = 0; f < params.D; f++) {
+	        		//Persist the sum of weights and get ready for next iteration.
+	        		this.params.weights.setValue(user, f, sumWeights[f]);
 	    			sumWeights[f] = 0;
 	    		}
 	        	//For all neighbors of u
@@ -235,11 +253,11 @@ public class SVDPP implements GraphChiProgram<Integer, Float>{
 	        	for(int i = 0; i < vertex.numOutEdges(); i++) {
 	        		double[] nbrItemWt = new double[params.D];
 	        		int itemWtIndex = vertex.getOutEdgeId(i);
-		        	params.itemWeights.getRow(itemWtIndex, nbrItemWt);
+		        	params.weights.getRow(itemWtIndex, nbrItemWt);
 		        	for(int f = 0; f < params.D; f++) {
 		        		double tmp = params.itemFactorStep*(err*usrNorm*itemFactors[f] - params.itemFactorReg*nbrItemWt[f]);
 		        		nbrItemWt[f] = nbrItemWt[f] + tmp;
-		        		params.itemWeights.setValue(itemWtIndex, f, nbrItemWt[f]);
+		        		params.weights.setValue(itemWtIndex, f, nbrItemWt[f]);
 		        		
 		        		//For the next iteration
 		        		sumWeights[f] += nbrItemWt[f];
@@ -307,25 +325,34 @@ public class SVDPP implements GraphChiProgram<Integer, Float>{
      * @throws Exception
      */
     public static void main(String[] args) throws Exception {
-
     	ProblemSetup problemSetup = new ProblemSetup(args);
+    	
+    	DataSetDescription dataDesc = new DataSetDescription();
+    	dataDesc.loadFromJsonFile(problemSetup.dataMetadataFile);
 
-        IO.convertMatrixMarket(problemSetup);
+    	FastSharder<Integer, RatingEdge> sharder = AggregateRecommender.createSharder(dataDesc.getRatingsUrl(), 
+				problemSetup.nShards, 0); 
+		IO.convertMatrixMarket(dataDesc.getRatingsUrl(), problemSetup.nShards, sharder);
         
-        SVDPPParams params = new SVDPPParams(problemSetup.getRunId("SVDPP"), problemSetup.paramJson);
-        SVDPP svdpp = new SVDPP(params, problemSetup);
+		List<GraphChiProgram> algosToRun = RecommenderFactory.buildRecommenders(dataDesc, problemSetup.paramFile, null);
+
+		//Just run the first one. It should be ALS.
+		if(!(algosToRun.get(0) instanceof SVDPP)) {
+			System.out.println("Please check the parameters file. The first algo listed is not of type SVDPP");
+			System.exit(2);
+		}
+		
+		GraphChiProgram<Integer, RatingEdge> svdpp = algosToRun.get(0);
         
-        // Run GraphChi 
-        GraphChiEngine<Integer, Float> engine = new GraphChiEngine<Integer, Float>(problemSetup.training, problemSetup.nShards);
-        
-        engine.setEdataConverter(new FloatConverter());
+		/* Run GraphChi */
+        GraphChiEngine<Integer, RatingEdge> engine = new GraphChiEngine<Integer, RatingEdge>(dataDesc.getRatingsUrl(), problemSetup.nShards);
+		
+        engine.setEdataConverter(new RatingEdgeConvertor(0));
         engine.setEnableDeterministicExecution(false);
         engine.setVertexDataConverter(null);  // We do not access vertex values.
         engine.setModifiesInedges(false); // Important optimization
         engine.setModifiesOutedges(false); // Important optimization
         engine.run(svdpp, 15);
-       
-        params.serialize(problemSetup.outputLoc);
     }
 
 }

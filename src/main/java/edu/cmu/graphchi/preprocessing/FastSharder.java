@@ -8,8 +8,10 @@ import edu.cmu.graphchi.datablocks.ChiPointer;
 import edu.cmu.graphchi.datablocks.DataBlockManager;
 import edu.cmu.graphchi.datablocks.IntConverter;
 import edu.cmu.graphchi.engine.auxdata.VertexData;
+import edu.cmu.graphchi.io.MatrixMarketDataReader;
 import edu.cmu.graphchi.shards.MemoryShard;
 import edu.cmu.graphchi.shards.SlidingShard;
+import edu.cmu.graphchi.toolkits.collaborative_filtering.utils.FileInputDataReader;
 import nom.tam.util.BufferedDataInputStream;
 
 import java.io.*;
@@ -729,44 +731,13 @@ public class FastSharder <VertexValueType, EdgeValueType> {
             }
         } else if (format.equals(GraphInputFormat.MATRIXMARKET)) {
             /* Process matrix-market format to create a bipartite graph. */
-            boolean parsedMatrixSize = false;
-            int numLeft = 0;
-            int numRight = 0;
-            long totalEdges = 0;
-            while ((ln = ins.readLine()) != null) {
-                lineNum++;
-                if (ln.length() > 2 && !ln.startsWith("#")) {
-                    if (ln.startsWith("%%")) {
-                        if (!ln.contains(("matrix coordinate real general"))) {
-                            throw new RuntimeException("Unknown matrix market format!");
-                        }
-                    } else if (ln.startsWith("%")) {
-                        // Comment - skip
-                    } else {
-                        String[] tok = ln.split(" ");
-                        if (lineNum % 2000000 == 0) logger.info("Reading line: " + lineNum + " / " + totalEdges);
-                        if (!parsedMatrixSize) {
-                            numLeft = Integer.parseInt(tok[0]);
-                            numRight = Integer.parseInt(tok[1]);
-                            totalEdges = Long.parseLong(tok[2]);
-                            logger.info("Matrix-market: going to load total of " + totalEdges + " edges.");
-                            parsedMatrixSize = true;
-                        } else {
-                            /* The ids start from 1, so we take 1 off. */
-                            /* Vertex - ids on the right side of the bipartite graph have id numLeft + originalId */
-                            try {
-                                String lastTok = tok[tok.length - 1];
-                                this.addEdge(Integer.parseInt(tok[0]) - 1, numLeft + Integer.parseInt(tok[1]), lastTok);
-                            } catch (NumberFormatException nfe) {
-                                logger.severe("Could not parse line: " + ln);
-                                throw nfe;
-                            }
-                        }
-                    }
-                }
+        	MatrixMarketDataReader in = new MatrixMarketDataReader(inputStream);
+        	in.init();
+            while (in.next()) {
+                this.addEdge(in.getCurrSource(), in.getCurrDestination(), in.getCurrEdgeVal());
             }
-            this.metadataMap.put("numLeft", numLeft + "");
-            this.metadataMap.put("numRight", numRight + "");
+            this.metadataMap.put("numLeft", in.numLeft + "");
+            this.metadataMap.put("numRight", in.numRight + "");
         }
 
         this.process();

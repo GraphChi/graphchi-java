@@ -6,9 +6,12 @@ import java.io.FileReader;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
 import java.util.logging.Logger;
 
 import org.apache.commons.math3.distribution.NormalDistribution;
+import org.apache.hadoop.hdfs.server.namenode.DatanodeDescriptor;
 
 import edu.cmu.graphchi.ChiLogger;
 import edu.cmu.graphchi.ChiVertex;
@@ -20,9 +23,12 @@ import edu.cmu.graphchi.engine.GraphChiEngine;
 import edu.cmu.graphchi.engine.VertexInterval;
 import edu.cmu.graphchi.preprocessing.EdgeProcessor;
 import edu.cmu.graphchi.preprocessing.FastSharder;
+import edu.cmu.graphchi.toolkits.collaborative_filtering.utils.DataSetDescription;
+import edu.cmu.graphchi.toolkits.collaborative_filtering.utils.FileInputDataReader;
 import edu.cmu.graphchi.toolkits.collaborative_filtering.utils.IO;
 import edu.cmu.graphchi.toolkits.collaborative_filtering.utils.ModelParameters;
 import edu.cmu.graphchi.toolkits.collaborative_filtering.utils.ProblemSetup;
+import edu.cmu.graphchi.toolkits.collaborative_filtering.utils.VertexDataCache;
 import gov.sandia.cognition.math.matrix.VectorEntry;
 import gov.sandia.cognition.math.matrix.mtj.SparseMatrixFactoryMTJ;
 import gov.sandia.cognition.math.matrix.mtj.SparseRowMatrix;
@@ -38,8 +44,14 @@ import gov.sandia.cognition.math.matrix.mtj.SparseVectorFactoryMTJ;
  *
  */
 
-class LibFM_SGDParams extends ModelParameters {
-
+class LibFM_SGDParams extends ModelParameters  {
+	public static final String LAMBDA_0_KEY = "lambda_0";
+	public static final String LAMBDA_W_KEY = "lambda_w";
+	public static final String LAMBDA_V_KEY = "lambda_v";
+	public static final String NUM_LATENT_FACTORS_KEY = "num_latent_factors";
+	public static final String ETA_KEY = "eta";
+	public static final String INIT_DEV_KEY = "init_dev";
+	
 	//The standard deviation of the normal distribution to be used for initializing
 	//the parameters of V.
 	double init_dev;
@@ -58,55 +70,60 @@ class LibFM_SGDParams extends ModelParameters {
 
 	int D;			//Number of latent features 
 	
-	int num_users;
-	int num_items;
-	int num_user_features;
-	int num_item_features;
-	int num_edge_features;
-	int num_features;
-	
-	public LibFM_SGDParams(String id, String json) {
-		super(id, json);
+	public LibFM_SGDParams(String id, Map<String, String> paramsMap) {
+		super(id, paramsMap);
 		
 		setDefaults();
 		
-		parseJsonParams(json);
+		parseJsonParams();
 	}
 	
-	private void parseJsonParams(String json) {
-
+	private void parseJsonParams() {
+		if(this.paramsMap.get(NUM_LATENT_FACTORS_KEY) != null) {
+			this.D = Integer.parseInt(this.paramsMap.get(NUM_LATENT_FACTORS_KEY));
+		}
+		if(this.paramsMap.get(LAMBDA_0_KEY) != null) {
+			this.lambda_0 = Float.parseFloat(this.paramsMap.get(LAMBDA_0_KEY));
+		}
+		if(this.paramsMap.get(LAMBDA_W_KEY) != null) {
+			this.lambda_w = Float.parseFloat(this.paramsMap.get(LAMBDA_W_KEY));
+		}
+		if(this.paramsMap.get(LAMBDA_V_KEY) != null) {
+			float lam_v = Float.parseFloat(this.paramsMap.get(LAMBDA_V_KEY));
+			for(int i = 0; i < this.D; i++) {
+				this.lambda_v[i] = lam_v;
+			}
+		}
+		if(this.paramsMap.get(ETA_KEY) != null) {
+			this.eta = Float.parseFloat(this.paramsMap.get(ETA_KEY));
+		}
+		if(this.paramsMap.get(INIT_DEV_KEY) != null) {
+			this.init_dev = Float.parseFloat(this.paramsMap.get(INIT_DEV_KEY));
+		}
 	}
 
 	private void setDefaults() {
 		this.D = 10;
-		this.lambda_0 = 0.01;
-		this.lambda_w = 0.01;
+		this.lambda_0 = 0.065;
+		this.lambda_w = 0.065;
 		this.lambda_v = new double[this.D];
 		for(int i = 0; i < this.D; i++) {
-			this.lambda_v[i] = 0.05;
+			this.lambda_v[i] = 0.065;
 		}
 
-		this.eta = 0.005;
+		this.eta = 0.01;
 		this.init_dev = 0.1;
 		
-		//TODO: Read from info file?
-		this.num_users = 943;
-		this.num_items = 1682;
-		this.num_user_features = 38;
-		this.num_item_features = 20;
-		this.num_edge_features = 0;
-		this.num_features = this.num_users + this.num_items + this.num_user_features + 
-			this.num_item_features + this.num_edge_features;
 	}
 	
-	public void initParameters() {
+	public void initParameters(int numFeatures) {
 		//Parameters. (Should this be stored in memory or should it be stored in the vertex / edge?
 		this.w_0 = 0;									//0-way interactions
-		this.w = new double[this.num_features];			//1-way interactions
-		this.v = new double[this.num_features][this.D];	//2-way interactions
+		this.w = new double[numFeatures];			//1-way interactions
+		this.v = new double[numFeatures][this.D];	//2-way interactions
 		
 		NormalDistribution  dist = new NormalDistribution(0, 0.1);
-		for(int j = 0; j < this.num_features; j++) {
+		for(int j = 0; j < numFeatures; j++) {
 			this.w[j] = 0;
 			for(int f = 0; f < this.D; f++) {
 				this.v[j][f] = dist.sample();
@@ -124,45 +141,33 @@ class LibFM_SGDParams extends ModelParameters {
 		// TODO Auto-generated method stub
 		
 	}
-}
 
-
-public class LibFM_SGD  implements GraphChiProgram<Integer, LibFMEdge> {
-	private ProblemSetup setup;
-	private LibFM_SGDParams  params;
-	
-	//Contains data about user and item features. Currently this is held in memory.
-	SparseRowMatrix features;
-
-	protected Logger logger = ChiLogger.getLogger("LibFM_MCMC");
-	
-	//Train RMSE
-	double train_rmse;
-	
-	//Contains aggregate of all the samples generated in the iteration for testing.
-	TestDataSamples testSamples;
-	
-	public LibFM_SGD(ProblemSetup setup, ModelParameters par) {
-		this.params = (LibFM_SGDParams)par;
-		this.setup = setup;
+	@Override
+	public double predict(int userId, int itemId, SparseVector userFeatures,
+			SparseVector itemFeatures, SparseVector edgeFeatures,
+			DataSetDescription datasetDesc) {
+		SparseVector row = createAllFeatureVec(userId, itemId, 
+				userFeatures, itemFeatures, datasetDesc);
+		return predict(row, datasetDesc);
 	}
 	
-	public double predict(SparseVector row) {
+	public double predict(SparseVector row, DataSetDescription datasetDesc) {
 		//y = w0 +
-		double estVal = this.params.w_0;
+		double estVal = this.w_0;
 		
+		double sumTwoWay = 0;
 		Iterator<VectorEntry> it = row.iterator();
 		while(it.hasNext()) {
 			VectorEntry vec = it.next();
 			int i = vec.getIndex();
 			double xi = vec.getValue();
-			double wi = this.params.w[i];
-			double[] vi = this.params.v[i];  
+			double wi = this.w[i];
+			double[] vi = this.v[i];  
 			
 			// wi*xi +
 			estVal += wi*xi;
 			if(Double.isNaN(estVal)) {
-				//System.out.println();
+				System.out.println();
 			}
 			
 			Iterator<VectorEntry> it2 = row.iterator();
@@ -170,31 +175,32 @@ public class LibFM_SGD  implements GraphChiProgram<Integer, LibFMEdge> {
 				vec = it2.next();
 				int j = vec.getIndex();
 				double xj = vec.getValue();
-				double[] vj = this.params.v[j];
+				double[] vj = this.v[j];
 				double dotProd = 0;
-				for(int f = 0; f < this.params.D; f++) {
+				for(int f = 0; f < this.D; f++) {
 					dotProd += vi[f]*vj[f];
 				}
 				
 				// <vi, vj>*xi*xj +
-				estVal += dotProd*xi*xj;
-				if(Double.isNaN(estVal)) {
-					//System.out.println();
+				sumTwoWay += dotProd*xi*xj;
+				if(Double.isNaN(sumTwoWay)) {
+					System.out.println();
 				}
 			}
 		}
-		estVal = estVal/2;
+		estVal = estVal + sumTwoWay/2;
 
-		estVal = Math.max(estVal, this.setup.minval);
-		estVal = Math.min(estVal, this.setup.maxval);
+		estVal = Math.max(estVal, datasetDesc.getMinval());
+		estVal = Math.min(estVal, datasetDesc.getMaxval());
 
 		return estVal;
 	}
-
-	private SparseVector createAllFeatureVec(int user, int item, SparseVector userFeatures, 
-			SparseVector itemFeatures) {
+	
+	public SparseVector createAllFeatureVec(int user, int item, SparseVector userFeatures, 
+			SparseVector itemFeatures, DataSetDescription datasetDesc) {
 		//Construct a row of the design matrix.
-		SparseVector allFeatures = (new SparseVectorFactoryMTJ()).createVector(params.num_features);
+		int numTotalFeatures = getEdgeFeaturesBase(datasetDesc) + datasetDesc.getNumRatingFeatures(); 
+		SparseVector allFeatures = (new SparseVectorFactoryMTJ()).createVector(numTotalFeatures);
 		
 		//Set feature representing an user.
 		allFeatures.setElement(user, 1);
@@ -205,39 +211,83 @@ public class LibFM_SGD  implements GraphChiProgram<Integer, LibFMEdge> {
 		Iterator<VectorEntry> it = userFeatures.iterator();
 		while(it.hasNext()) {
 			VectorEntry feature = it.next();
-			allFeatures.setElement((int)(feature.getIndex()), feature.getValue());
+			int featureIndex = getUserFeatureBase(datasetDesc) + feature.getIndex(); 
+			allFeatures.setElement(featureIndex, feature.getValue());
 		}
 		
 		//Set features representing item attributes.
 		it = itemFeatures.iterator();
 		while(it.hasNext()) {
 			VectorEntry feature = it.next();
-			allFeatures.setElement((int)(feature.getIndex()), feature.getValue());
+			int featureIndex = getItemFeatureBase(datasetDesc) + feature.getIndex();
+			allFeatures.setElement(featureIndex, feature.getValue());
 		}
 		
 		return allFeatures;
 	}
 	
+	private int getUserBase(DataSetDescription datasetDesc){
+		return 0;
+	}
+	
+	private int getItemBase(DataSetDescription datasetDesc) {
+		return getUserBase(datasetDesc) + datasetDesc.getNumUsers();
+	}
+	
+	private int getUserFeatureBase(DataSetDescription datasetDesc) {
+		return getItemBase(datasetDesc) + datasetDesc.getNumItems();
+	}
+	
+	private int getItemFeatureBase(DataSetDescription datasetDesc) {
+		return getUserFeatureBase(datasetDesc) + datasetDesc.getNumUserFeatures();
+	}
+	
+	private int getEdgeFeaturesBase(DataSetDescription datasetDesc) {
+		return getItemFeatureBase(datasetDesc) + datasetDesc.getNumItemFeatures();
+	}
+	
+}
+
+public class LibFM_SGD  implements GraphChiProgram<Integer, RatingEdge> {
+	DataSetDescription datasetDesc;
+	LibFM_SGDParams  params;
+	
+	//Contains data about user and item features. Currently this is held in memory.
+	VertexDataCache vertexDataCache = null;
+
+	protected Logger logger = ChiLogger.getLogger("LibFM_MCMC");
+	
+	//Train RMSE
+	double train_rmse;
+	
+	public LibFM_SGD(DataSetDescription dataDesc, ModelParameters par) {
+		this.params = (LibFM_SGDParams)par;
+		this.datasetDesc = dataDesc;
+	}
+	
 	@Override
-	public void update(ChiVertex<Integer, LibFMEdge> vertex, GraphChiContext context) {
+	public void update(ChiVertex<Integer, RatingEdge> vertex, GraphChiContext context) {
 		if(vertex.numOutEdges() > 0) {
 			//User vertex
 			
 			//Update user feature aggregates.
 			int user = context.getVertexIdTranslate().backward(vertex.getId());
-			SparseVector userFeatures = this.features.getRow(user);
+			//SparseVector userFeatures = this.features.getRow(user);
+			SparseVector userFeatures = this.vertexDataCache.getFeatures(user);
 			
 			for(int e = 0; e < vertex.numOutEdges(); e++) {
 				int item = context.getVertexIdTranslate().backward(vertex.getOutEdgeId(e));
 				
-				SparseVector itemFeatures = this.features.getRow(item);
-				LibFMEdge edge = vertex.edge(e).getValue();
+				//SparseVector itemFeatures = this.features.getRow(item);
+				SparseVector itemFeatures = this.vertexDataCache.getFeatures(item);
+				
+				RatingEdge edge = vertex.edge(e).getValue();
 
-				SparseVector allFeatures = createAllFeatureVec(user, item, 
-						userFeatures, itemFeatures);
+				SparseVector allFeatures = this.params.createAllFeatureVec(user, item, 
+						userFeatures, itemFeatures, this.datasetDesc);
 				
 				//TODO: Set features representing edge attributes (like time stamp)
-				double estVal = predict(allFeatures);
+				double estVal = this.params.predict(allFeatures, this.datasetDesc);
 				double err = edge.observation - estVal; 
 
 				//Compute sum vj,f * xj for this observations
@@ -273,12 +323,7 @@ public class LibFM_SGD  implements GraphChiProgram<Integer, LibFMEdge> {
 						sum_v_x[f] += this.params.v[j][f]*xj - old_vjf_x;  
 					}
 				}
-				//Compute RMSE
-				edge.aggPred += estVal;
-				edge.count++;
-				double globalErr = edge.observation - edge.aggPred/edge.count;
-			
-				this.train_rmse += globalErr*globalErr;
+				this.train_rmse += err*err; 
 			}
 				
 				
@@ -291,16 +336,23 @@ public class LibFM_SGD  implements GraphChiProgram<Integer, LibFMEdge> {
 	public void beginIteration(GraphChiContext ctx) {
 		if(ctx.getIteration() == 0) {
 			//On First iteration
-			this.params.initParameters();
+			int numFeatures = this.datasetDesc.getNumItemFeatures() + 
+					this.datasetDesc.getNumUserFeatures() + this.datasetDesc.getNumRatingFeatures();
+
+			int numTotalFeatures = this.datasetDesc.getNumUsers() + this.datasetDesc.getNumItems()
+					+ numFeatures;
 			
-			this.features = (new SparseMatrixFactoryMTJ()).createMatrix(params.num_users + params.num_items + 1, 
-					params.num_users + params.num_items + params.num_user_features + params.num_item_features + 1);
-			
-			//Read User features
-			readFeatures(getUserBase(), getUserFeatureBase(), this.setup.userFeatures, true);
-			
-			//Read Item features
-			readFeatures(getItemBase(), getItemFeatureBase(), this.setup.itemFeatures, false);
+			this.params.initParameters(numTotalFeatures);
+
+			if(this.vertexDataCache == null) {
+				int numVertices = (int)(ctx.getNumVertices() + 1);
+				this.vertexDataCache = new VertexDataCache(numVertices, numFeatures);
+				try {
+					this.vertexDataCache.loadVertexDataCache(new FileInputDataReader(this.datasetDesc));
+				} catch (Exception e) {
+					e.printStackTrace();
+				}
+			}
 		}
 		
 		this.train_rmse = 0;
@@ -338,229 +390,39 @@ public class LibFM_SGD  implements GraphChiProgram<Integer, LibFMEdge> {
 		
 	}
 	
-	private int getUserBase(){
-		return 0;
-	}
-	
-	private int getItemBase() {
-		return getUserBase() + this.params.num_users;
-	}
-	
-	private int getUserFeatureBase() {
-		return getItemBase() + this.params.num_items;
-	}
-	
-	
-	private int getItemFeatureBase() {
-		return getUserFeatureBase() + this.params.num_user_features;
-	}
-	
-	private int getEdgeFeaturesBase() {
-		return getItemFeatureBase() + this.params.num_item_features;
-	}
-	
-	/**
-	 * 
-	 * @param vertexBase
-	 * @param featureBase
-	 * @param fileName
-	 * @return
-	 */
-	private void readFeatures(int vertexBase, int featureBase, String fileName, boolean isUser) {
-		if(fileName == null)
-			return;
-		BufferedReader br = null;
-		
-		try {
-			br = new BufferedReader(new FileReader(new File(fileName)));
-			String line;
-			
-			while( (line = br.readLine()) != null) {
-				String[] tokens = line.split("\t");
-				int vertexId = vertexBase + Integer.parseInt(tokens[0]);
-				for(int i = 1; i < tokens.length; i++) {
-					int featureId = featureBase + Integer.parseInt(tokens[i].split(":")[0]);
-					double featureVal = Double.parseDouble(tokens[i].split(":")[1]);
-					features.setElement(vertexId, featureId, featureVal);
-				}
-			}
-			
-		} catch (IOException e) {
-			e.printStackTrace();
-		} finally {
-			try {
-				if(br != null)
-					br.close();
-			} catch(IOException e2) {
-				e2.printStackTrace();
-			}
-		}
-	}
-	
-	private double test() {
-		if(this.setup.test == null)
-			return 0;
-		
-		
-		BufferedReader br = null;
-		LibFMEdgeProcessor edgeProc = new LibFMEdgeProcessor();
-		double rmse = 0;
-		int num_test_cases = 0;
-		
-		try {
-			br = new BufferedReader(new FileReader(new File(this.setup.test)));
-			String line;
-			
-			while( (line = br.readLine()) != null) {
-				num_test_cases += 1;
-				//TODO: There should be a EdgeDataProcessor - the same as that used by Sharder program to read
-				//in the edges (which represent observation between the user and item.
-				String[] tokens = line.split("\t", 3);
-				int from = Integer.parseInt(tokens[0]);
-				int to = Integer.parseInt(tokens[1]);
-				LibFMEdge e = edgeProc.receiveEdge(from, to, tokens[2]);
-				
-				SparseVector userFeatures = this.features.getRow(from);
-				SparseVector itemFeatures = this.features.getRow(to);
-				
-				SparseVector allFeatures = createAllFeatureVec(from, to, userFeatures, itemFeatures);
-				double estSample = this.predict(allFeatures);
-				
-				rmse += (e.observation -  estSample)*(e.observation -  estSample); 
-			}
-		} catch (IOException e) {
-			e.printStackTrace();
-		} finally {
-			try {
-				if(br != null)
-					br.close();
-			} catch(IOException e2) {
-				e2.printStackTrace();
-			}
-		}
-		
-		return Math.sqrt(rmse / (1.0 * num_test_cases));
-	}
-
-	protected static FastSharder createSharder(String graphName, int numShards, int num_edge_features) throws IOException {
-        return new FastSharder<Integer, LibFMEdge>(graphName, numShards, null, 
-        		new LibFMEdgeProcessor(), 
-        	new IntConverter(), new LibFMEdgeConvertor(num_edge_features));
-    }
-	
 	public static void main(String[] args) throws Exception {
-    	ProblemSetup problemSetup = new ProblemSetup(args);
+		
+		ProblemSetup problemSetup = new ProblemSetup(args);
+    	
+    	DataSetDescription dataDesc = new DataSetDescription();
+    	dataDesc.loadFromJsonFile(problemSetup.dataMetadataFile);
 
-    	//TODO: Edge Features.
-    	FastSharder<Integer, LibFMEdge> sharder = createSharder(problemSetup.training, problemSetup.nShards, 0);
-        IO.convertMatrixMarket(problemSetup, sharder);
+    	FastSharder<Integer, RatingEdge> sharder = AggregateRecommender.createSharder(dataDesc.getRatingsUrl(), 
+				problemSetup.nShards, 0); 
+		IO.convertMatrixMarket(dataDesc.getRatingsUrl(), problemSetup.nShards, sharder);
         
-        LibFM_SGDParams params = new LibFM_SGDParams(problemSetup.getRunId("LibFM_SGD"), problemSetup.paramJson);
-        GraphChiProgram<Integer, LibFMEdge> libfm = new LibFM_SGD(problemSetup, params);
-        
+		List<GraphChiProgram> algosToRun = RecommenderFactory.buildRecommenders(dataDesc, problemSetup.paramFile, null);
+
+		//Just run the first one. It should be ALS.
+		if(!(algosToRun.get(0) instanceof LibFM_SGD)) {
+			System.out.println("Please check the parameters file. The first algo listed is not of type ALS");
+			System.exit(2);
+		}
+		
+		GraphChiProgram<Integer, RatingEdge> libfm = (LibFM_SGD)algosToRun.get(0);
+		
         // Run GraphChi 
-        GraphChiEngine<Integer, LibFMEdge> engine = new GraphChiEngine<Integer, LibFMEdge>(problemSetup.training, problemSetup.nShards);
+        GraphChiEngine<Integer, RatingEdge> engine = new GraphChiEngine<Integer, RatingEdge>(
+        	dataDesc.getRatingsUrl(), problemSetup.nShards);
         
         //TODO: Edge features.
-        engine.setEdataConverter(new LibFMEdgeConvertor(0));
+        engine.setEdataConverter(new RatingEdgeConvertor(0));
         engine.setEnableDeterministicExecution(false);
         engine.setVertexDataConverter(null);  // We do not access vertex values.
         engine.setModifiesInedges(false); // Important optimization
         engine.setModifiesOutedges(false); // Important optimization
         engine.run(libfm, 15);
-       
-        params.serialize(problemSetup.outputLoc);
-		
 	}
 
-}
-
-
-class LibFMEdge {
-	float observation;
-	//TODO: support for edge features - a sparse vector representing the features of the edge
-
-	//Sample aggregates for computing model error and 
-	float aggPred;
-	int count;
-	
-	public LibFMEdge(float obs, int num_edge_features) {
-		this.observation = obs;
-		this.aggPred = 0;
-		this.count = 0;
-	}
-	
-}
-
-class LibFMEdgeConvertor implements  BytesToValueConverter<LibFMEdge> {
-	int num_edge_features;
-	
-	public LibFMEdgeConvertor(int num_edge_features) {
-		this.num_edge_features = num_edge_features;
-	}
-	
-    public int sizeOf() {
-        return 12 + this.num_edge_features*8;
-    }
-    
-    public LibFMEdge getValue(byte[] array) {
-    	LibFMEdge res = null;
-    	
-    	ByteBuffer buf = ByteBuffer.wrap(array);
-    	float obs = buf.getFloat(0);
-    	float aggPred = buf.getFloat(4);
-    	int count = buf.getInt(8);
-    	//TODO: Read edge features.
-    	
-    	res = new LibFMEdge(obs, this.num_edge_features);
-    	res.aggPred = aggPred;
-    	res.count = count;
-    	
-    	return res;
-    }
-    
-    public void setValue(byte[] array, LibFMEdge val) {
-    	  ByteBuffer buf = ByteBuffer.allocate(sizeOf());
-    	  buf.putFloat(0, val.observation);
-    	  buf.putFloat(4, val.aggPred);
-    	  buf.putInt(8, val.count);
-    	  //TODO: Write edge features.
-    	  
-    	  byte[] a = buf.array();
-    	  
-    	  for(int i = 0; i < a.length; i++) {
-    		  array[i] = a[i];
-    	  }
-    }
-}
-
-
-class LibFMEdgeProcessor implements EdgeProcessor<LibFMEdge> {
-
-	@Override
-	public LibFMEdge receiveEdge(int from, int to, String token) {
-		if(token == null) {
-			return new LibFMEdge(0, 0);
-		} else {
-			String[] tokens = token.split("\t");
-			LibFMEdge e = new LibFMEdge(Float.parseFloat(tokens[0]), 0);
-			//TODO: Implement parsing other edge features like timestamp
-			
-			return e;
-		}
-	}
-	
-}
-
-class TestDataSamples {
-	String testFile;
-	int samplesCount;
-	
-	//Contains sum of samples of predictions.
-	double[] sumPredictions;
-	
-	public TestDataSamples(String testFile, int numTestCases) {
-		
-	}
 }
 
