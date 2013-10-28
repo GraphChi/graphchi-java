@@ -305,7 +305,7 @@ public class FastSharder <VertexValueType, EdgeValueType> {
          * for the auxilliary degree-data and vertex-data files.
          */
         if (allowSparseDegreesAndVertexData && !("1".equals(System.getProperty("densedegrees")))) {
-            useSparseDegrees = (maxVertexId > numEdges) || "1".equals(System.getProperty("sparsedeg"));
+            useSparseDegrees = (maxVertexId > numEdges / 4) || "1".equals(System.getProperty("sparsedeg"));
         } else {
             useSparseDegrees = false;
         }
