@@ -193,7 +193,7 @@ public class VertexData <VertexDataType> {
                         vertexDataFile.skipBytes(sizeOf);
                     }
                 } catch (EOFException eof) {
-                    logger.info("Reached end of vertex data");
+                    logger.info("Reached end of vertex data. St: " + _vertexSt + " en:" + _vertexEn + " lastVertex:" + lastVertex);
                     if (!foundStart) {
                         reachedEnd = true;
                     }
