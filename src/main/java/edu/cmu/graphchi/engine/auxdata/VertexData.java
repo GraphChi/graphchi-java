@@ -194,12 +194,13 @@ public class VertexData <VertexDataType> {
                     }
                 } catch (EOFException eof) {
                     logger.info("Reached end of vertex data");
+                    if (!foundStart) {
+                        reachedEnd = true;
+                    }
 
                 }
 
-                if (!foundStart) {
-                    reachedEnd = true;
-                }
+
 
                 index = new long[n];
                 vertexDataFile.seek(startPos);
