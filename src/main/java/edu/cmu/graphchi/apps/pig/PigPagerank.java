@@ -148,7 +148,7 @@ public class PigPagerank extends PigGraphChiBase implements GraphChiProgram<Floa
      */
     protected Tuple getNextResult(TupleFactory tupleFactory) throws ExecException {
         if (pigFinishedResults) {
-            throw new IllegalAccessException("Asked for getNextReulsts although results already exhausted!");
+            throw new RuntimeException("Asked for getNextReulsts although results already exhausted!");
         }
         if (vertexIterator.hasNext()) {
             Tuple t = tupleFactory.newTuple(2);
