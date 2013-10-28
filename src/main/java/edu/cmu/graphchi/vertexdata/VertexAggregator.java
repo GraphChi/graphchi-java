@@ -106,6 +106,7 @@ public class VertexAggregator {
                     if (en >= numVertices || en < 0) en = numVertices - 1;
 
                     try {
+                        System.out.println("VertexAggrerator loading " + i + " -- " + en);
                         blockId = vertexData.load(i, en);
                     } catch (IOException e) {
                         throw new RuntimeException(e);
@@ -120,6 +121,8 @@ public class VertexAggregator {
 
                     if (!this.curIter.hasNext()) {
                         i = vertexData.nextChunkStart();
+                        System.out.println("VertexAggrerator next ==> " + i);
+
                     }
                 }
                 return true;
