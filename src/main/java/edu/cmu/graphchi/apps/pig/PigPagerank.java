@@ -115,6 +115,7 @@ public class PigPagerank extends PigGraphChiBase implements GraphChiProgram<Floa
         engine.run(this, 4);
 
         logger.info("Ready.");
+        pigFinishedResults = false;
 
         /* Create iterator for the vertex values */
         this.vertexIterator = VertexAggregator.vertexIterator(engine.numVertices(), getGraphName(), new FloatConverter(),
@@ -138,11 +139,17 @@ public class PigPagerank extends PigGraphChiBase implements GraphChiProgram<Floa
         }, new FloatConverter(), new FloatConverter());
     }
 
+
+    boolean pigFinishedResults = false;
+
     @Override
     /**
      * Generates the output to the Pig script, tuple by tuple
      */
     protected Tuple getNextResult(TupleFactory tupleFactory) throws ExecException {
+        if (pigFinishedResults) {
+            throw new IllegalAccessException("Asked for getNextReulsts although results already exhausted!");
+        }
         if (vertexIterator.hasNext()) {
             Tuple t = tupleFactory.newTuple(2);
             VertexIdValue<Float> val = vertexIterator.next();
@@ -150,6 +157,7 @@ public class PigPagerank extends PigGraphChiBase implements GraphChiProgram<Floa
             t.set(1, val.getValue());
             return t;
         } else {
+            pigFinishedResults = true;
             return null;
         }
     }
