@@ -26,6 +26,7 @@ public class RecommenderFactory {
 	public static final String REC_SVDPP = "SVDPP";
 	public static final String REC_PMF = "PMF";
 	public static final String REC_LIBFM_SGD = "LibFM_SGD";
+	public static final String REC_BIAS_SGD = "BIAS_SGD";
 	
 	
 	public RecommenderFactory() {
@@ -59,8 +60,11 @@ public class RecommenderFactory {
 				LibFM_SGDParams params = new LibFM_SGDParams(id, modelDescMap);
 				LibFM_SGD rec = new LibFM_SGD(dataDesc, params);
 				rec.vertexDataCache = vertexDataCache;
-				recommenders.add(rec);
-			} else {
+				recommenders.add(rec);				
+			} else if(modelDescMap.get(MODEL_NAME_KEY).equals(REC_BIAS_SGD)){
+				BiasSgdParams params = new BiasSgdParams(id, modelDescMap);
+				recommenders.add(new BiasSgd(dataDesc, params));
+			} else {			
 				//No model by the given name found.
 			}
 		}

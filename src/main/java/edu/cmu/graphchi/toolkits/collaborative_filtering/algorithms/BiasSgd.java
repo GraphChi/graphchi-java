@@ -1,5 +1,7 @@
 package edu.cmu.graphchi.toolkits.collaborative_filtering.algorithms;
 
+import java.util.List;
+import java.util.Map;
 import java.util.Random;
 import java.util.logging.Logger;
 
@@ -13,10 +15,13 @@ import edu.cmu.graphchi.GraphChiProgram;
 import edu.cmu.graphchi.datablocks.FloatConverter;
 import edu.cmu.graphchi.engine.GraphChiEngine;
 import edu.cmu.graphchi.engine.VertexInterval;
+import edu.cmu.graphchi.preprocessing.FastSharder;
+import edu.cmu.graphchi.toolkits.collaborative_filtering.utils.DataSetDescription;
 import edu.cmu.graphchi.toolkits.collaborative_filtering.utils.IO;
 import edu.cmu.graphchi.toolkits.collaborative_filtering.utils.ModelParameters;
 import edu.cmu.graphchi.toolkits.collaborative_filtering.utils.ProblemSetup;
 import edu.cmu.graphchi.util.HugeDoubleMatrix;
+import gov.sandia.cognition.math.matrix.mtj.SparseVector;
 class BiasSgdParams extends ModelParameters {
 	double LAMBDA;	//regularization
 	double stepSize; //step size for gradient descent
@@ -24,12 +29,12 @@ class BiasSgdParams extends ModelParameters {
 	HugeDoubleMatrix latentFactors;
 	RealVector bias;
 	
-	public BiasSgdParams(String id, String json) {
-		super(id, json);
+	public BiasSgdParams(String id, Map<String, String> paramsMap) {
+		super(id, paramsMap);
 		
 		setDefaults();
 		
-		parseParameters(json);
+		parseParameters();
 		
 	}
     public RealVector randomize(long size, double from, double to) {
@@ -47,11 +52,11 @@ class BiasSgdParams extends ModelParameters {
 	public void setDefaults() {
 		this.LAMBDA = 0.0001;
 		this.D = 10;
-		this.stepSize = 0.0001;
+		this.stepSize = 0.001;
 	}
 	
-	public void parseParameters(String json) {
-		
+	public void parseParameters() {
+		//TODO parse own parameters
 	}
 	
     void initParameterValues(long size, int D){
@@ -73,47 +78,55 @@ class BiasSgdParams extends ModelParameters {
 		// TODO Auto-generated method stub
 		
 	}
+	@Override
+	public double predict(int userId, int itemId, SparseVector userFeatures,
+			SparseVector itemFeatures, SparseVector edgeFeatures,
+			DataSetDescription datasetDesc) {		
+		// TODO Auto-generated method stub
+		double userBias = this.bias.getEntry(userId);;
+		double itemBias = this.bias.getEntry(itemId);
+		RealVector userFactor = this.latentFactors.getRowAsVector(userId);
+		RealVector itemFactor =  this.latentFactors.getRowAsVector(itemId);
+		return userFactor.dotProduct(itemFactor) + userBias + itemBias;
+	}
 	
 }
-public class BiasSgd implements GraphChiProgram<Integer, Float> {
+public class BiasSgd implements GraphChiProgram<Integer, RatingEdge> {
 
-	private ProblemSetup problemSetup;
+	private DataSetDescription dataSetDescription;
 	private BiasSgdParams params;
 	protected Logger logger = ChiLogger.getLogger("BiasSGD");
     double train_rmse = 0.0;
-    public BiasSgd(ProblemSetup problemSetup, ModelParameters params) {
-    	this.problemSetup = problemSetup;
+    public BiasSgd(DataSetDescription dataSetDescription , ModelParameters params) {
+    	this.dataSetDescription = dataSetDescription;
     	this.params = (BiasSgdParams)params;
     }
-    public double biasSgdPredict(double userBias, double itemBias, RealVector userFactor, RealVector itemFactor){
-    	return userFactor.dotProduct(itemFactor) + userBias + itemBias;
-    }
 	//@Override
-	public void update(ChiVertex<Integer, Float> vertex,
+	public void update(ChiVertex<Integer, RatingEdge> vertex,
 			GraphChiContext context) {
 		if(vertex.numEdges() ==0){
 			return;
 		}
 		double squaredError = 0;
 		if(vertex.numOutEdges() > 0){ // vertex is an user
-			RealVector userFactor = params.latentFactors.getRowAsVector(vertex.getId());
+			int userId = context.getVertexIdTranslate().backward(vertex.getId());
+			RealVector userFactor = params.latentFactors.getRowAsVector(userId);
 			for(int e = 0 ; e < vertex.numEdges() ; e++){
-				float observation = vertex.edge(e).getValue();
-				RealVector neighbor = params.latentFactors.getRowAsVector(vertex.edge(e).getVertexId());
-				double estimatedRating = biasSgdPredict(params.bias.getEntry(vertex.getId()),
-						params.bias.getEntry(vertex.edge(e).getVertexId()),userFactor,neighbor);
+				int itemId = context.getVertexIdTranslate().backward(vertex.edge(e).getVertexId());
+				float observation = vertex.edge(e).getValue().observation;				
+				double estimatedRating = params.predict(userId, itemId, null, null, null, this.dataSetDescription);
 				double error = observation - estimatedRating;
 				squaredError += Math.pow(error,2);
-				params.bias.setEntry(vertex.getId(), params.bias.getEntry(vertex.getId())
-						+ params.stepSize*(error - params.LAMBDA * params.bias.getEntry(vertex.getId())));
-				params.bias.setEntry(vertex.edge(e).getVertexId(), params.bias.getEntry(vertex.edge(e).getVertexId())
-						+ params.stepSize*(error - params.LAMBDA * params.bias.getEntry(vertex.edge(e).getVertexId())));
-				RealVector itemFactor = params.latentFactors.getRowAsVector(vertex.edge(e).getVertexId());
-				params.latentFactors.setRow(vertex.getId(), 
+				params.bias.setEntry(userId, params.bias.getEntry(userId)
+						+ params.stepSize*(error - params.LAMBDA * params.bias.getEntry(userId)));
+				params.bias.setEntry(itemId, params.bias.getEntry(itemId)
+						+ params.stepSize*(error - params.LAMBDA * params.bias.getEntry(itemId)));
+				RealVector itemFactor = params.latentFactors.getRowAsVector(itemId);
+				params.latentFactors.setRow(userId, 
 						userFactor.add(
 						(itemFactor.mapMultiply(error).subtract(userFactor.mapMultiply(params.LAMBDA))).mapMultiply(params.stepSize))
 						.getData());
-				params.latentFactors.setRow(vertex.edge(e).getVertexId(),
+				params.latentFactors.setRow(itemId,
 						itemFactor.add(
 						(userFactor.mapMultiply(error).subtract(itemFactor.mapMultiply(params.LAMBDA))).mapMultiply(params.stepSize))
 						.getData());
@@ -164,22 +177,34 @@ public class BiasSgd implements GraphChiProgram<Integer, Float> {
 	}
 	public static void main(String args[]) throws Exception{
     	ProblemSetup problemSetup = new ProblemSetup(args);
-    	ModelParameters params = new BiasSgdParams(problemSetup.getRunId("BiasSgd"), problemSetup.paramJson);
     	
-        BiasSgd biasSgd = new BiasSgd(problemSetup, params);
-
-        IO.convertMatrixMarket(problemSetup);
+    	DataSetDescription dataDesc = new DataSetDescription();
+    	dataDesc.loadFromJsonFile(problemSetup.dataMetadataFile);
+    	
+    	
+    	FastSharder<Integer, RatingEdge> sharder = AggregateRecommender.createSharder(dataDesc.getRatingsUrl(), 
+				problemSetup.nShards, 0); 
+		IO.convertMatrixMarket(dataDesc.getRatingsUrl(), problemSetup.nShards, sharder);
+		List<GraphChiProgram> algosToRun = RecommenderFactory.buildRecommenders(dataDesc, 
+				problemSetup.paramFile, null);
+    	
         
-        /* Run GraphChi */
-        GraphChiEngine<Integer, Float> engine = new GraphChiEngine<Integer, Float>(problemSetup.training, problemSetup.nShards);
         
-        engine.setEdataConverter(new FloatConverter());
+		//Just run the first one. It should be ALS.
+		if(!(algosToRun.get(0) instanceof BiasSgd)) {
+			System.out.println("Please check the parameters file. The first algo listed is not of type BiasSgd");
+			System.exit(2);
+		}
+        GraphChiEngine<Integer, RatingEdge> engine = new GraphChiEngine<Integer, RatingEdge>(dataDesc.getRatingsUrl(), problemSetup.nShards);
+		
+		GraphChiProgram<Integer, RatingEdge> biasSgd = algosToRun.get(0);
+		
+        engine.setEdataConverter(new RatingEdgeConvertor(0));
         engine.setEnableDeterministicExecution(false);
         engine.setVertexDataConverter(null);  // We do not access vertex values.
         engine.setModifiesInedges(false); // Important optimization
         engine.setModifiesOutedges(false); // Important optimization
-        engine.run(biasSgd, 5);
+        engine.run(biasSgd, 20);
 
-        params.serialize(problemSetup.outputLoc);
 	}
 }
