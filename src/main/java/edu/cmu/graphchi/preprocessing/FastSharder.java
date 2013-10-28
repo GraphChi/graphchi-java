@@ -179,6 +179,8 @@ public class FastSharder <VertexValueType, EdgeValueType> {
         long preTranslatedIdFrom = preIdTranslate.forward(from);
         long preTranslatedTo = preIdTranslate.forward(to);
 
+        numEdges++;
+
         if (preTranslatedIdFrom < 0 || preTranslatedTo < 0) {
             throw new IllegalStateException("Translation produced negative value: " + from +
                     "->" + preTranslatedIdFrom +" ; to: " + to + "-> " + preTranslatedTo + "; " + preIdTranslate.stringRepresentation());
@@ -299,21 +301,22 @@ public class FastSharder <VertexValueType, EdgeValueType> {
         shovelStreams = null;
 
         /**
+         * If we have more vertices than edges, it makes sense to use sparse representation
+         * for the auxilliary degree-data and vertex-data files.
+         */
+        if (allowSparseDegreesAndVertexData && !("1".equals(System.getProperty("densedegrees")))) {
+            useSparseDegrees = (maxVertexId > numEdges) || "1".equals(System.getProperty("sparsedeg"));
+        } else {
+            useSparseDegrees = false;
+        }
+        /**
          * Process each shovel to create a final shard.
          */
         for(int i=0; i<numShards; i++) {
             processShovel(i);
         }
 
-        /**
-         * If we have more vertices than edges, it makes sense to use sparse representation
-         * for the auxilliary degree-data and vertex-data files.
-         */
-        if (allowSparseDegreesAndVertexData) {
-            useSparseDegrees = (maxVertexId > numEdges) || "1".equals(System.getProperty("sparsedeg"));
-        } else {
-            useSparseDegrees = false;
-        }
+
         logger.info("Use sparse output: " + useSparseDegrees);
 
         /**
@@ -514,7 +517,6 @@ public class FastSharder <VertexValueType, EdgeValueType> {
                 representedIntervals.add(newTo / DEGCOUNT_SUBINTERVAL); // SLOW - FIXME
             }
         }
-        numEdges += shoveled.length;
 
         in.close();
 
@@ -1047,7 +1049,6 @@ public class FastSharder <VertexValueType, EdgeValueType> {
                         }
                     } else {
                         subIntervalSt += DEGCOUNT_SUBINTERVAL;
-                        break;
                     }
                 }
                 if (memoryShard.isHasSetOffset()) {
