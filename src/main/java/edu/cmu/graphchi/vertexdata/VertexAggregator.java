@@ -114,6 +114,10 @@ public class VertexAggregator {
                     if (!this.curIter.hasNext() && en >= numVertices - 1) {
                         return false;
                     }
+                    if (!this.curIter.hasNext() && vertexData.isReachedEnd()) {
+                        return false;
+                    }
+
                     if (!this.curIter.hasNext()) {
                         i = vertexData.nextChunkStart();
                     }

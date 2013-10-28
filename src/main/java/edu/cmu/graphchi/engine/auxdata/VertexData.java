@@ -293,6 +293,11 @@ public class VertexData <VertexDataType> {
         }
     }
 
+
+    public boolean isReachedEnd() {
+        return reachedEnd;
+    }
+
     public void close() {
         try {
             vertexDataFile.flush();
