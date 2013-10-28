@@ -42,6 +42,7 @@ public class VertexData <VertexDataType> {
     private long lastOffset = 0;
     private long lastStart = 0;
     private long lastVertex = 0;
+    boolean reachedEnd = false;
 
     private final static Logger logger = ChiLogger.getLogger("vertex-data");
 
@@ -149,7 +150,7 @@ public class VertexData <VertexDataType> {
      * @throws IOException
      */
     public int load(long _vertexSt, long _vertexEn) throws IOException {
-
+        reachedEnd = false;
         vertexSt = _vertexSt;
         vertexEn = _vertexEn;
         synchronized (vertexDataFile) {
@@ -193,6 +194,11 @@ public class VertexData <VertexDataType> {
                     }
                 } catch (EOFException eof) {
                     logger.info("Reached end of vertex data");
+
+                }
+
+                if (!foundStart) {
+                    reachedEnd = true;
                 }
 
                 index = new long[n];
@@ -268,6 +274,7 @@ public class VertexData <VertexDataType> {
                 int j = 0;
                 @Override
                 public boolean hasNext() {
+                    if (reachedEnd) return false;
                     return (j <= index.length - 1);
                 }
 
