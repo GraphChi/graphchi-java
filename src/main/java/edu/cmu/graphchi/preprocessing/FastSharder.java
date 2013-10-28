@@ -264,7 +264,7 @@ public class FastSharder <VertexValueType, EdgeValueType> {
         // Ad-hoc: require that degree vertices won't take more than 5th of memory
         memoryEfficientDegreeCount = Runtime.getRuntime().maxMemory() / 5 <  ((long) maxVertexId) * 8;
 
-        if (maxVertexId > Integer.MAX_VALUE) {
+        if (maxVertexId > Integer.MAX_VALUE || "1".equals(System.getProperty("memoryefficientdegreecount"))) {
             memoryEfficientDegreeCount = true;
         }
 
@@ -510,7 +510,7 @@ public class FastSharder <VertexValueType, EdgeValueType> {
                 outDegrees[(int)newFrom]++;
             }
 
-            if (memoryEfficientDegreeCount) {
+            if (memoryEfficientDegreeCount && useSparseDegrees) {
                 representedIntervals.add(newTo / DEGCOUNT_SUBINTERVAL); // SLOW - FIXME
             }
         }
@@ -601,7 +601,7 @@ public class FastSharder <VertexValueType, EdgeValueType> {
                 }
 
                 /* Optimization for very sparse vertex intervals */
-                if (curvid - lastSparseSetEntry >= DEGCOUNT_SUBINTERVAL) {
+                if (useSparseDegrees && curvid - lastSparseSetEntry >= DEGCOUNT_SUBINTERVAL) {
                     representedIntervals.add(curvid / DEGCOUNT_SUBINTERVAL);
                     lastSparseSetEntry = curvid;
                 }
@@ -803,7 +803,7 @@ public class FastSharder <VertexValueType, EdgeValueType> {
                         /* Edge list: <src> <dst> <value> */
                             if (tok.length == 2) {
                                 if (!shuffledIds) {
-                                     this.addEdge(Long.parseLong(tok[0]), Long.parseLong(tok[1]), null);
+                                    this.addEdge(Long.parseLong(tok[0]), Long.parseLong(tok[1]), null);
                                 } else {
                                     long from = Long.parseLong(tok[0]);
                                     long to = Long.parseLong(tok[1]);
@@ -945,15 +945,20 @@ public class FastSharder <VertexValueType, EdgeValueType> {
 
             /* Efficiently handly only intervals that have any vertices */
             long[] representedArray = new long[representedIntervals.size()];
-            int k = 0;
-            for(Long l : representedIntervals) {
-                representedArray[k++] = l;
-            }
-            Arrays.sort(representedArray);
 
-            for(int l=0; l<representedArray.length; l++) {
-                logger.info("RepArr: " + l + " : " + representedArray[l] +
-                        " = " + representedArray[l] * DEGCOUNT_SUBINTERVAL);
+
+            int k = 0;
+            if (useSparseDegrees) {
+                for(Long l : representedIntervals) {
+                    representedArray[k++] = l;
+                }
+                Arrays.sort(representedArray);
+
+                for(int l=0; l<representedArray.length; l++) {
+                    logger.info("RepArr: " + l + " : " + representedArray[l] +
+                            " = " + representedArray[l] * DEGCOUNT_SUBINTERVAL);
+                }
+
             }
 
             k = 0;
@@ -966,9 +971,11 @@ public class FastSharder <VertexValueType, EdgeValueType> {
                 logger.info("Degree computation round " + p + " / " + numShards + " [[" + intervalSt + " -- " + intervalEn + "]]");
 
                 /* Hacky - TODO rewrite! */
-                k = 0;
-                while (k < representedArray.length - 1 && representedArray[k] * DEGCOUNT_SUBINTERVAL <= intervalSt) {
-                    k++;
+                if (useSparseDegrees) {
+                    k = 0;
+                    while (k < representedArray.length - 1 && representedArray[k] * DEGCOUNT_SUBINTERVAL <= intervalSt) {
+                        k++;
+                    }
                 }
 
                 MemoryShard<Float> memoryShard = new MemoryShard<Float>(null, ChiFilenames.getFilenameShardsAdj(baseFilename, p, numShards),
@@ -1026,7 +1033,8 @@ public class FastSharder <VertexValueType, EdgeValueType> {
                         }
                     }
                     /* Jump to next interval that has any vertices */
-                    if (k <= representedArray.length - 1) {
+
+                    if (useSparseDegrees && k <= representedArray.length - 1) {
                         subIntervalSt = representedArray[k] * DEGCOUNT_SUBINTERVAL;
                         if (subIntervalSt < 0) {
                             subIntervalSt = Long.MAX_VALUE; // Overflow;
