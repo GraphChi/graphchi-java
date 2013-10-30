@@ -1,27 +1,18 @@
 package edu.cmu.graphchi.toolkits.collaborative_filtering.algorithms;
 
-import java.io.BufferedReader;
-import java.io.File;
-import java.io.FileReader;
-import java.io.IOException;
-import java.nio.ByteBuffer;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.logging.Logger;
 
 import org.apache.commons.math3.distribution.NormalDistribution;
-import org.apache.hadoop.hdfs.server.namenode.DatanodeDescriptor;
 
 import edu.cmu.graphchi.ChiLogger;
 import edu.cmu.graphchi.ChiVertex;
 import edu.cmu.graphchi.GraphChiContext;
 import edu.cmu.graphchi.GraphChiProgram;
-import edu.cmu.graphchi.datablocks.BytesToValueConverter;
-import edu.cmu.graphchi.datablocks.IntConverter;
 import edu.cmu.graphchi.engine.GraphChiEngine;
 import edu.cmu.graphchi.engine.VertexInterval;
-import edu.cmu.graphchi.preprocessing.EdgeProcessor;
 import edu.cmu.graphchi.preprocessing.FastSharder;
 import edu.cmu.graphchi.toolkits.collaborative_filtering.utils.DataSetDescription;
 import edu.cmu.graphchi.toolkits.collaborative_filtering.utils.FileInputDataReader;
@@ -30,8 +21,6 @@ import edu.cmu.graphchi.toolkits.collaborative_filtering.utils.ModelParameters;
 import edu.cmu.graphchi.toolkits.collaborative_filtering.utils.ProblemSetup;
 import edu.cmu.graphchi.toolkits.collaborative_filtering.utils.VertexDataCache;
 import gov.sandia.cognition.math.matrix.VectorEntry;
-import gov.sandia.cognition.math.matrix.mtj.SparseMatrixFactoryMTJ;
-import gov.sandia.cognition.math.matrix.mtj.SparseRowMatrix;
 import gov.sandia.cognition.math.matrix.mtj.SparseVector;
 import gov.sandia.cognition.math.matrix.mtj.SparseVectorFactoryMTJ;
 
@@ -166,9 +155,6 @@ class LibFM_SGDParams extends ModelParameters  {
 			
 			// wi*xi +
 			estVal += wi*xi;
-			if(estVal > 20) {
-				//System.out.println();
-			}
 			
 			Iterator<VectorEntry> it2 = row.iterator();
 			while(it2.hasNext()) {
@@ -185,9 +171,6 @@ class LibFM_SGDParams extends ModelParameters  {
 				
 				// <vi, vj>*xi*xj +
 				sumTwoWay += dotProd*xi*xj;
-				if(sumTwoWay > 20) {
-					//System.out.println();
-				}
 			}
 		}
 		estVal = estVal + sumTwoWay;

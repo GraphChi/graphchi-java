@@ -2,6 +2,7 @@
     "ratingsUrl": "/home/shuhaoyu/Documents/CMU_semester_III/Capstone/graphchi_c++/graphchi-cpp/smallnetflix_mm",
     "userFeaturesUrl": "",
     "itemFeaturesUrl": "",
+    "validationUrl": "",
     "numUsers": "95526",
     "numItems": "3561",
     "numRatings": "3298163",

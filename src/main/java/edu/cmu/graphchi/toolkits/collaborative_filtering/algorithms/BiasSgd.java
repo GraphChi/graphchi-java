@@ -12,7 +12,6 @@ import edu.cmu.graphchi.ChiLogger;
 import edu.cmu.graphchi.ChiVertex;
 import edu.cmu.graphchi.GraphChiContext;
 import edu.cmu.graphchi.GraphChiProgram;
-import edu.cmu.graphchi.datablocks.FloatConverter;
 import edu.cmu.graphchi.engine.GraphChiEngine;
 import edu.cmu.graphchi.engine.VertexInterval;
 import edu.cmu.graphchi.preprocessing.FastSharder;
@@ -22,6 +21,8 @@ import edu.cmu.graphchi.toolkits.collaborative_filtering.utils.ModelParameters;
 import edu.cmu.graphchi.toolkits.collaborative_filtering.utils.ProblemSetup;
 import edu.cmu.graphchi.util.HugeDoubleMatrix;
 import gov.sandia.cognition.math.matrix.mtj.SparseVector;
+
+
 class BiasSgdParams extends ModelParameters {
 	double LAMBDA;	//regularization
 	double stepSize; //step size for gradient descent
