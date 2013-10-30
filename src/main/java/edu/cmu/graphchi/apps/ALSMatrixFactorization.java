@@ -13,9 +13,11 @@ import edu.cmu.graphchi.util.HugeDoubleMatrix;
 import org.apache.commons.math.linear.*;
 
 import java.io.*;
+import java.util.Map;
 import java.util.logging.Logger;
 
 /**
+ * Added a comment!
  * Matrix factorization with the Alternative Least Squares (ALS) algorithm.
  * This code is based on GraphLab's implementation of ALS by Joey Gonzalez
  * and Danny Bickson (CMU). A good explanation of the algorithm is
@@ -263,17 +265,15 @@ public class ALSMatrixFactorization implements GraphChiProgram<Integer, Float> {
     }
 
     public BipartiteGraphInfo getGraphInfo() {
-        String infoFile = baseFilename + ".matrixinfo";
         try {
-            String info = FileUtils.readToString(infoFile);
-            String[] tok = info.split("\t");
-            int numLeft = Integer.parseInt(tok[0]);
-            int numRight = Integer.parseInt(tok[1]);
+        	Map<String, String> metadata = FastSharder.readMetadata(baseFilename, numShards);
+            int numLeft = Integer.parseInt(metadata.get("numLeft"));
+            int numRight = Integer.parseInt(metadata.get("numRight"));
             return new BipartiteGraphInfo(numLeft, numRight);
         } catch (IOException ioe) {
-            throw new RuntimeException("Could not load matrix info! File: " + infoFile);
+            throw new RuntimeException("Could not load matrix info! File: " + baseFilename);
         }
-    }
+    } 
 
     public class BipartiteGraphInfo {
         private int numLeft;

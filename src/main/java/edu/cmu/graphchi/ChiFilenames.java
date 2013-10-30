@@ -69,6 +69,10 @@ public class ChiFilenames {
     public static String getFilenameIntervals(String baseFilename, int nShards) {
         return baseFilename + "." + nShards + ".intervalsjava";
     }
+    
+    public static String getFilenameMetadata(String baseFilename, int nShards) {
+        return baseFilename + "." + nShards + ".matrixinfo";
+    }
 
     public static String getVertexTranslateDefFile(String baseFilename, int nshards) {
         return baseFilename + "." + nshards + ".vtranslate";

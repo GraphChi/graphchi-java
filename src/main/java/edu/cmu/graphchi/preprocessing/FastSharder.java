@@ -9,17 +9,23 @@ import edu.cmu.graphchi.datablocks.DataBlockManager;
 import edu.cmu.graphchi.datablocks.IntConverter;
 import edu.cmu.graphchi.engine.auxdata.VertexData;
 import edu.cmu.graphchi.io.CompressedIO;
+import edu.cmu.graphchi.io.MatrixMarketDataReader;
 import edu.cmu.graphchi.shards.MemoryShard;
 import edu.cmu.graphchi.shards.SlidingShard;
+import edu.cmu.graphchi.toolkits.collaborative_filtering.utils.FileInputDataReader;
 import nom.tam.util.BufferedDataInputStream;
 
 import java.io.*;
+import java.util.HashMap;
 import java.util.Iterator;
+import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.logging.Logger;
 import java.util.zip.DeflaterOutputStream;
+
+import org.codehaus.jackson.map.ObjectMapper;
 
 /**
  * New version of sharder that requires predefined number of shards
@@ -77,6 +83,8 @@ public class FastSharder <VertexValueType, EdgeValueType> {
 
     private EdgeProcessor<EdgeValueType> edgeProcessor;
     private VertexProcessor<VertexValueType> vertexProcessor;
+    
+    private Map<String, String> metadataMap;
 
 
     private static final Logger logger = ChiLogger.getLogger("fast-sharder");
@@ -105,6 +113,7 @@ public class FastSharder <VertexValueType, EdgeValueType> {
         this.vertexProcessor = vertexProcessor;
         this.edgeValueTypeBytesToValueConverter = edgeValConverter;
         this.vertexValueTypeBytesToValueConverter = vertexValConterter;
+        this.metadataMap = readMetadata(baseFilename, this.numShards);
 
         /**
          * In the first phase of processing, the edges are "shoveled" to
@@ -725,53 +734,18 @@ public class FastSharder <VertexValueType, EdgeValueType> {
             }
         } else if (format.equals(GraphInputFormat.MATRIXMARKET)) {
             /* Process matrix-market format to create a bipartite graph. */
-            boolean parsedMatrixSize = false;
-            int numLeft = 0;
-            int numRight = 0;
-            long totalEdges = 0;
-            while ((ln = ins.readLine()) != null) {
-                lineNum++;
-                if (ln.length() > 2 && !ln.startsWith("#")) {
-                    if (ln.startsWith("%%")) {
-                        if (!ln.contains(("matrix coordinate real general"))) {
-                            throw new RuntimeException("Unknown matrix market format!");
-                        }
-                    } else if (ln.startsWith("%")) {
-                        // Comment - skip
-                    } else {
-                        String[] tok = ln.split(" ");
-                        if (lineNum % 2000000 == 0) logger.info("Reading line: " + lineNum + " / " + totalEdges);
-                        if (!parsedMatrixSize) {
-                            numLeft = Integer.parseInt(tok[0]);
-                            numRight = Integer.parseInt(tok[1]);
-                            totalEdges = Long.parseLong(tok[2]);
-                            logger.info("Matrix-market: going to load total of " + totalEdges + " edges.");
-                            parsedMatrixSize = true;
-                        } else {
-                            /* The ids start from 1, so we take 1 off. */
-                            /* Vertex - ids on the right side of the bipartite graph have id numLeft + originalId */
-                            try {
-                                String lastTok = tok[tok.length - 1];
-                                this.addEdge(Integer.parseInt(tok[0]) - 1, numLeft + Integer.parseInt(tok[1]), lastTok);
-                            } catch (NumberFormatException nfe) {
-                                logger.severe("Could not parse line: " + ln);
-                                throw nfe;
-                            }
-                        }
-                    }
-                }
+        	MatrixMarketDataReader in = new MatrixMarketDataReader(inputStream);
+        	in.init();
+            while (in.next()) {
+                this.addEdge(in.getCurrSource(), in.getCurrDestination(), in.getCurrEdgeVal());
             }
-
-            /* Store matrix dimensions */
-            String matrixMarketInfoFile = baseFilename + ".matrixinfo";
-            FileOutputStream fos = new FileOutputStream(new File(matrixMarketInfoFile));
-            fos.write((numLeft + "\t" + numRight + "\t" + totalEdges + "\n").getBytes());
-            fos.close();
+            this.metadataMap.put("numLeft", in.numLeft + "");
+            this.metadataMap.put("numRight", in.numRight + "");
         }
 
-
-
         this.process();
+        
+        writeMetadata();
     }
 
     /**
@@ -868,6 +842,29 @@ public class FastSharder <VertexValueType, EdgeValueType> {
         } catch (Exception err) {
             err.printStackTrace();
         }
+    }
+
+    
+    public void addMetadata(String key, String value) {
+    	this.metadataMap.put(key, value);
+    }
+    
+    public void writeMetadata() throws IOException {
+    	String fileName = ChiFilenames.getFilenameMetadata(this.baseFilename, this.numShards);
+    	File metadataFile = new File(fileName);
+    	ObjectMapper mapper = new ObjectMapper();
+    	mapper.writeValue(metadataFile, this.metadataMap);
+    }
+    
+    public static Map<String, String> readMetadata(String baseFileName, int numShards) throws IOException {
+    	String fileName = ChiFilenames.getFilenameMetadata(baseFileName, numShards);
+    	File metadataFile = new File(fileName);
+    	if(metadataFile.exists()) {
+    		ObjectMapper mapper = new ObjectMapper();
+    		return (Map<String, String>) mapper.readValue(metadataFile, Map.class);
+    	} else {
+    		return new HashMap<String, String>();
+    	}
     }
 
     public static void main(String[] args) throws Exception {
