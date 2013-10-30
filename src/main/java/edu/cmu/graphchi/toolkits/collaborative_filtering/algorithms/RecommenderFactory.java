@@ -33,12 +33,12 @@ public class RecommenderFactory {
 		// TODO Auto-generated constructor stub
 	}
 	
-	public static List<GraphChiProgram> buildRecommenders(DataSetDescription dataDesc, 
+	public static List<RecommenderAlgorithm> buildRecommenders(DataSetDescription dataDesc, 
 		String modelDescJsonFile, VertexDataCache vertexDataCache) {
 		
 		List<Map<String,  String>> modelDescMaps = getRecommederParamsFromJson(modelDescJsonFile);
 		
-		List<GraphChiProgram> recommenders = new ArrayList<GraphChiProgram>();
+		List<RecommenderAlgorithm> recommenders = new ArrayList<RecommenderAlgorithm>();
 		
 		for(Map<String, String> modelDescMap : modelDescMaps) {
 			String id = parseModelId(modelDescMap.get(MODEL_ID_KEY), modelDescMap.get(MODEL_NAME_KEY));

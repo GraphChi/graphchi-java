@@ -112,7 +112,7 @@ class ALSParams extends ModelParameters {
 	}
 }
 
-public class ALS implements GraphChiProgram<Integer, RatingEdge>{
+public class ALS implements RecommenderAlgorithm {
     
 	DataSetDescription dataMetadata;
 	ALSParams params;
@@ -219,6 +219,27 @@ public class ALS implements GraphChiProgram<Integer, RatingEdge>{
     @Override
     public void endSubInterval(GraphChiContext ctx, VertexInterval interval) {
     }
+    
+	@Override
+	public ModelParameters getParams() {
+		// TODO Auto-generated method stub
+		return this.params;
+	}
+
+
+	@Override
+	public boolean hasConverged(GraphChiContext ctx) {
+		// TODO Auto-generated method stub
+		return ctx.getIteration() == ctx.getNumIterations() - 1;
+	}
+
+
+	@Override
+	public DataSetDescription getDataSetDescription() {
+		// TODO Auto-generated method stub
+		return this.dataMetadata;
+	}
+
 
     /**
      * Usage: java edu.cmu.graphchi.ALSMatrixFactorization <input-file> <nshards> <D>
@@ -237,7 +258,7 @@ public class ALS implements GraphChiProgram<Integer, RatingEdge>{
 				problemSetup.nShards, 0); 
 		IO.convertMatrixMarket(dataDesc.getRatingsUrl(), problemSetup.nShards, sharder);
         
-		List<GraphChiProgram> algosToRun = RecommenderFactory.buildRecommenders(dataDesc, 
+		List<RecommenderAlgorithm> algosToRun = RecommenderFactory.buildRecommenders(dataDesc, 
 				problemSetup.paramFile, null);
 
 		//Just run the first one. It should be ALS.

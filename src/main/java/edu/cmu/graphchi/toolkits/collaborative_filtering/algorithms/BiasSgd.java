@@ -50,7 +50,7 @@ class BiasSgdParams extends ModelParameters {
     }
 	
 	public void setDefaults() {
-		this.LAMBDA = 0.0001;
+		this.LAMBDA = 0.1;
 		this.D = 10;
 		this.stepSize = 0.001;
 	}
@@ -91,7 +91,7 @@ class BiasSgdParams extends ModelParameters {
 	}
 	
 }
-public class BiasSgd implements GraphChiProgram<Integer, RatingEdge> {
+public class BiasSgd implements RecommenderAlgorithm {
 
 	private DataSetDescription dataSetDescription;
 	private BiasSgdParams params;
@@ -173,8 +173,27 @@ public class BiasSgd implements GraphChiProgram<Integer, RatingEdge> {
 	@Override
 	public void endSubInterval(GraphChiContext ctx, VertexInterval interval) {
 		// TODO Auto-generated method stub
-
 	}
+	
+	@Override
+	public ModelParameters getParams() {
+		// TODO Auto-generated method stub
+		return this.params;
+	}
+
+	@Override
+	public boolean hasConverged(GraphChiContext ctx) {
+		// TODO Auto-generated method stub
+		return ctx.getIteration() == ctx.getNumIterations() - 1;
+	}
+
+	@Override
+	public DataSetDescription getDataSetDescription() {
+		// TODO Auto-generated method stub
+		return this.dataSetDescription;
+	}
+	
+	
 	public static void main(String args[]) throws Exception{
     	ProblemSetup problemSetup = new ProblemSetup(args);
     	
@@ -185,12 +204,10 @@ public class BiasSgd implements GraphChiProgram<Integer, RatingEdge> {
     	FastSharder<Integer, RatingEdge> sharder = AggregateRecommender.createSharder(dataDesc.getRatingsUrl(), 
 				problemSetup.nShards, 0); 
 		IO.convertMatrixMarket(dataDesc.getRatingsUrl(), problemSetup.nShards, sharder);
-		List<GraphChiProgram> algosToRun = RecommenderFactory.buildRecommenders(dataDesc, 
+		List<RecommenderAlgorithm> algosToRun = RecommenderFactory.buildRecommenders(dataDesc, 
 				problemSetup.paramFile, null);
     	
-        
-        
-		//Just run the first one. It should be ALS.
+		//Just run the first one. It should be BIASSGD.
 		if(!(algosToRun.get(0) instanceof BiasSgd)) {
 			System.out.println("Please check the parameters file. The first algo listed is not of type BiasSgd");
 			System.exit(2);

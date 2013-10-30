@@ -25,6 +25,7 @@ public class DataSetDescription {
 	public static final String NUM_ITEMS = "numItems";
 	public static final String NUM_RATINGS = "numRatings";
 	public static final String MEAN_RATING = "meanRating";
+	public static final String NUM_VALIDATION_RATINGS = "numValidationRatings";
 	
 	public static final String NUM_USER_FEATURES = "numUserFeatures";
 	public static final String NUM_ITEM_FEATURES = "numItemFeatures";
@@ -36,7 +37,9 @@ public class DataSetDescription {
 	private String ratingsUrl;
 	private String userFeaturesUrl;
 	private String itemFeaturesUrl;
+	
 	private String validationUrl;
+	private long numValRatings;
 	
 	private int numUsers = -1;
 	private int numItems = -1;
@@ -99,13 +102,18 @@ public class DataSetDescription {
 		if(map.get(ITEM_FEATURE_LOCATION) != null) {
 			this.itemFeaturesUrl = map.get(ITEM_FEATURE_LOCATION);
 		}
+		if(map.get(VALIDATION_RATINGS_LOCATION) != null) {
+			this.validationUrl = map.get(VALIDATION_RATINGS_LOCATION);
+		}
 		if(map.get(MIN_VALUE) != null) {
 			this.minval = Float.parseFloat(map.get(MIN_VALUE));
 		}
 		if(map.get(MAX_VALUE) != null) {
 			this.maxval = Float.parseFloat(map.get(MAX_VALUE));
 		}
-		
+		if(map.get(NUM_VALIDATION_RATINGS) != null) {
+			this.numValRatings = Long.parseLong(map.get(NUM_VALIDATION_RATINGS));
+		}
 	}
 	
 	
@@ -216,4 +224,51 @@ public class DataSetDescription {
 	public float getMinval() {
 		return minval;
 	}
+	
+	public void setRatingsUrl(String ratingsUrl) {
+		this.ratingsUrl = ratingsUrl;
+	}
+
+	public void setUserFeaturesUrl(String userFeaturesUrl) {
+		this.userFeaturesUrl = userFeaturesUrl;
+	}
+
+	public void setItemFeaturesUrl(String itemFeaturesUrl) {
+		this.itemFeaturesUrl = itemFeaturesUrl;
+	}
+
+	public void setValidationUrl(String validationUrl) {
+		this.validationUrl = validationUrl;
+	}
+
+	public void setNumUserFeatures(int numUserFeatures) {
+		this.numUserFeatures = numUserFeatures;
+	}
+
+	public void setNumItemFeatures(int numItemFeatures) {
+		this.numItemFeatures = numItemFeatures;
+	}
+
+	public void setNumRatingFeatures(int numRatingFeatures) {
+		this.numRatingFeatures = numRatingFeatures;
+	}
+
+	public void setMaxval(float maxval) {
+		this.maxval = maxval;
+	}
+
+	public void setMinval(float minval) {
+		this.minval = minval;
+	}
+
+	public long getNumValRatings() {
+		return numValRatings;
+	}
+
+	public void setNumValRatings(long numValRatings) {
+		this.numValRatings = numValRatings;
+	}
+
+
+	
 }

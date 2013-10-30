@@ -130,7 +130,7 @@ class SVDPPParams extends ModelParameters {
 	}
 }
 
-public class SVDPP implements GraphChiProgram<Integer, RatingEdge>{
+public class SVDPP implements RecommenderAlgorithm {
 	SVDPPParams params;
 	DataSetDescription datasetDesc;
 	
@@ -320,6 +320,24 @@ public class SVDPP implements GraphChiProgram<Integer, RatingEdge>{
 		
 	}
 	
+	@Override
+	public ModelParameters getParams() {
+		// TODO Auto-generated method stub
+		return this.params;
+	}
+
+	@Override
+	public boolean hasConverged(GraphChiContext ctx) {
+		// TODO Auto-generated method stub
+		return ctx.getIteration() == ctx.getNumIterations() - 1;
+	}
+
+	@Override
+	public DataSetDescription getDataSetDescription() {
+		// TODO Auto-generated method stub
+		return this.datasetDesc;
+	}
+	
     /**
      * @param args
      * @throws Exception
@@ -334,7 +352,7 @@ public class SVDPP implements GraphChiProgram<Integer, RatingEdge>{
 				problemSetup.nShards, 0); 
 		IO.convertMatrixMarket(dataDesc.getRatingsUrl(), problemSetup.nShards, sharder);
         
-		List<GraphChiProgram> algosToRun = RecommenderFactory.buildRecommenders(dataDesc, problemSetup.paramFile, null);
+		List<RecommenderAlgorithm> algosToRun = RecommenderFactory.buildRecommenders(dataDesc, problemSetup.paramFile, null);
 
 		//Just run the first one. It should be ALS.
 		if(!(algosToRun.get(0) instanceof SVDPP)) {

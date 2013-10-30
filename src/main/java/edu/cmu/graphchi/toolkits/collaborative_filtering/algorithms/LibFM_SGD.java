@@ -75,7 +75,7 @@ class LibFM_SGDParams extends ModelParameters  {
 		
 		setDefaults();
 		
-		parseJsonParams();
+		//parseJsonParams();
 	}
 	
 	private void parseJsonParams() {
@@ -103,15 +103,15 @@ class LibFM_SGDParams extends ModelParameters  {
 	}
 
 	private void setDefaults() {
-		this.D = 10;
-		this.lambda_0 = 0.065;
-		this.lambda_w = 0.065;
+		this.D = 8;
+		this.lambda_0 = 0.15;
+		this.lambda_w = 0.15;
 		this.lambda_v = new double[this.D];
 		for(int i = 0; i < this.D; i++) {
-			this.lambda_v[i] = 0.065;
+			this.lambda_v[i] = 0.15;
 		}
 
-		this.eta = 0.01;
+		this.eta = 0.001;
 		this.init_dev = 0.1;
 		
 	}
@@ -166,14 +166,16 @@ class LibFM_SGDParams extends ModelParameters  {
 			
 			// wi*xi +
 			estVal += wi*xi;
-			if(Double.isNaN(estVal)) {
-				System.out.println();
+			if(estVal > 20) {
+				//System.out.println();
 			}
 			
 			Iterator<VectorEntry> it2 = row.iterator();
 			while(it2.hasNext()) {
 				vec = it2.next();
 				int j = vec.getIndex();
+				if(j <= i)
+					continue;
 				double xj = vec.getValue();
 				double[] vj = this.v[j];
 				double dotProd = 0;
@@ -183,15 +185,12 @@ class LibFM_SGDParams extends ModelParameters  {
 				
 				// <vi, vj>*xi*xj +
 				sumTwoWay += dotProd*xi*xj;
-				if(Double.isNaN(sumTwoWay)) {
-					System.out.println();
+				if(sumTwoWay > 20) {
+					//System.out.println();
 				}
 			}
 		}
-		estVal = estVal + sumTwoWay/2;
-
-		estVal = Math.max(estVal, datasetDesc.getMinval());
-		estVal = Math.min(estVal, datasetDesc.getMaxval());
+		estVal = estVal + sumTwoWay;
 
 		return estVal;
 	}
@@ -248,14 +247,14 @@ class LibFM_SGDParams extends ModelParameters  {
 	
 }
 
-public class LibFM_SGD  implements GraphChiProgram<Integer, RatingEdge> {
+public class LibFM_SGD  implements RecommenderAlgorithm  {
 	DataSetDescription datasetDesc;
 	LibFM_SGDParams  params;
 	
 	//Contains data about user and item features. Currently this is held in memory.
 	VertexDataCache vertexDataCache = null;
 
-	protected Logger logger = ChiLogger.getLogger("LibFM_MCMC");
+	protected Logger logger = ChiLogger.getLogger("LibFM_SGD");
 	
 	//Train RMSE
 	double train_rmse;
@@ -323,6 +322,8 @@ public class LibFM_SGD  implements GraphChiProgram<Integer, RatingEdge> {
 						sum_v_x[f] += this.params.v[j][f]*xj - old_vjf_x;  
 					}
 				}
+				estVal = Math.max(estVal, datasetDesc.getMinval());
+				estVal = Math.min(estVal, datasetDesc.getMaxval());
 				this.train_rmse += err*err; 
 			}
 				
@@ -387,8 +388,26 @@ public class LibFM_SGD  implements GraphChiProgram<Integer, RatingEdge> {
 	@Override
 	public void endSubInterval(GraphChiContext ctx, VertexInterval interval) {
 		// TODO Auto-generated method stub
-		
 	}
+	
+	@Override
+	public ModelParameters getParams() {
+		// TODO Auto-generated method stub
+		return this.params;
+	}
+
+	@Override
+	public boolean hasConverged(GraphChiContext ctx) {
+		// TODO Auto-generated method stub
+		return ctx.getIteration() == ctx.getNumIterations() - 1;
+	}
+
+	@Override
+	public DataSetDescription getDataSetDescription() {
+		// TODO Auto-generated method stub
+		return this.datasetDesc;
+	}
+	
 	
 	public static void main(String[] args) throws Exception {
 		
@@ -401,7 +420,7 @@ public class LibFM_SGD  implements GraphChiProgram<Integer, RatingEdge> {
 				problemSetup.nShards, 0); 
 		IO.convertMatrixMarket(dataDesc.getRatingsUrl(), problemSetup.nShards, sharder);
         
-		List<GraphChiProgram> algosToRun = RecommenderFactory.buildRecommenders(dataDesc, problemSetup.paramFile, null);
+		List<RecommenderAlgorithm> algosToRun = RecommenderFactory.buildRecommenders(dataDesc, problemSetup.paramFile, null);
 
 		//Just run the first one. It should be ALS.
 		if(!(algosToRun.get(0) instanceof LibFM_SGD)) {
