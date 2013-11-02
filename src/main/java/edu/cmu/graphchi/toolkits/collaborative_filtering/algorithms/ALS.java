@@ -73,10 +73,10 @@ class ALSParams extends ModelParameters {
 	}
 	
 	public void parseParameters() {
-		if(this.paramsMap.get(LAMBDA_KEY) != null) {
-			this.lambda = Float.parseFloat(this.paramsMap.get(LAMBDA_KEY));
+		if(this.paramsMap.containsKey(LAMBDA_KEY)) {
+			this.lambda = Double.parseDouble(this.paramsMap.get(LAMBDA_KEY));
 		}
-		if(this.paramsMap.get(NUM_LATENT_FACTORS_KEY) != null) {
+		if(this.paramsMap.containsKey(NUM_LATENT_FACTORS_KEY)) {
 			this.D = Integer.parseInt(this.paramsMap.get(NUM_LATENT_FACTORS_KEY));
 		}
 	}
@@ -85,7 +85,7 @@ class ALSParams extends ModelParameters {
         latentFactors = new HugeDoubleMatrix(size, D);
 
         /* Fill with random data */
-        latentFactors.randomize(0f, 1.0f);
+        latentFactors.randomize(0.0, 1.0);
       }
 	
 	@Override
