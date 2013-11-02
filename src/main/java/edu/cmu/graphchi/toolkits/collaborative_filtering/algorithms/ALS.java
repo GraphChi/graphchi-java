@@ -100,10 +100,10 @@ class ALSParams extends ModelParameters {
 	}
 
 	@Override
-	public double predict(int userId, int itemId, SparseVector userFeatures,
+	public double predict(int originalUserId, int originalItemId, SparseVector userFeatures,
 			SparseVector itemFeatures, SparseVector edgeFetures, DataSetDescription datasetDesc) {
-		RealVector userFactors = this.latentFactors.getRowAsVector(userId);
-		RealVector itemFactors = this.latentFactors.getRowAsVector(itemId);
+		RealVector userFactors = this.latentFactors.getRowAsVector(originalUserId);
+		RealVector itemFactors = this.latentFactors.getRowAsVector(originalItemId);
 		
 		double prediction = userFactors.dotProduct(itemFactors);
     	prediction = Math.min(prediction, datasetDesc.getMaxval());
