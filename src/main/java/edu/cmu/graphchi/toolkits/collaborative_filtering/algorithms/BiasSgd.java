@@ -24,9 +24,13 @@ import gov.sandia.cognition.math.matrix.mtj.SparseVector;
 
 
 class BiasSgdParams extends ModelParameters {
-	double LAMBDA;	//regularization
+	public static final String LAMBDA_KEY = "regularization";
+	public static final String NUM_LATENT_FACTORS_KEY = "num_latent_factors";
+	public static final String STEP_SIZE_KEY = "step_size";
+	
+	double lambda;	//regularization
 	double stepSize; //step size for gradient descent
-	int D;	//number of features
+	int numFeature;	//number of features
 	HugeDoubleMatrix latentFactors;
 	RealVector bias;
 	
@@ -51,21 +55,29 @@ class BiasSgdParams extends ModelParameters {
     }
 	
 	public void setDefaults() {
-		this.LAMBDA = 0.1;
-		this.D = 10;
+		this.lambda = 0.1;
+		this.numFeature = 10;
 		this.stepSize = 0.001;
 	}
 	
 	public void parseParameters() {
-		//TODO parse own parameters
+		if(this.paramsMap.containsKey(LAMBDA_KEY)) {
+			this.lambda = Double.parseDouble(this.paramsMap.get(LAMBDA_KEY));
+		}
+		if(this.paramsMap.containsKey(NUM_LATENT_FACTORS_KEY)) {
+			this.numFeature = Integer.parseInt(this.paramsMap.get(NUM_LATENT_FACTORS_KEY));
+		}
+		if(this.paramsMap.containsKey(STEP_SIZE_KEY)) {
+			this.stepSize = Double.parseDouble(this.paramsMap.get(STEP_SIZE_KEY));
+		}
 	}
 	
     void initParameterValues(long size, int D){
         latentFactors = new HugeDoubleMatrix(size, D);
 
         /* Fill with random data */
-        latentFactors.randomize(0f, 1.0f);
-        bias = randomize(size,0f,1.0f);        
+        latentFactors.randomize(0.0, 1.0);
+        bias = randomize(size,0.0,1.0);        
       }
 	
 	@Override
@@ -80,14 +92,14 @@ class BiasSgdParams extends ModelParameters {
 		
 	}
 	@Override
-	public double predict(int userId, int itemId, SparseVector userFeatures,
+	public double predict(int originUserId, int originItemId, SparseVector userFeatures,
 			SparseVector itemFeatures, SparseVector edgeFeatures,
 			DataSetDescription datasetDesc) {		
 		// TODO Auto-generated method stub
-		double userBias = this.bias.getEntry(userId);;
-		double itemBias = this.bias.getEntry(itemId);
-		RealVector userFactor = this.latentFactors.getRowAsVector(userId);
-		RealVector itemFactor =  this.latentFactors.getRowAsVector(itemId);
+		double userBias = this.bias.getEntry(originUserId);
+		double itemBias = this.bias.getEntry(originItemId);
+		RealVector userFactor = this.latentFactors.getRowAsVector(originUserId);
+		RealVector itemFactor =  this.latentFactors.getRowAsVector(originItemId);
 		return userFactor.dotProduct(itemFactor) + userBias + itemBias;
 	}
 	
@@ -119,17 +131,17 @@ public class BiasSgd implements RecommenderAlgorithm {
 				double error = observation - estimatedRating;
 				squaredError += Math.pow(error,2);
 				params.bias.setEntry(userId, params.bias.getEntry(userId)
-						+ params.stepSize*(error - params.LAMBDA * params.bias.getEntry(userId)));
+						+ params.stepSize*(error - params.lambda * params.bias.getEntry(userId)));
 				params.bias.setEntry(itemId, params.bias.getEntry(itemId)
-						+ params.stepSize*(error - params.LAMBDA * params.bias.getEntry(itemId)));
+						+ params.stepSize*(error - params.lambda * params.bias.getEntry(itemId)));
 				RealVector itemFactor = params.latentFactors.getRowAsVector(itemId);
 				params.latentFactors.setRow(userId, 
 						userFactor.add(
-						(itemFactor.mapMultiply(error).subtract(userFactor.mapMultiply(params.LAMBDA))).mapMultiply(params.stepSize))
+						(itemFactor.mapMultiply(error).subtract(userFactor.mapMultiply(params.lambda))).mapMultiply(params.stepSize))
 						.getData());
 				params.latentFactors.setRow(itemId,
 						itemFactor.add(
-						(userFactor.mapMultiply(error).subtract(itemFactor.mapMultiply(params.LAMBDA))).mapMultiply(params.stepSize))
+						(userFactor.mapMultiply(error).subtract(itemFactor.mapMultiply(params.lambda))).mapMultiply(params.stepSize))
 						.getData());
 			}
      	   synchronized (this) {
@@ -143,7 +155,7 @@ public class BiasSgd implements RecommenderAlgorithm {
 		// TODO Auto-generated method stub
     	this.train_rmse = 0;
         if (ctx.getIteration() == 0) {
-        	params.initParameterValues(ctx.getNumVertices(), params.D);
+        	params.initParameterValues(ctx.getNumVertices(), params.numFeature);
         }
 	}
 
