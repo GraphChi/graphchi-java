@@ -185,7 +185,7 @@ public class SVDPP implements RecommenderAlgorithm {
 		
 		//From second iteration onwards start the actual SGD steps.
 		if(vertex.numOutEdges() > 0) {
-			int user = vertex.getId();
+			int user = context.getVertexIdTranslate().backward(vertex.getId());
 			//sqrt(1/|N(u)|)
 			double usrNorm = 1.0/Math.sqrt(vertex.numOutEdges());
 			
@@ -195,8 +195,9 @@ public class SVDPP implements RecommenderAlgorithm {
 
 			double[] sumWeights = new double[params.D];
 			for(int i = 0; i < vertex.numOutEdges(); i++) {
+				int item = context.getVertexIdTranslate().backward(vertex.getOutEdgeId(i));
 				double[] itemWeight = new double[params.D];
-				params.weights.getRow(vertex.getOutEdgeId(i), itemWeight);
+				params.weights.getRow(item, itemWeight);
 				for(int f = 0; f < params.D; f++)
 					sumWeights[f] += itemWeight[f];
 			}
@@ -209,7 +210,7 @@ public class SVDPP implements RecommenderAlgorithm {
 	        // main algorithm, see Koren's paper, just below below equation (16)
 	        for(int e=0; e < vertex.numOutEdges(); e++) {
 	        	//User vertex.
-	        	int item = vertex.getOutEdgeId(e);
+	        	int item = context.getVertexIdTranslate().backward(vertex.getOutEdgeId(e));
 	        	double[] itemFactors = new double[params.D];
 	        	params.latentFactors.getRow(item, itemFactors);
 	        	
@@ -266,7 +267,7 @@ public class SVDPP implements RecommenderAlgorithm {
 	        	//y_j = y_j  +   gamma2*(e_ui * (1/sqrt|N(u)|) * q_i - gamma7 * y_j)
 	        	for(int i = 0; i < vertex.numOutEdges(); i++) {
 	        		double[] nbrItemWt = new double[params.D];
-	        		int itemWtIndex = vertex.getOutEdgeId(i);
+	        		int itemWtIndex = context.getVertexIdTranslate().backward(vertex.getOutEdgeId(i));
 		        	params.weights.getRow(itemWtIndex, nbrItemWt);
 		        	for(int f = 0; f < params.D; f++) {
 		        		double tmp = params.itemFactorStep*(err*usrNorm*itemFactors[f] - params.itemFactorReg*nbrItemWt[f]);
