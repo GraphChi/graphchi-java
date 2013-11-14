@@ -28,19 +28,19 @@ public interface InputDataReader {
 	 * Parses the source vertex id for the rating row read by the last call to nextRatingData. 
 	 * @return the id of source vertex if valid row has been read, -1 otherwise.
 	 */
-	public int getNextRatingFrom();
+	public int getCurrRatingFrom();
 	
 	/**
 	 * Parses the destination vertex id for the rating row read by the last call to nextRatingData. 
 	 * @return the id of destination vertex if valid row has been read, -1 otherwise.
 	 */
-	public int getNextRatingTo();
+	public int getCurrRatingTo();
 	
 	/**
 	 * Parses the source vertex id for the rating row read by the last call to nextRatingData. 
 	 * @return the id of source vertex if valid row has been read, -1 otherwise.
 	 */
-	public float getNextRating();
+	public float getCurrRating();
 	
 	/**
 	 * Parses the features related to the rating row read by the last call to nextRatingData and returns
@@ -71,13 +71,13 @@ public interface InputDataReader {
 	 * @return id of current user if initUserData has been called and it has not reached
 	 * the end of dataset.
 	 */
-	public int getNextUser();
+	public int getCurrUser();
 	
 	/**
 	 * Parse and access the next set of user features
 	 * @return: List of features for the current user
 	 */
-	public List<Feature> getNextUserFeatures();
+	public List<Feature> getCurrUserFeatures();
 	
 	/**
 	 * 
@@ -90,19 +90,19 @@ public interface InputDataReader {
 	 * @return false if there is no next data available of if the user data is 
 	 * not initialized, true otherwise
 	 */
-	public boolean nextItem() throws IOException;
+	public boolean currItem() throws IOException;
 	
 	/**
 	 * 
 	 * @return
 	 */
-	public int getNextItem();
+	public int getCurrItem();
 	
 	/**
 	 * 
 	 * @return
 	 */
-	public List<Feature> getNextItemFeatures();
+	public List<Feature> getCurrItemFeatures();
 	
 	/**
 	 * Should return some metadata about the entire dataset. Examples include,

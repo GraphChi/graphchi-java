@@ -47,19 +47,18 @@ public class FileInputDataReader implements InputDataReader {
 	public static final String DELIM = "\t| ";
 	public static final String FEATURE_DELIM = ":";
 	
-	String ratingFile;
-	String userFile;
-	String itemFile;
-	DataSetDescription metadata;
+	protected String ratingFile;
+	protected String userFile;
+	protected String itemFile;
+	protected DataSetDescription metadata;
 	
-	private MatrixMarketDataReader ratingsReader;
+	protected MatrixMarketDataReader ratingsReader;
 	
-	private String currUserLine;
-	private String currItemLine; 
+	protected String currUserLine;
+	protected String currItemLine; 
 	
-	BufferedReader ratingBr = null;
-	BufferedReader userBr = null;
-	BufferedReader itemBr = null;
+	protected BufferedReader userBr = null;
+	protected BufferedReader itemBr = null;
 	
 	public FileInputDataReader(DataSetDescription datasetDesc) {
 		this.metadata = datasetDesc;
@@ -95,17 +94,17 @@ public class FileInputDataReader implements InputDataReader {
 	}
 
 	@Override
-	public int getNextRatingFrom() {
+	public int getCurrRatingFrom() {
 		return this.ratingsReader.getCurrSource();
 	}
 
 	@Override
-	public int getNextRatingTo() {
+	public int getCurrRatingTo() {
 		return this.ratingsReader.getCurrDestination();
 	}
 
 	@Override
-	public float getNextRating() {
+	public float getCurrRating() {
 		String tok = this.ratingsReader.getCurrEdgeVal().split(DELIM, 2)[0];
 		if(tok != null)
 			return Float.parseFloat(tok);
@@ -142,7 +141,7 @@ public class FileInputDataReader implements InputDataReader {
 	}
 
 	@Override
-	public int getNextUser() {
+	public int getCurrUser() {
 		if(this.currUserLine == null) {
 			return -1;
 		} else {
@@ -151,7 +150,7 @@ public class FileInputDataReader implements InputDataReader {
 	}
 
 	@Override
-	public List<Feature> getNextUserFeatures() {
+	public List<Feature> getCurrUserFeatures() {
 		if(this.currUserLine == null) {
 			return null;
 		} else {
@@ -171,7 +170,7 @@ public class FileInputDataReader implements InputDataReader {
 	}
 
 	@Override
-	public boolean nextItem() throws IOException {
+	public boolean currItem() throws IOException {
 		String line = progressLine(this.itemBr);
 		this.currItemLine = line;
 		if(line == null) {
@@ -183,7 +182,7 @@ public class FileInputDataReader implements InputDataReader {
 	}
 	
 	@Override
-	public int getNextItem() {
+	public int getCurrItem() {
 		if(this.currItemLine == null) {
 			return -1;
 		} else {
@@ -193,7 +192,7 @@ public class FileInputDataReader implements InputDataReader {
 	}
 
 	@Override
-	public List<Feature> getNextItemFeatures() {
+	public List<Feature> getCurrItemFeatures() {
 		if(this.currItemLine == null) {
 			return null;
 		} else {

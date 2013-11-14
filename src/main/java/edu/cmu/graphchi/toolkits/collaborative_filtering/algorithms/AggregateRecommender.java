@@ -1,7 +1,11 @@
 package edu.cmu.graphchi.toolkits.collaborative_filtering.algorithms;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
+
+import scala.Array;
 
 import edu.cmu.graphchi.ChiVertex;
 import edu.cmu.graphchi.GraphChiContext;
@@ -15,28 +19,31 @@ import edu.cmu.graphchi.toolkits.collaborative_filtering.utils.FileInputDataRead
 import edu.cmu.graphchi.toolkits.collaborative_filtering.utils.IO;
 import edu.cmu.graphchi.toolkits.collaborative_filtering.utils.InputDataReader;
 import edu.cmu.graphchi.toolkits.collaborative_filtering.utils.ProblemSetup;
+import edu.cmu.graphchi.toolkits.collaborative_filtering.utils.RecommenderPool;
+import edu.cmu.graphchi.toolkits.collaborative_filtering.utils.RecommenderScheduler;
 import edu.cmu.graphchi.toolkits.collaborative_filtering.utils.VertexDataCache;
 
 public class AggregateRecommender implements
 		GraphChiProgram<Integer, RatingEdge> {
 	
 	private DataSetDescription datasetDesc;
-	private String modelDescJsonFile;
 	
-	List<RecommenderAlgorithm> recommenders;
+	public RecommenderPool recPool;
+	public Set<Integer> activeRecommenderIds;
 	
 	//Contains data about user and item features. Currently this is held in memory.
 	VertexDataCache vertexDataCache = null;
 	
-	public AggregateRecommender(DataSetDescription datasetDesc, String modelDescJsonFile) {
+	public AggregateRecommender(DataSetDescription datasetDesc, RecommenderPool pool) {
 		this.datasetDesc = datasetDesc;
-		this.modelDescJsonFile = modelDescJsonFile;
+		this.recPool = pool;
 	}
 
 	@Override
 	public void update(ChiVertex<Integer, RatingEdge> vertex,
 			GraphChiContext context) {
-		for(RecommenderAlgorithm rec : this.recommenders) {
+		for(int i : this.activeRecommenderIds) {
+			RecommenderAlgorithm rec = this.recPool.getRecommender(i);
 			rec.update(vertex, context);
 		}
 	}
@@ -58,22 +65,26 @@ public class AggregateRecommender implements
 					e.printStackTrace();
 				}
 			}
-			
-			//Build all the recommenders configured in the file.
-			this.recommenders = RecommenderFactory.buildRecommenders(datasetDesc, modelDescJsonFile, vertexDataCache);
 		}
+		this.activeRecommenderIds = recPool.getActiveRecommenders();
 		
-		for(RecommenderAlgorithm rec : this.recommenders) {
+		for(int i : this.activeRecommenderIds) {
+			RecommenderAlgorithm rec = this.recPool.getRecommender(i);
 			rec.beginIteration(ctx);
 		}
 	}
 
 	@Override
 	public void endIteration(GraphChiContext ctx) {
-		for(RecommenderAlgorithm rec : this.recommenders) {
+		List<Integer> completedRec = new ArrayList<Integer>();
+		for(int i : this.activeRecommenderIds) {
+			RecommenderAlgorithm rec = this.recPool.getRecommender(i);
 			rec.endIteration(ctx);
 			
-			if(ctx.getIteration() == ctx.getNumIterations() - 1) {
+			if(rec.hasConverged(ctx)) {
+				//Mark this recommender
+				completedRec.add(i);
+				//Compute the validation error
 				try {
 					double validationRMSE = 0;
 					if(this.datasetDesc.getValidationUrl() != null) {
@@ -84,8 +95,8 @@ public class AggregateRecommender implements
 			        	
 			        	long count = 0;
 			        	while(reader.nextRatingData()) {
-			        		int userId = reader.getNextRatingFrom();
-			        		int itemId = reader.getNextRatingTo();
+			        		int userId = reader.getCurrRatingFrom();
+			        		int itemId = reader.getCurrRatingTo();
 			        		
 			        		//TODO: Figure out how to support edge values.
 			        		double estVal = rec.getParams().predict(userId, itemId, 
@@ -93,32 +104,38 @@ public class AggregateRecommender implements
 			        				this.vertexDataCache.getFeatures(itemId), 
 			        				null, datasetDesc);
 			        		
-			        		validationRMSE += (reader.getNextRating() - estVal)*(reader.getNextRating() - estVal);
+			        		validationRMSE += (reader.getCurrRating() - estVal)*(reader.getCurrRating() - estVal);
 			        		count++;
 			        	}
 			        	validationRMSE = Math.sqrt(validationRMSE/(1.0*count));
 			        }
-					System.out.println("Validation RMSE: " + validationRMSE);
+					System.out.println("Finished Recommender " + rec.getParams().getId() + " Validation RMSE: " + validationRMSE);
 				} catch (Exception e) {
 					e.printStackTrace();
 				}
 			}
-			
 		}
+		//Mark all recommenders that has completed
+		this.recPool.setRecommedersAsCompleted(completedRec);
 		
-		
+		if(this.recPool.pendingRecommenders.size() == 0) {
+			//All recommenders have successfully finished. Break out of the loop
+			//TODO: How to do this?
+		}
 	}
 
 	@Override
 	public void beginInterval(GraphChiContext ctx, VertexInterval interval) {
-		for(RecommenderAlgorithm rec : this.recommenders) {
+		for(int i : this.activeRecommenderIds) {
+			RecommenderAlgorithm rec = this.recPool.getRecommender(i);
 			rec.beginInterval(ctx, interval);
 		}
 	}
 
 	@Override
 	public void endInterval(GraphChiContext ctx, VertexInterval interval) {
-		for(RecommenderAlgorithm rec : this.recommenders) {
+		for(int i : this.activeRecommenderIds) {
+			RecommenderAlgorithm rec = this.recPool.getRecommender(i);
 			rec.endInterval(ctx, interval);
 		}
 		
@@ -126,14 +143,16 @@ public class AggregateRecommender implements
 
 	@Override
 	public void beginSubInterval(GraphChiContext ctx, VertexInterval interval) {
-		for(RecommenderAlgorithm rec : this.recommenders) {
+		for(int i : this.activeRecommenderIds) {
+			RecommenderAlgorithm rec = this.recPool.getRecommender(i);
 			rec.beginSubInterval(ctx, interval);
 		}
 	}
 
 	@Override
 	public void endSubInterval(GraphChiContext ctx, VertexInterval interval) {
-		for(RecommenderAlgorithm rec : this.recommenders) {
+		for(int i : this.activeRecommenderIds) {
+			RecommenderAlgorithm rec = this.recPool.getRecommender(i);
 			rec.endSubInterval(ctx, interval);
 		}		
 	}
@@ -156,7 +175,18 @@ public class AggregateRecommender implements
 					problemSetup.nShards, 0); 
 			IO.convertMatrixMarket(dataDesc.getRatingsUrl(), problemSetup.nShards, sharder);
 			
-			AggregateRecommender aggRec = new AggregateRecommender(dataDesc, problemSetup.paramFile);
+			//TODO: Do something else for vertex data cache.
+			List<RecommenderAlgorithm> recommenders = RecommenderFactory.buildRecommenders(dataDesc, 
+					problemSetup.paramFile, null);
+			
+			int maxAvailableMemory = (int)Runtime.getRuntime().maxMemory() / (1024*1024);
+			//RecommenderScheduler sched = new RecommenderScheduler(1, maxAvailableMemory, recommenders);
+			RecommenderScheduler sched = new RecommenderScheduler(1, 70, recommenders);
+			
+			List<RecommenderPool> recPool = sched.splitIntoRecPools();
+			
+			recPool.get(0).resetPool();
+			AggregateRecommender aggRec = new AggregateRecommender(dataDesc, recPool.get(0));
 	    	
 	        /* Run GraphChi */
 	        GraphChiEngine<Integer, RatingEdge> engine = new GraphChiEngine<Integer, RatingEdge>(dataDesc.getRatingsUrl(),
@@ -168,10 +198,10 @@ public class AggregateRecommender implements
 	        engine.setVertexDataConverter(null);  // We do not access vertex values.
 	        engine.setModifiesInedges(false); // Important optimization
 	        engine.setModifiesOutedges(false); // Important optimization
-	        engine.run(aggRec, 20);
+	        engine.run(aggRec, 100);
 	
 		    //TODO: Persist models - Serialization has not yet been implemented
-	        for(RecommenderAlgorithm rec : aggRec.recommenders) {
+	        for(RecommenderAlgorithm rec : aggRec.recPool.allRecommenders) {
 	        	rec.getParams().serialize(null);
 	        }
 	        

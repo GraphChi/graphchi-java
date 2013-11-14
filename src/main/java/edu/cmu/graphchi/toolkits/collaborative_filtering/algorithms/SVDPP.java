@@ -28,7 +28,7 @@ import gov.sandia.cognition.math.matrix.mtj.SparseVector;
  * Y. Koren. Factorization Meets the Neighborhood: a Multifaceted Collaborative Filtering Model. 
  * ACM SIGKDD 2008.
  * http://dl.acm.org/citation.cfm?id=1401944 
- *
+ *long
  * <i>Note:</i>  in this case the vertex values are not used, but as GraphChi does
  * not currently support "no-vertex-values", integer-type is used as placeholder.
  *
@@ -37,6 +37,10 @@ import gov.sandia.cognition.math.matrix.mtj.SparseVector;
 
 class SVDPPParams extends ModelParameters {
 	//Model parameters to be computed
+	
+	// Number of iterations - Stopping condition. 
+	//TODO: Note that may be we can have a better stopping condition based on change in training RMSE.  
+	int maxIterations;
 	
 	//Computed in the first iteration of update functions currently.
 	int numUsers;				//Number of users.
@@ -70,6 +74,8 @@ class SVDPPParams extends ModelParameters {
 	}
 	
 	private void setDefaults() {
+		this.maxIterations = 20;
+		
 		//Default number of features
 		this.D = 8;
 		
@@ -128,6 +134,12 @@ class SVDPPParams extends ModelParameters {
 		
 		return prediction;
 	}
+	
+	@Override
+	public int getEstimatedMemoryUsage(DataSetDescription datasetDesc) {
+		// TODO Auto-generated method stub
+		return 0;
+	}
 }
 
 public class SVDPP implements RecommenderAlgorithm {
@@ -138,20 +150,22 @@ public class SVDPP implements RecommenderAlgorithm {
 	
 	private double train_rmse;
 	
+	int iterationNum;
+	
 	public SVDPP(DataSetDescription datasetDesc, ModelParameters parameters) {
 		//Initialize the model parameters
 		this.params = (SVDPPParams)parameters;
 		this.datasetDesc = datasetDesc;
-		
-		//metadataMap contains global information computed by sharder?
 		this.train_rmse = 0;
+		
+		this.iterationNum = 0;
 	}
 	
 	@Override
 	public void update(ChiVertex<Integer, RatingEdge> vertex, GraphChiContext context) {
 		//On first iteration just compute the globalMean, number of users and number of items.
 		//TODO: Is computing these values here the right thing to do?
-		if(context.getIteration() == 0) {
+		if(this.iterationNum == 0) {
 			if(vertex.numOutEdges() > 0) {
 				double sum = 0;
 				for(int e = 0; e < vertex.numOutEdges(); e++) 
@@ -277,7 +291,7 @@ public class SVDPP implements RecommenderAlgorithm {
     	this.train_rmse = 0;
 
     	//Since iteration number 0 was used to compute global mean, numUsers and numItems.
-        if (ctx.getIteration() == 1) {
+        if (this.iterationNum == 1) {
         	   params.initParameterValues();
         	   params.globalMean = params.globalMean / ctx.getNumEdges();
         }		
@@ -285,7 +299,7 @@ public class SVDPP implements RecommenderAlgorithm {
 
 	@Override
 	public void endIteration(GraphChiContext ctx) {
-		if (ctx.getIteration() >= 1) {
+		if (this.iterationNum >= 1) {
 			this.train_rmse = Math.sqrt(this.train_rmse / (1.0 * ctx.getNumEdges()));
 	        this.logger.info("Train RMSE: " + this.train_rmse);
 	        
@@ -328,14 +342,19 @@ public class SVDPP implements RecommenderAlgorithm {
 
 	@Override
 	public boolean hasConverged(GraphChiContext ctx) {
-		// TODO Auto-generated method stub
-		return ctx.getIteration() == ctx.getNumIterations() - 1;
+		return this.iterationNum == this.params.maxIterations	;
 	}
 
 	@Override
 	public DataSetDescription getDataSetDescription() {
 		// TODO Auto-generated method stub
 		return this.datasetDesc;
+	}
+	
+	@Override
+	public int getEstimatedMemoryUsage() {
+		// TODO Auto-generated method stub
+		return 0;
 	}
 	
     /**

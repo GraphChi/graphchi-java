@@ -31,6 +31,10 @@ class BiasSgdParams extends ModelParameters {
 	double lambda;	//regularization
 	double stepSize; //step size for gradient descent
 	int numFeature;	//number of features
+	// Number of iterations - Stopping condition. 
+	//TODO: Note that may be we can have a better stopping condition based on change in training RMSE.  
+	int maxIterations;
+	
 	HugeDoubleMatrix latentFactors;
 	RealVector bias;
 	
@@ -58,6 +62,8 @@ class BiasSgdParams extends ModelParameters {
 		this.lambda = 0.1;
 		this.numFeature = 10;
 		this.stepSize = 0.001;
+		
+		this.maxIterations = 20;
 	}
 	
 	public void parseParameters() {
@@ -70,6 +76,8 @@ class BiasSgdParams extends ModelParameters {
 		if(this.paramsMap.containsKey(STEP_SIZE_KEY)) {
 			this.stepSize = Double.parseDouble(this.paramsMap.get(STEP_SIZE_KEY));
 		}
+		
+		//TODO: Read stopping condition (maxIteration currently from parameter file)
 	}
 	
     void initParameterValues(long size, int D){
@@ -103,6 +111,12 @@ class BiasSgdParams extends ModelParameters {
 		return userFactor.dotProduct(itemFactor) + userBias + itemBias;
 	}
 	
+	@Override
+	public int getEstimatedMemoryUsage(DataSetDescription datasetDesc) {
+		// TODO Auto-generated method stub
+		return 0;
+	}
+	
 }
 public class BiasSgd implements RecommenderAlgorithm {
 
@@ -110,9 +124,13 @@ public class BiasSgd implements RecommenderAlgorithm {
 	private BiasSgdParams params;
 	protected Logger logger = ChiLogger.getLogger("BiasSGD");
     double train_rmse = 0.0;
+    
+    int iterationNum ;
+    
     public BiasSgd(DataSetDescription dataSetDescription , ModelParameters params) {
     	this.dataSetDescription = dataSetDescription;
     	this.params = (BiasSgdParams)params;
+    	this.iterationNum = 0;
     }
 	//@Override
 	public void update(ChiVertex<Integer, RatingEdge> vertex,
@@ -154,7 +172,7 @@ public class BiasSgd implements RecommenderAlgorithm {
 	public void beginIteration(GraphChiContext ctx) {
 		// TODO Auto-generated method stub
     	this.train_rmse = 0;
-        if (ctx.getIteration() == 0) {
+        if (this.iterationNum == 0) {
         	params.initParameterValues(ctx.getNumVertices(), params.numFeature);
         }
 	}
@@ -163,6 +181,7 @@ public class BiasSgd implements RecommenderAlgorithm {
 	public void endIteration(GraphChiContext ctx) {
         this.train_rmse = Math.sqrt(this.train_rmse / (1.0 * ctx.getNumEdges()));
         this.logger.info("Train RMSE: " + this.train_rmse);
+        this.iterationNum++;
 	}
 
 	@Override
@@ -197,7 +216,7 @@ public class BiasSgd implements RecommenderAlgorithm {
 	@Override
 	public boolean hasConverged(GraphChiContext ctx) {
 		// TODO Auto-generated method stub
-		return ctx.getIteration() == ctx.getNumIterations() - 1;
+		return this.iterationNum == this.params.maxIterations;
 	}
 
 	@Override
@@ -206,6 +225,11 @@ public class BiasSgd implements RecommenderAlgorithm {
 		return this.dataSetDescription;
 	}
 	
+	@Override
+	public int getEstimatedMemoryUsage() {
+		// TODO Auto-generated method stub
+		return 0;
+	}
 	
 	public static void main(String args[]) throws Exception{
     	ProblemSetup problemSetup = new ProblemSetup(args);

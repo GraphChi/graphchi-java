@@ -41,6 +41,10 @@ class LibFM_SGDParams extends ModelParameters  {
 	public static final String ETA_KEY = "eta";
 	public static final String INIT_DEV_KEY = "init_dev";
 	
+	// Number of iterations - Stopping condition. 
+	//TODO: Note that may be we can have a better stopping condition based on change in training RMSE.  
+	int maxIterations;
+	
 	//The standard deviation of the normal distribution to be used for initializing
 	//the parameters of V.
 	double init_dev;
@@ -68,6 +72,8 @@ class LibFM_SGDParams extends ModelParameters  {
 	}
 	
 	private void parseJsonParams() {
+		//TODO: parse stopping condition.
+		
 		if(this.paramsMap.get(NUM_LATENT_FACTORS_KEY) != null) {
 			this.D = Integer.parseInt(this.paramsMap.get(NUM_LATENT_FACTORS_KEY));
 		}
@@ -92,6 +98,8 @@ class LibFM_SGDParams extends ModelParameters  {
 	}
 
 	private void setDefaults() {
+		this.maxIterations = 20;
+		
 		this.D = 8;
 		this.lambda_0 = 0.15;
 		this.lambda_w = 0.15;
@@ -228,6 +236,12 @@ class LibFM_SGDParams extends ModelParameters  {
 		return getItemFeatureBase(datasetDesc) + datasetDesc.getNumItemFeatures();
 	}
 	
+	@Override
+	public int getEstimatedMemoryUsage(DataSetDescription datasetDesc) {
+		// TODO Auto-generated method stub
+		return 0;
+	}
+	
 }
 
 public class LibFM_SGD  implements RecommenderAlgorithm  {
@@ -236,6 +250,8 @@ public class LibFM_SGD  implements RecommenderAlgorithm  {
 	
 	//Contains data about user and item features. Currently this is held in memory.
 	VertexDataCache vertexDataCache = null;
+	
+	int iterationNum;
 
 	protected Logger logger = ChiLogger.getLogger("LibFM_SGD");
 	
@@ -245,6 +261,8 @@ public class LibFM_SGD  implements RecommenderAlgorithm  {
 	public LibFM_SGD(DataSetDescription dataDesc, ModelParameters par) {
 		this.params = (LibFM_SGDParams)par;
 		this.datasetDesc = dataDesc;
+		
+		this.iterationNum = 0;
 	}
 	
 	@Override
@@ -318,7 +336,7 @@ public class LibFM_SGD  implements RecommenderAlgorithm  {
 
 	@Override
 	public void beginIteration(GraphChiContext ctx) {
-		if(ctx.getIteration() == 0) {
+		if(this.iterationNum == 0) {
 			//On First iteration
 			int numFeatures = this.datasetDesc.getNumItemFeatures() + 
 					this.datasetDesc.getNumUserFeatures() + this.datasetDesc.getNumRatingFeatures();
@@ -348,6 +366,8 @@ public class LibFM_SGD  implements RecommenderAlgorithm  {
 		
 		this.train_rmse = Math.sqrt(this.train_rmse / (1.0 * ctx.getNumEdges()));
         this.logger.info("Train RMSE: " + this.train_rmse);
+        
+        this.iterationNum++;
 	}
 
 	@Override
@@ -381,8 +401,7 @@ public class LibFM_SGD  implements RecommenderAlgorithm  {
 
 	@Override
 	public boolean hasConverged(GraphChiContext ctx) {
-		// TODO Auto-generated method stub
-		return ctx.getIteration() == ctx.getNumIterations() - 1;
+		return this.iterationNum == this.params.maxIterations;
 	}
 
 	@Override
@@ -391,6 +410,11 @@ public class LibFM_SGD  implements RecommenderAlgorithm  {
 		return this.datasetDesc;
 	}
 	
+	@Override
+	public int getEstimatedMemoryUsage() {
+		// TODO Auto-generated method stub
+		return 0;
+	}
 	
 	public static void main(String[] args) throws Exception {
 		

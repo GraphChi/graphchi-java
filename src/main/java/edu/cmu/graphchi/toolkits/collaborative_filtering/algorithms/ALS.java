@@ -54,9 +54,10 @@ class ALSParams extends ModelParameters {
 	
 	double lambda;	//regularization
 	int D;	//number of features
+	// Number of iterations - Stopping condition. 
+	//TODO: Note that may be we can have a better stopping condition based on change in training RMSE.  
+	int maxIterations;	
 	HugeDoubleMatrix latentFactors;
-	int numUsers;
-	int numItems;
 	
 	public ALSParams(String id, Map<String, String> paramsMap) {
 		super(id, paramsMap);
@@ -70,6 +71,7 @@ class ALSParams extends ModelParameters {
 	public void setDefaults() {
 		this.lambda = 0.065;
 		this.D = 10;
+		this.maxIterations = 20;
 	}
 	
 	public void parseParameters() {
@@ -110,6 +112,16 @@ class ALSParams extends ModelParameters {
     	prediction = Math.max(prediction, datasetDesc.getMinval());
     	return prediction;
 	}
+	
+	@Override
+	public int getEstimatedMemoryUsage(DataSetDescription datasetDesc) {
+		int estimatedMemory = HugeDoubleMatrix.getEstimatedMemory(datasetDesc.getNumUsers(),
+				datasetDesc.getNumItems());
+		//Add 1 Mb of slack (Huge double matrix assigns memory in 1 Mb chunks.)
+		estimatedMemory += 1;
+		return estimatedMemory;
+	}
+	
 }
 
 public class ALS implements RecommenderAlgorithm {
@@ -119,9 +131,12 @@ public class ALS implements RecommenderAlgorithm {
 	protected Logger logger = ChiLogger.getLogger("ALS");
     double train_rmse = 0.0;
     
+    int iterationNum;
+    
     public ALS(DataSetDescription dataMetadata, ModelParameters params) {
     	this.dataMetadata = dataMetadata;
     	this.params = (ALSParams)params;
+    	this.iterationNum = 0;
     }
 
     
@@ -192,7 +207,7 @@ public class ALS implements RecommenderAlgorithm {
          * so that each row contains one latent factor.
          */
     	this.train_rmse = 0;
-        if (ctx.getIteration() == 0) {
+        if (this.iterationNum == 0) {
         	params.initParameterValues(ctx.getNumVertices(), params.D);
         }
     }
@@ -202,6 +217,7 @@ public class ALS implements RecommenderAlgorithm {
     	 /* Output RMSE */
         this.train_rmse = Math.sqrt(this.train_rmse / (1.0 * ctx.getNumEdges()));
         this.logger.info("Train RMSE: " + this.train_rmse);
+        this.iterationNum++;
     }
 
     @Override
@@ -230,7 +246,7 @@ public class ALS implements RecommenderAlgorithm {
 	@Override
 	public boolean hasConverged(GraphChiContext ctx) {
 		// TODO Auto-generated method stub
-		return ctx.getIteration() == ctx.getNumIterations() - 1;
+		return this.iterationNum == this.params.maxIterations;
 	}
 
 
@@ -238,6 +254,11 @@ public class ALS implements RecommenderAlgorithm {
 	public DataSetDescription getDataSetDescription() {
 		// TODO Auto-generated method stub
 		return this.dataMetadata;
+	}
+	
+	@Override
+	public int getEstimatedMemoryUsage() {
+		return this.params.getEstimatedMemoryUsage(this.dataMetadata);
 	}
 
 
@@ -282,46 +303,4 @@ public class ALS implements RecommenderAlgorithm {
         ((ALS)als).params.serialize(problemSetup.outputLoc);
     }
 
-    /**
-     * Output in matrix market format
-     * @param training
-     * @param vertexIdTranslate
-     * @throws Exception
-     */
-/*    private void writeOutputMatrices(VertexIdTranslate vertexIdTranslate) throws Exception {
-    	Map<String, String> metaDataMap = FastSharder.readMetadata(this.problemSetup.training, this.problemSetup.nShards);
-    	int numLeft = Integer.parseInt(metaDataMap.get("numLeft"));
-    	int numRight = Integer.parseInt(metaDataMap.get("numRight"));
-    	
-         Output left 
-        String leftFileName = this.problemSetup.training + "_U.mm";
-        BufferedWriter wr = new BufferedWriter(new FileWriter(leftFileName));
-        wr.write("%%MatrixMarket matrix array real general\n");
-        wr.write(params.D + " " + numLeft + "\n");
-
-        for(int j=0; j < numLeft; j++) {
-            int vertexId = vertexIdTranslate.forward(j);  // Translate to internal vertex id
-            for(int i=0; i < params.D; i++) {
-                wr.write(params.latentFactors.getValue(vertexId, i) + "\n");
-            }
-        }
-        wr.close();
-
-         Output right 
-        String rightFileName = this.problemSetup.training + "_V.mm";
-        wr = new BufferedWriter(new FileWriter(rightFileName));
-        wr.write("%%MatrixMarket matrix array real general\n");
-        wr.write(params.D + " " + numRight + "\n");
-
-        for(int j=0; j < numRight; j++) {
-            int vertexId = vertexIdTranslate.forward(numLeft + j);   // Translate to internal vertex id
-            for(int i=0; i < params.D; i++) {
-                wr.write(params.latentFactors.getValue(vertexId, i) + "\n");
-            }
-        }
-        wr.close();
-
-        this.logger.info("Latent factor matrices saved: " + 
-        		this.problemSetup.training + "_U.mm" + ", " + this.problemSetup.training + "_V.mm");
-    }*/
 }

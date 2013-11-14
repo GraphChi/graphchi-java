@@ -13,4 +13,11 @@ public interface RecommenderAlgorithm extends GraphChiProgram<Integer, RatingEdg
 	
 	public DataSetDescription getDataSetDescription();
 	
+	/**
+	 * Should return how much memory this particular recommender is estimated to consume
+	 * in MBs.
+	 * @return
+	 */
+	public int getEstimatedMemoryUsage();
+	
 }

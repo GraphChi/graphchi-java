@@ -37,6 +37,9 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import com.google.common.annotations.VisibleForTesting;
 
+import edu.cmu.graphchi.toolkits.collaborative_filtering.algorithms.AggregateRecommender;
+import edu.cmu.graphchi.toolkits.collaborative_filtering.algorithms.RecommenderAlgorithm;
+import edu.cmu.graphchi.toolkits.collaborative_filtering.utils.DataSetDescription;
 import edu.cmu.graphchi.toolkits.collaborative_filtering.utils.ProblemSetup;
 
 import org.apache.commons.cli.CommandLine;
@@ -78,6 +81,7 @@ import org.apache.hadoop.yarn.api.records.NodeReport;
 import org.apache.hadoop.yarn.api.records.Priority;
 import org.apache.hadoop.yarn.api.records.Resource;
 import org.apache.hadoop.yarn.api.records.ResourceRequest;
+import org.apache.hadoop.yarn.client.api.AMRMClient;
 import org.apache.hadoop.yarn.client.api.AMRMClient.ContainerRequest;
 import org.apache.hadoop.yarn.client.api.async.AMRMClientAsync;
 import org.apache.hadoop.yarn.client.api.async.NMClientAsync;
@@ -372,24 +376,20 @@ public class ApplicationMaster {
     nmClientAsync.init(conf);
     nmClientAsync.start();
 
-    // Setup local RPC Server to accept status requests directly from clients
-    // TODO need to setup a protocol for client to be able to communicate to
-    // the RPC server
-    // TODO use the rpc port info to register with the RM for the client to
-    // send requests to this app master
-
     // Register self with ResourceManager
     // This will start heartbeating to the RM
     appMasterHostname = NetUtils.getHostname();
     RegisterApplicationMasterResponse response = amRMClient
         .registerApplicationMaster(appMasterHostname, appMasterRpcPort,
             appMasterTrackingUrl);
-    // Dump out information about cluster capability as seen by the
-    // resource manager
+
     int maxMem = response.getMaximumResourceCapability().getMemory();
     LOG.info("Max mem capabililty of resources in this cluster " + maxMem);
 
-    // A resource ask cannot exceed the max.
+    //Based on the available resources in the cluster and estimated memory usage
+    //of each recommender, break the GraphChi job into multiple GraphChi jobs
+    //and submit container asks.
+    
     if (containerMemory > maxMem) {
       LOG.info("Container memory specified above max threshold of cluster."
           + " Using max value." + ", specified=" + containerMemory + ", max="
@@ -412,13 +412,61 @@ public class ApplicationMaster {
     while (!done
         && (numCompletedContainers.get() != numTotalContainers)) {
       try {
-        Thread.sleep(200);
+    	  
+    	  Thread.sleep(200);
       } catch (InterruptedException ex) {}
     }
     finish();
     
     return success;
   }
+  
+  
+  HashMap<Integer, AggregateRecommender> yarnRecommenderJobs;
+/*  private List<ContainerRequest> splitGraphChiJobs(int maxMem) {
+	  
+	  DataSetDescription dataDesc = new DataSetDescription();
+	  dataDesc.loadFromJsonFile(this.setup.dataMetadataFile);
+	  //AggregateRecommender aggRec = new AggregateRecommender(dataDesc, this.setup.paramFile);
+	  
+	  //TODO: Currently the logic is very naive for asking for resources from YARN's Resource Manager.
+	  // Each request for container is equal to the maximum that fit which is less than the maximum
+	  // memory container available. This approach might not work in a heterogenous cluster. I am not
+	  // sure if all the available resources in the cluster can be seen by querying Apache YARN. If
+	  // it cannot, then we should send multiple requests for containers with different capabilities
+	  // and as containers become available, we should assign the corresponding graphchi jobs to it.
+	  long currentTotalMem = 0;
+	  List<RecommenderAlgorithm> currentRecGroup = new ArrayList<RecommenderAlgorithm>();
+	  int numGraphChiSplits = 0;
+	  for(RecommenderAlgorithm rec : aggRec.recommenders) {
+		  long mem = rec.getEstimatedMemoryUsage();
+		  
+		  if(mem > maxMem) {
+			  LOG.error("Cannot run the given GraphChi job in this cluster as recommender " +
+			  		"asked for more memory than available in any of the machines in cluster");
+			  //TODO: How to handle this? Ignore this particular recommender? 
+		  }
+		  if(currentTotalMem + mem >=maxMem) {
+			  //Create a new GraphChi job with the recommenders present in the "currentRecGroup" list.
+			  
+			  
+			  //Ask a container with appropriate memory.
+			  
+			  
+			  //Create a new list of for other recommenders.
+			  currentRecGroup = new ArrayList<RecommenderAlgorithm>();
+			  currentRecGroup.add(rec);
+			  
+		  } else {
+			  
+		  }
+		  
+		  
+	  }
+	  
+	  
+	  return null;
+  }*/
 
   @VisibleForTesting
   NMCallbackHandler createNMCallbackHandler() {

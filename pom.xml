@@ -14,15 +14,18 @@
         <name>Sonatype Nexus Snapshots</name>
         <url>https://oss.sonatype.org/content/repositories/snapshots/</url>
         <snapshots><enabled>true</enabled></snapshots>
-
     </repository>
-  <repository>  
+  	<repository>  
       <id>scala-tools.org</id>  
       <name>Scala-tools Maven2 Repository</name>  
       <url>http://scala-tools.org/repo-releases</url>  
     </repository>
+    <repository>  
+      <id>ApacheReleases</id>  
+      <name>Apache release repository</name>  
+      <url>https://repository.apache.org/content/repositories/releases</url>  
+    </repository>
   </repositories>
-
     <dependencies>
         <dependency>
         <groupId>com.yammer.metrics</groupId>
@@ -50,17 +53,12 @@
 	      <scope>test</scope>
 	      <optional>true</optional>
 	    </dependency>
- <dependency>
-	<groupId>org.apache.pig</groupId>
-	<artifactId>pig</artifactId>
-	<scope>compile</scope>
-	<version>0.10.0</version>
-</dependency>
-        <dependency>
-            <groupId>org.apache.hadoop</groupId>
-            <artifactId>hadoop-core</artifactId>
-            <version>0.20.2</version>
-        </dependency>
+ 	<dependency>
+		<groupId>org.apache.pig</groupId>
+		<artifactId>pig</artifactId>
+		<scope>compile</scope>
+		<version>0.12.0</version>
+	</dependency>
         <dependency>
 	        <groupId>org.apache.commons</groupId>
 	        <artifactId>commons-math</artifactId>
@@ -86,6 +84,11 @@
 			<artifactId>gov-sandia-cognition-learning-core</artifactId>
 			<version>3.3.3</version>
 		</dependency>
+		<dependency>
+     		<groupId>org.apache.hadoop</groupId>
+     		<artifactId>hadoop-client</artifactId>
+     		<version>2.2.0</version>
+   		</dependency>
     </dependencies>
  
   	<build>

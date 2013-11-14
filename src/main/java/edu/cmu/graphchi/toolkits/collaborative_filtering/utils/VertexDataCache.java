@@ -25,8 +25,8 @@ public class VertexDataCache {
 	public void loadVertexDataCache(InputDataReader data) throws Exception {
 		data.initUserData();
 		while(data.nextUser()) {
-			int userId = data.getNextUser();
-			List<Feature> features = data.getNextUserFeatures();
+			int userId = data.getCurrUser();
+			List<Feature> features = data.getCurrUserFeatures();
 			
 			for(Feature f : features) {
 				this.vertexFeatures.setElement(userId, f.featureId , f.featureVal);
@@ -34,9 +34,9 @@ public class VertexDataCache {
 		}
 		
 		data.initItemData();
-		while(data.nextItem()) {
-			int itemId = data.getNextItem();
-			List<Feature> features = data.getNextItemFeatures();
+		while(data.currItem()) {
+			int itemId = data.getCurrItem();
+			List<Feature> features = data.getCurrItemFeatures();
 			
 			for(Feature f : features) {
 				this.vertexFeatures.setElement(itemId, f.featureId , f.featureVal);
