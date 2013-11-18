@@ -35,24 +35,29 @@
 
 	    <!-- Scala version is very important. Luckily the plugin warns you if you don't specify:   
 	        [WARNING] you don't define org.scala-lang:scala-library as a dependency of the project -->  
-	    <dependency>  
-	      <groupId>org.scala-lang</groupId>  
-	      <artifactId>scala-library</artifactId>  
-	      <version>2.9.0-1</version>  
-	    </dependency>
-        <dependency>
-        	<groupId>mysql</groupId>
-        	<artifactId>mysql-connector-java</artifactId>
-        	<version>5.1.6</version>
+    <dependency>  
+	   <groupId>org.scala-lang</groupId>  
+	   <artifactId>scala-library</artifactId>  
+	   <version>2.9.0-1</version>  
+    </dependency>
+    <dependency>
+        <groupId>mysql</groupId>
+        <artifactId>mysql-connector-java</artifactId>
+        <version>5.1.6</version>
+    </dependency>
+    <dependency>
+        <groupId>junit</groupId>
+        <artifactId>junit</artifactId>
+        <version>4.10</version>
+        <type>jar</type>
+        <scope>test</scope>
+        <optional>true</optional>
+    </dependency>
+	    <dependency>
+            <groupId>org.apache.hadoop</groupId>
+            <artifactId>hadoop-client</artifactId>
+            <version>2.2.0</version>
         </dependency>
-	 <dependency>
-	      <groupId>junit</groupId>
-	      <artifactId>junit</artifactId>
-	      <version>4.10</version>
-	      <type>jar</type>
-	      <scope>test</scope>
-	      <optional>true</optional>
-	    </dependency>
  	<dependency>
 		<groupId>org.apache.pig</groupId>
 		<artifactId>pig</artifactId>
@@ -84,11 +89,6 @@
 			<artifactId>gov-sandia-cognition-learning-core</artifactId>
 			<version>3.3.3</version>
 		</dependency>
-		<dependency>
-     		<groupId>org.apache.hadoop</groupId>
-     		<artifactId>hadoop-client</artifactId>
-     		<version>2.2.0</version>
-   		</dependency>
     </dependencies>
  
   	<build>

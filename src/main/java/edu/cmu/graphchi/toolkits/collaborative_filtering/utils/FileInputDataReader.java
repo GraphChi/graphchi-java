@@ -66,6 +66,16 @@ public class FileInputDataReader implements InputDataReader {
 		this.ratingFile = datasetDesc.getRatingsUrl();
 		this.userFile = datasetDesc.getUserFeaturesUrl();
 		this.itemFile = datasetDesc.getItemFeaturesUrl();
+		
+		if(this.ratingFile != null && this.ratingFile.startsWith(IO.LOCAL_FS_PREFIX)) {
+			this.ratingFile = this.ratingFile.substring(IO.LOCAL_FS_PREFIX.length());
+		}
+		if(this.userFile != null && this.userFile.startsWith(IO.LOCAL_FS_PREFIX)) {
+			this.userFile = this.userFile.substring(IO.LOCAL_FS_PREFIX.length());
+		}
+		if(this.itemFile != null && this.itemFile.startsWith(IO.LOCAL_FS_PREFIX)) {
+			this.itemFile = this.itemFile.substring(IO.LOCAL_FS_PREFIX.length());
+		}
 	}
 	
 	public FileInputDataReader(String dataSetDescFile) {

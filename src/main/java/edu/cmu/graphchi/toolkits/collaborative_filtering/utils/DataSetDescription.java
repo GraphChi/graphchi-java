@@ -16,6 +16,8 @@ import org.codehaus.jackson.map.ObjectMapper;
  */
 
 public class DataSetDescription {
+	public static final String BASE_FILE_PATH = "baseFilePath";
+	
 	public static final String RATINGS_LOCATION = "ratingsUrl";
 	public static final String USER_FEATURE_LOCATION = "userFeaturesUrl";
 	public static final String ITEM_FEATURE_LOCATION = "itemFeaturesUrl";

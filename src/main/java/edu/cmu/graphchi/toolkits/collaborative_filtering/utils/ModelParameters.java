@@ -2,6 +2,8 @@ package edu.cmu.graphchi.toolkits.collaborative_filtering.utils;
 
 import java.util.Map;
 
+import org.codehaus.jackson.map.ObjectMapper;
+
 import edu.cmu.graphchi.toolkits.collaborative_filtering.algorithms.RatingEdge;
 import gov.sandia.cognition.math.matrix.mtj.SparseVector;
 
@@ -21,6 +23,11 @@ public abstract class ModelParameters {
 	
 	public Map<String, String> getParamsMap() {
 		return this.paramsMap;
+	}
+	
+	public String toJsonString() throws Exception {
+		ObjectMapper mapper = new ObjectMapper();
+		return mapper.writeValueAsString(this.paramsMap);
 	}
 	
 	/**

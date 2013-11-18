@@ -39,8 +39,12 @@ import com.google.common.annotations.VisibleForTesting;
 
 import edu.cmu.graphchi.toolkits.collaborative_filtering.algorithms.AggregateRecommender;
 import edu.cmu.graphchi.toolkits.collaborative_filtering.algorithms.RecommenderAlgorithm;
+import edu.cmu.graphchi.toolkits.collaborative_filtering.algorithms.RecommenderFactory;
 import edu.cmu.graphchi.toolkits.collaborative_filtering.utils.DataSetDescription;
+import edu.cmu.graphchi.toolkits.collaborative_filtering.utils.IO;
 import edu.cmu.graphchi.toolkits.collaborative_filtering.utils.ProblemSetup;
+import edu.cmu.graphchi.toolkits.collaborative_filtering.utils.RecommenderPool;
+import edu.cmu.graphchi.toolkits.collaborative_filtering.utils.RecommenderScheduler;
 
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.GnuParser;
@@ -52,6 +56,9 @@ import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.classification.InterfaceAudience;
 import org.apache.hadoop.classification.InterfaceStability;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.FileStatus;
+import org.apache.hadoop.fs.FileSystem;
+import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.io.DataOutputBuffer;
 import org.apache.hadoop.net.NetUtils;
 import org.apache.hadoop.security.Credentials;
@@ -159,14 +166,12 @@ public class ApplicationMaster {
 
   private static final Log LOG = LogFactory.getLog(ApplicationMaster.class);
   
-  private static final String aggRecMainClass = "edu.cmu.graphchi.toolkits.collaborative_filtering.algorithms.AggregateRecommender";
+  private static final String AGG_REC_MAIN_CLASS = "edu.cmu.graphchi.toolkits.collaborative_filtering.algorithms.AggregateRecommender";
 
   // Configuration
   private Configuration conf;
 
-  // Handle to communicate with the Resource Manager
-  @SuppressWarnings("rawtypes")
-  private AMRMClientAsync amRMClient;
+  private AMRMClient<ContainerRequest> amRMClient;
 
   // Handle to communicate with the Node Manager
   private NMClientAsync nmClientAsync;
@@ -189,7 +194,7 @@ public class ApplicationMaster {
 
   // App Master configuration
   // No. of containers to run shell command on
-  private int numTotalContainers = 1;
+  private int numTotalContainers;
   // Memory to request for the container on which the shell command will run
   private int containerMemory = 10;
   // Priority of the request
@@ -197,16 +202,8 @@ public class ApplicationMaster {
 
   // Counter for completed containers ( complete denotes successful or failed )
   private AtomicInteger numCompletedContainers = new AtomicInteger();
-  // Allocated container count so that we know how many containers has the RM
-  // allocated to us
-  private AtomicInteger numAllocatedContainers = new AtomicInteger();
   // Count of failed containers
   private AtomicInteger numFailedContainers = new AtomicInteger();
-  // Count of containers already requested from the RM
-  // Needed as once requested, we should not request for containers again.
-  // Only request for more if the original requirement changes.
-  private AtomicInteger numRequestedContainers = new AtomicInteger();
-
   
   private String javaJarPath = "/home/mayank/repos/graphchi-java/target/graphchi-java-0.2-jar-with-dependencies.jar";
   // Args to be passed to the shell command
@@ -215,7 +212,6 @@ public class ApplicationMaster {
   // Hardcoded path to shell script in launch container's local env
   private final String ExecShellStringPath = "graphchi-java-0.2-jar-with-dependencies.jar";
 
-  private volatile boolean done;
   private volatile boolean success;
 
   private ByteBuffer allTokens;
@@ -223,6 +219,7 @@ public class ApplicationMaster {
   // Launch threads
   private List<Thread> launchThreads = new ArrayList<Thread>();
 
+  List<RecommenderAlgorithm> recommenders;
   /**
    * @param args Command line args
    */
@@ -291,56 +288,53 @@ public class ApplicationMaster {
     conf = new YarnConfiguration();
   }
 
-  /**
-   * Parse command line options
-   *
-   * @param args Command line args
-   * @return Whether init successful and run should be invoked
-   * @throws ParseException
-   * @throws IOException
-   */
-  public boolean init(String[] args) throws ParseException, IOException {
-	  LOG.info("Inside Init");
-	  this.setup = new ProblemSetup(args);
-	  
-	  Map<String, String> envs = System.getenv();
-	  
-	  ContainerId containerId = ConverterUtils.toContainerId(envs
-			  .get(Environment.CONTAINER_ID.name()));
-	  appAttemptID = containerId.getApplicationAttemptId();
-
-	  if (!envs.containsKey(ApplicationConstants.APP_SUBMIT_TIME_ENV)) {
-		  throw new RuntimeException(ApplicationConstants.APP_SUBMIT_TIME_ENV
-	          + " not set in the environment");
-	  }
-	  if (!envs.containsKey(Environment.NM_HOST.name())) {
-		  throw new RuntimeException(Environment.NM_HOST.name()
-	          + " not set in the environment");
-	  }
-	  if (!envs.containsKey(Environment.NM_HTTP_PORT.name())) {
-		  throw new RuntimeException(Environment.NM_HTTP_PORT
-	         + " not set in the environment");
-	  }
-	  if (!envs.containsKey(Environment.NM_PORT.name())) {
-		  throw new RuntimeException(Environment.NM_PORT.name()
-	          + " not set in the environment");
-	  }
-	  
-	  LOG.info("Application master for app" + ", appId="
+  	/**
+  	 * Parse command line options
+  	 *
+  	 * @param args Command line args
+  	 * @return Whether init successful and run should be invoked
+  	 * @throws ParseException
+  	 * @throws IOException
+  	*/
+  	public boolean init(String[] args) throws ParseException, IOException {
+  		LOG.info("Inside Init");
+  		this.setup = new ProblemSetup(args);
+		  
+		Map<String, String> envs = System.getenv();
+		  
+		ContainerId containerId = ConverterUtils.toContainerId(envs
+				  .get(Environment.CONTAINER_ID.name()));
+		appAttemptID = containerId.getApplicationAttemptId();
+		
+		if (!envs.containsKey(ApplicationConstants.APP_SUBMIT_TIME_ENV)) {
+			  throw new RuntimeException(ApplicationConstants.APP_SUBMIT_TIME_ENV
+		          + " not set in the environment");
+		}
+		if (!envs.containsKey(Environment.NM_HOST.name())) {
+			throw new RuntimeException(Environment.NM_HOST.name()
+		          + " not set in the environment");
+		}
+		if (!envs.containsKey(Environment.NM_HTTP_PORT.name())) {
+			throw new RuntimeException(Environment.NM_HTTP_PORT
+		         + " not set in the environment");
+		}
+		if (!envs.containsKey(Environment.NM_PORT.name())) {
+			throw new RuntimeException(Environment.NM_PORT.name()
+		          + " not set in the environment");
+		}
+		LOG.info("Application master for app" + ", appId="
 			  + appAttemptID.getApplicationId().getId() + ", clustertimestamp="
 			  + appAttemptID.getApplicationId().getClusterTimestamp()
 			  + ", attemptId=" + appAttemptID.getAttemptId());
-
-	  //TODO: Based on GraphChi estimates, set appropriate containerMemory and number of containers.
-	  containerMemory = 1000;
-	  numTotalContainers = 1;
-	  if (numTotalContainers == 0) {
-		  throw new IllegalArgumentException(
-		      "Cannot run distributed shell with no containers");
-	  }
+	  	
+	  	//TODO: Based on GraphChi estimates, set appropriate containerMemory and number of containers.
+		DataSetDescription dataDesc = new DataSetDescription();
+		dataDesc.loadFromJsonFile(setup.dataMetadataFile);
+		this.recommenders = RecommenderFactory.buildRecommenders(dataDesc, setup.paramFile, null);
+	 
 		
-	  return true;
-  }
+		return true;
+	}
 
   /**
    * Main run function for the application master
@@ -365,9 +359,8 @@ public class ApplicationMaster {
       }
     }
     allTokens = ByteBuffer.wrap(dob.getData(), 0, dob.getLength());
-
-    AMRMClientAsync.CallbackHandler allocListener = new RMCallbackHandler();
-    amRMClient = AMRMClientAsync.createAMRMClientAsync(1000, allocListener);
+    
+    amRMClient = AMRMClient.createAMRMClient();
     amRMClient.init(conf);
     amRMClient.start();
 
@@ -380,40 +373,68 @@ public class ApplicationMaster {
     // This will start heartbeating to the RM
     appMasterHostname = NetUtils.getHostname();
     RegisterApplicationMasterResponse response = amRMClient
-        .registerApplicationMaster(appMasterHostname, appMasterRpcPort,
-            appMasterTrackingUrl);
+            .registerApplicationMaster(appMasterHostname, appMasterRpcPort,
+                appMasterTrackingUrl);
 
-    int maxMem = response.getMaximumResourceCapability().getMemory();
+    int maxMem = 500;
     LOG.info("Max mem capabililty of resources in this cluster " + maxMem);
 
-    //Based on the available resources in the cluster and estimated memory usage
-    //of each recommender, break the GraphChi job into multiple GraphChi jobs
-    //and submit container asks.
+    int numTotalNodes = amRMClient.getClusterNodeCount();
     
-    if (containerMemory > maxMem) {
-      LOG.info("Container memory specified above max threshold of cluster."
-          + " Using max value." + ", specified=" + containerMemory + ", max="
-          + maxMem);
-      containerMemory = maxMem;
-    }
-
-    // Setup ask for containers from RM
-    // Send request for containers to RM
-    // Until we get our fully allocated quota, we keep on polling RM for
-    // containers
-    // Keep looping until all the containers are launched and shell script
-    // executed on them ( regardless of success/failure).
-    for (int i = 0; i < numTotalContainers; ++i) {
-      ContainerRequest containerAsk = setupContainerAskForRM();
+    int numNodes = computeMaxNodesRequired(maxMem);
+    
+    //Ideally, we should ask RM for containers based on the status of the cluster (how many nodes with how
+    // much memory is available). However, I do not know how to get "cluster state" in Apache YARN (like 
+    // google's Omega). 
+    // Hence, current logic is: Based on maxMem (assuming heterogenous?), just ask for all possible containers.
+    // Once some containers are allocated, split the recommenders to these machines and cancel any further 
+    // allocated containers.
+    for (int i = 0; i < numNodes; ++i) {
+      ContainerRequest containerAsk = setupContainerAskForRM(maxMem, requestPriority);
       amRMClient.addContainerRequest(containerAsk);
     }
-    numRequestedContainers.set(numTotalContainers);
 
-    while (!done
-        && (numCompletedContainers.get() != numTotalContainers)) {
+    float progress = 0;
+    boolean pending = true;
+    this.numTotalContainers = -1;
+    int count = 0;
+    while (numCompletedContainers.get() != numTotalContainers) {
       try {
+    	  count++;
+    	  if(pending && count > 20) {
+    		  LOG.info("Allocation of container taking too long. Is there something wrong with container request?");
+    		  break;
+    	  }
     	  
     	  Thread.sleep(200);
+    	  
+    	  AllocateResponse allocResp = amRMClient.allocate(progress);
+    	  List<Container> newContainers = allocResp.getAllocatedContainers();
+    	  List<ContainerStatus> completedContainers = allocResp.getCompletedContainersStatuses();
+
+    	  if(newContainers.size() > 0) {
+    		  LOG.info("Allocated " + newContainers.size() + " new containers");
+    		  if(pending) {
+    			  //If there are pending recommenders, use the container to run the jobs.
+    			  RecommenderScheduler sched = new RecommenderScheduler(newContainers.size(), maxMem, recommenders);
+    			  List<RecommenderPool> recPools = sched.splitIntoRecPools();
+    			  for(int i = 0; i < newContainers.size(); i++) {
+    				  startContainer(newContainers.get(i), recPools.get(i));
+    			  }
+    			  //Assigned all the GraphChi jobs
+    			  pending = false;
+    			  numTotalContainers = newContainers.size();
+    		  } else {
+				  //Release these containers as no longer required.
+				  for(Container c : newContainers) {
+					  LOG.info("Releasing extra " + newContainers.size() + " new containers");
+					  amRMClient.releaseAssignedContainer(c.getId());
+				  }
+    		  }
+		  }
+    	  
+    	  onContainersCompleted(completedContainers);
+   
       } catch (InterruptedException ex) {}
     }
     finish();
@@ -421,108 +442,47 @@ public class ApplicationMaster {
     return success;
   }
   
-  
-  HashMap<Integer, AggregateRecommender> yarnRecommenderJobs;
-/*  private List<ContainerRequest> splitGraphChiJobs(int maxMem) {
-	  
-	  DataSetDescription dataDesc = new DataSetDescription();
-	  dataDesc.loadFromJsonFile(this.setup.dataMetadataFile);
-	  //AggregateRecommender aggRec = new AggregateRecommender(dataDesc, this.setup.paramFile);
-	  
-	  //TODO: Currently the logic is very naive for asking for resources from YARN's Resource Manager.
-	  // Each request for container is equal to the maximum that fit which is less than the maximum
-	  // memory container available. This approach might not work in a heterogenous cluster. I am not
-	  // sure if all the available resources in the cluster can be seen by querying Apache YARN. If
-	  // it cannot, then we should send multiple requests for containers with different capabilities
-	  // and as containers become available, we should assign the corresponding graphchi jobs to it.
-	  long currentTotalMem = 0;
-	  List<RecommenderAlgorithm> currentRecGroup = new ArrayList<RecommenderAlgorithm>();
-	  int numGraphChiSplits = 0;
-	  for(RecommenderAlgorithm rec : aggRec.recommenders) {
-		  long mem = rec.getEstimatedMemoryUsage();
-		  
-		  if(mem > maxMem) {
-			  LOG.error("Cannot run the given GraphChi job in this cluster as recommender " +
-			  		"asked for more memory than available in any of the machines in cluster");
-			  //TODO: How to handle this? Ignore this particular recommender? 
-		  }
-		  if(currentTotalMem + mem >=maxMem) {
-			  //Create a new GraphChi job with the recommenders present in the "currentRecGroup" list.
-			  
-			  
-			  //Ask a container with appropriate memory.
-			  
-			  
-			  //Create a new list of for other recommenders.
-			  currentRecGroup = new ArrayList<RecommenderAlgorithm>();
-			  currentRecGroup.add(rec);
-			  
-		  } else {
-			  
-		  }
-		  
-		  
-	  }
-	  
-	  
-	  return null;
-  }*/
+
+private int computeMaxNodesRequired(int maxMem) {
+	int totalMemRequirement = 0;
+	
+	for(RecommenderAlgorithm rec : this.recommenders) {
+		totalMemRequirement += rec.getEstimatedMemoryUsage();
+	}
+	
+	return (int)Math.ceil((double)totalMemRequirement/maxMem);
+  }
 
   @VisibleForTesting
   NMCallbackHandler createNMCallbackHandler() {
     return new NMCallbackHandler(this);
   }
+  
+  /**
+   * Setup the request that will be sent to the RM for the container ask.
+   *
+   * @return the setup ResourceRequest to be sent to RM
+   */
+  private ContainerRequest setupContainerAskForRM(int memory, int priority) {
+    // setup requirements for hosts
+    // using * as any host will do for the distributed shell app
+    // set the priority for the request
+    Priority pri = Records.newRecord(Priority.class);
+    // TODO - what is the range for priority? how to decide?
+    pri.setPriority(priority);
 
-  private void finish() {
-    // Join all launched threads
-    // needed for when we time out
-    // and we need to release containers
-    for (Thread launchThread : launchThreads) {
-      try {
-        launchThread.join(10000);
-      } catch (InterruptedException e) {
-        LOG.info("Exception thrown in thread join: " + e.getMessage());
-        e.printStackTrace();
-      }
-    }
+    // Set up resource type requirements
+    // For now, only memory is supported so we set memory requirements
+    Resource capability = Records.newRecord(Resource.class);
+    capability.setMemory(memory);
 
-    // When the application completes, it should stop all running containers
-    LOG.info("Application completed. Stopping running containers");
-    nmClientAsync.stop();
-
-    // When the application completes, it should send a finish application
-    // signal to the RM
-    LOG.info("Application completed. Signalling finish to RM");
-
-    FinalApplicationStatus appStatus;
-    String appMessage = null;
-    success = true;
-    if (numFailedContainers.get() == 0 && 
-        numCompletedContainers.get() == numTotalContainers) {
-      appStatus = FinalApplicationStatus.SUCCEEDED;
-    } else {
-      appStatus = FinalApplicationStatus.FAILED;
-      appMessage = "Diagnostics." + ", total=" + numTotalContainers
-          + ", completed=" + numCompletedContainers.get() + ", allocated="
-          + numAllocatedContainers.get() + ", failed="
-          + numFailedContainers.get();
-      success = false;
-    }
-    try {
-      amRMClient.unregisterApplicationMaster(appStatus, appMessage, null);
-    } catch (YarnException ex) {
-      LOG.error("Failed to unregister application", ex);
-    } catch (IOException e) {
-      LOG.error("Failed to unregister application", e);
-    }
-    
-    amRMClient.stop();
+    ContainerRequest request = new ContainerRequest(capability, null, null,
+        pri);
+    LOG.info("Requested container ask: " + request.toString());
+    return request;
   }
   
-  private class RMCallbackHandler implements AMRMClientAsync.CallbackHandler {
-    @SuppressWarnings("unchecked")
-    @Override
-    public void onContainersCompleted(List<ContainerStatus> completedContainers) {
+  public void onContainersCompleted(List<ContainerStatus> completedContainers) {
       LOG.info("Got response from RM for container ask, completedCnt="
           + completedContainers.size());
       for (ContainerStatus containerStatus : completedContainers) {
@@ -544,11 +504,15 @@ public class ApplicationMaster {
             // counts as completed
             numCompletedContainers.incrementAndGet();
             numFailedContainers.incrementAndGet();
+            
           } else {
             // container was killed by framework, possibly preempted
             // we should re-try as the container was lost for some reason
-            numAllocatedContainers.decrementAndGet();
-            numRequestedContainers.decrementAndGet();
+            
+        	//TODO: Add retry
+            numCompletedContainers.incrementAndGet();
+            numFailedContainers.incrementAndGet();
+        	 
             // we do not need to release the container as it would be done
             // by the RM
           }
@@ -561,40 +525,19 @@ public class ApplicationMaster {
         }
       }
       
-      // ask for more containers if any failed
-      int askCount = numTotalContainers - numRequestedContainers.get();
-      numRequestedContainers.addAndGet(askCount);
-
-      if (askCount > 0) {
-        for (int i = 0; i < askCount; ++i) {
-          ContainerRequest containerAsk = setupContainerAskForRM();
-          amRMClient.addContainerRequest(containerAsk);
-        }
-      }
-      
-      if (numCompletedContainers.get() == numTotalContainers) {
-        done = true;
-      }
     }
 
-    @Override
-    public void onContainersAllocated(List<Container> allocatedContainers) {
-      LOG.info("Got response from RM for container ask, allocatedCnt="
-          + allocatedContainers.size());
-      numAllocatedContainers.addAndGet(allocatedContainers.size());
-      for (Container allocatedContainer : allocatedContainers) {
-        LOG.info("Launching shell command on a new container."
-            + ", containerId=" + allocatedContainer.getId()
-            + ", containerNode=" + allocatedContainer.getNodeId().getHost()
-            + ":" + allocatedContainer.getNodeId().getPort()
-            + ", containerNodeURI=" + allocatedContainer.getNodeHttpAddress()
+    public void startContainer(Container c, RecommenderPool pool) {
+    	LOG.info("Launching Rec Pool command on a new container."
+            + ", containerId=" + c.getId()
+            + ", containerNode=" + c.getNodeId().getHost()
+            + ":" + c.getNodeId().getPort()
+            + ", containerNodeURI=" + c.getNodeHttpAddress()
             + ", containerResourceMemory"
-            + allocatedContainer.getResource().getMemory());
-        // + ", containerToken"
-        // +allocatedContainer.getContainerToken().getIdentifier().toString());
+            + c.getResource().getMemory());
 
         LaunchContainerRunnable runnableLaunchContainer =
-            new LaunchContainerRunnable(allocatedContainer, containerListener);
+            new LaunchContainerRunnable(c, containerListener, pool);
         Thread launchThread = new Thread(runnableLaunchContainer);
 
         // launch and start the container on a separate thread to keep
@@ -602,238 +545,280 @@ public class ApplicationMaster {
         // as all containers may not be allocated at one go.
         launchThreads.add(launchThread);
         launchThread.start();
+    }
+    
+    private void finish() {
+        // Join all launched threads
+        // needed for when we time out
+        // and we need to release containers
+        for (Thread launchThread : launchThreads) {
+          try {
+            launchThread.join(10000);
+          } catch (InterruptedException e) {
+            LOG.info("Exception thrown in thread join: " + e.getMessage());
+            e.printStackTrace();
+          }
+        }
+
+        // When the application completes, it should stop all running containers
+        LOG.info("Application completed. Stopping running containers");
+        nmClientAsync.stop();
+
+        // When the application completes, it should send a finish application
+        // signal to the RM
+        LOG.info("Application completed. Signalling finish to RM");
+
+        FinalApplicationStatus appStatus;
+        String appMessage = null;
+        success = true;
+        if (numFailedContainers.get() == 0 && 
+            numCompletedContainers.get() == numTotalContainers) {
+          appStatus = FinalApplicationStatus.SUCCEEDED;
+        } else {
+          appStatus = FinalApplicationStatus.FAILED;
+          appMessage = "Diagnostics." + ", total=" + numTotalContainers
+              + ", completed=" + numCompletedContainers.get() + ", failed="
+              + numFailedContainers.get();
+          success = false;
+        }
+        try {
+          amRMClient.unregisterApplicationMaster(appStatus, appMessage, null);
+        } catch (YarnException ex) {
+          LOG.error("Failed to unregister application", ex);
+        } catch (IOException e) {
+          LOG.error("Failed to unregister application", e);
+        }
+        
+        amRMClient.stop();
       }
+    
+
+    @VisibleForTesting
+    static class NMCallbackHandler
+    	implements NMClientAsync.CallbackHandler {
+
+	    private ConcurrentMap<ContainerId, Container> containers =
+	        new ConcurrentHashMap<ContainerId, Container>();
+	    private final ApplicationMaster applicationMaster;
+	
+	    public NMCallbackHandler(ApplicationMaster applicationMaster) {
+	      this.applicationMaster = applicationMaster;
+	    }
+
+	    public void addContainer(ContainerId containerId, Container container) {
+	      containers.putIfAbsent(containerId, container);
+	    }
+	
+	    @Override
+	    public void onContainerStopped(ContainerId containerId) {
+	      if (LOG.isDebugEnabled()) {
+	        LOG.debug("Succeeded to stop Container " + containerId);
+	      }
+	      containers.remove(containerId);
+	    }
+	
+	    @Override
+	    public void onContainerStatusReceived(ContainerId containerId,
+	        ContainerStatus containerStatus) {
+	      if (LOG.isDebugEnabled()) {
+	        LOG.debug("Container Status: id=" + containerId + ", status=" +
+	            containerStatus);
+	      }
+	    }
+	
+	    @Override
+	    public void onContainerStarted(ContainerId containerId,
+	        Map<String, ByteBuffer> allServiceResponse) {
+	      if (LOG.isDebugEnabled()) {
+	        LOG.debug("Succeeded to start Container " + containerId);
+	      }
+	      Container container = containers.get(containerId);
+	      if (container != null) {
+	        applicationMaster.nmClientAsync.getContainerStatusAsync(containerId, container.getNodeId());
+	      }
+	    }
+	
+	    @Override
+	    public void onStartContainerError(ContainerId containerId, Throwable t) {
+	      LOG.error("Failed to start Container " + containerId);
+	      containers.remove(containerId);
+	      applicationMaster.numCompletedContainers.incrementAndGet();
+	      applicationMaster.numFailedContainers.incrementAndGet();
+	    }
+	
+	    @Override
+	    public void onGetContainerStatusError(
+	        ContainerId containerId, Throwable t) {
+	      LOG.error("Failed to query the status of Container " + containerId);
+	    }
+	
+	    @Override
+	    public void onStopContainerError(ContainerId containerId, Throwable t) {
+	      LOG.error("Failed to stop Container " + containerId);
+	      containers.remove(containerId);
+	    }
     }
 
-    @Override
-    public void onShutdownRequest() {
-      done = true;
-    }
+	/**
+	 * Thread to connect to the {@link ContainerManagementProtocol} and launch the container
+	 * that will execute the shell command.
+	*/
+  	private class LaunchContainerRunnable implements Runnable {
 
-    @Override
-    public void onNodesUpdated(List<NodeReport> updatedNodes) {}
+	    // Allocated container
+	    Container container;
+	
+	    NMCallbackHandler containerListener;
+	
+	    //The list of recommender algorithms to be run in this container 
+	    RecommenderPool pool;
+    
+	    /**
+	     * @param lcontainer Allocated container
+	     * @param containerListener Callback handler of the container
+	     */
+	    public LaunchContainerRunnable(
+	    		Container lcontainer, NMCallbackHandler containerListener, RecommenderPool pool) {
+	    	this.container = lcontainer;
+	    	this.containerListener = containerListener;
+	    	this.pool = pool;
+	    }
 
-    @Override
-    public float getProgress() {
-      // set progress to deliver to RM on next heartbeat
-      float progress = (float) numCompletedContainers.get()
-          / numTotalContainers;
-      return progress;
-    }
+	    @Override
+	    /**
+	     * Connects to CM, sets up container launch context 
+	     * for shell command and eventually dispatches the container 
+	     * start request to the CM. 
+	     */
+	    public void run() {
+	    	LOG.info("Setting up container launch container for containerid="
+	    			+ container.getId());
+	    	ContainerLaunchContext ctx = Records
+	    			.newRecord(ContainerLaunchContext.class);
 
-    @Override
-    public void onError(Throwable e) {
-      done = true;
-      amRMClient.stop();
-    }
-  }
+	    	// Set the environment
+	    	//TODO: Make this generic
+	    	//shellEnv.put("HADOOP_HOME", "/home/mayank/Softwares/hadoop-2.2/hadoop-2.2.0");
+	    	//shellEnv.put("HADOOP_CONF_DIR", "/home/mayank/Softwares/hadoop-2.2/hadoop-2.2.0/etc/hadoop");
+	    	shellEnv.put("HADOOP_HOME", System.getenv().get("HADOOP_HOME"));
+	    	shellEnv.put("HADOOP_CONF_DIR", System.getenv().get("HADOOP_CONF_DIR"));
+	    	
+	    	ctx.setEnvironment(shellEnv);
+	    	
+	    	Map<String, LocalResource> localResources = new HashMap<String, LocalResource>();
+	    	
+	    	try {
+	    		//Create a new parameter file for the given pool
+	    		String newParamFile = "params_" + container.getId() + ".json";
+	    		pool.createParamJsonFile(newParamFile);
+	    		
+	    		//Update the problem setup object to point to this new parameter file
+	    		ProblemSetup probSetup = setup.clone();
+	    		probSetup.paramFile = newParamFile;
+	    		
+	    		probSetup = ApplicationMaster.localizeResources(probSetup, localResources);
 
-  @VisibleForTesting
-  static class NMCallbackHandler
-    implements NMClientAsync.CallbackHandler {
+	    		ctx.setLocalResources(localResources);
+	    		
+	    		String command = createExecutableCommand(container, probSetup);
+	    		
+		    	List<String> commands = new ArrayList<String>();
+		    	commands.add(command.toString());
+		    	ctx.setCommands(commands);
+		    	// Set up tokens for the container too. Today, for normal shell commands,
+		    	// the container in distribute-shell doesn't need any tokens. We are
+		    	// populating them mainly for NodeManagers to be able to download any
+		    	// files in the distributed file-system.
+		    	ctx.setTokens(allTokens.duplicate());
+		
+		    	containerListener.addContainer(container.getId(), container);
+		    	nmClientAsync.startContainerAsync(container, ctx);
+	    	} catch (Exception e) {
+	    		e.printStackTrace();
+	    		//release container?
+	    		numCompletedContainers.incrementAndGet();
+	    		numFailedContainers.incrementAndGet();
+	    	}	    	
+	    }
+	    
+	    public String createExecutableCommand(Container container, ProblemSetup probSetup) {
+	        // Set the necessary command to execute on the allocated container
+	        Vector<CharSequence> vargs = new Vector<CharSequence>(5);
 
-    private ConcurrentMap<ContainerId, Container> containers =
-        new ConcurrentHashMap<ContainerId, Container>();
-    private final ApplicationMaster applicationMaster;
+	        // Set executable command
+	        vargs.add(Environment.JAVA_HOME.$() + "/bin/java");
 
-    public NMCallbackHandler(ApplicationMaster applicationMaster) {
-      this.applicationMaster = applicationMaster;
-    }
+	        //Heap memory
+	        vargs.add("-Xmx" + container.getResource().getMemory() + "m");
+	        
+	        //Jar path
+	        vargs.add("-cp " + (new File(probSetup.graphChiJar).getName()));
+	        //Main class name
+	        vargs.add(AGG_REC_MAIN_CLASS);
 
-    public void addContainer(ContainerId containerId, Container container) {
-      containers.putIfAbsent(containerId, container);
-    }
+	        // Set args for the shell command if any
+	        //TODO: Number of shards might vary based on our estimate of memory usage.
+	        vargs.add(probSetup.toString());
+	        
+	        // Add log redirect params
+	        vargs.add("1>" + ApplicationConstants.LOG_DIR_EXPANSION_VAR + "/stdout");
+	        vargs.add("2>" + ApplicationConstants.LOG_DIR_EXPANSION_VAR + "/stderr");
 
-    @Override
-    public void onContainerStopped(ContainerId containerId) {
-      if (LOG.isDebugEnabled()) {
-        LOG.debug("Succeeded to stop Container " + containerId);
-      }
-      containers.remove(containerId);
-    }
-
-    @Override
-    public void onContainerStatusReceived(ContainerId containerId,
-        ContainerStatus containerStatus) {
-      if (LOG.isDebugEnabled()) {
-        LOG.debug("Container Status: id=" + containerId + ", status=" +
-            containerStatus);
-      }
-    }
-
-    @Override
-    public void onContainerStarted(ContainerId containerId,
-        Map<String, ByteBuffer> allServiceResponse) {
-      if (LOG.isDebugEnabled()) {
-        LOG.debug("Succeeded to start Container " + containerId);
-      }
-      Container container = containers.get(containerId);
-      if (container != null) {
-        applicationMaster.nmClientAsync.getContainerStatusAsync(containerId, container.getNodeId());
-      }
-    }
-
-    @Override
-    public void onStartContainerError(ContainerId containerId, Throwable t) {
-      LOG.error("Failed to start Container " + containerId);
-      containers.remove(containerId);
-      applicationMaster.numCompletedContainers.incrementAndGet();
-      applicationMaster.numFailedContainers.incrementAndGet();
-    }
-
-    @Override
-    public void onGetContainerStatusError(
-        ContainerId containerId, Throwable t) {
-      LOG.error("Failed to query the status of Container " + containerId);
-    }
-
-    @Override
-    public void onStopContainerError(ContainerId containerId, Throwable t) {
-      LOG.error("Failed to stop Container " + containerId);
-      containers.remove(containerId);
-    }
-  }
-
-  /**
-   * Thread to connect to the {@link ContainerManagementProtocol} and launch the container
-   * that will execute the shell command.
-   */
-  private class LaunchContainerRunnable implements Runnable {
-
-    // Allocated container
-    Container container;
-
-    NMCallbackHandler containerListener;
-
-    /**
-     * @param lcontainer Allocated container
-     * @param containerListener Callback handler of the container
-     */
-    public LaunchContainerRunnable(
-        Container lcontainer, NMCallbackHandler containerListener) {
-      this.container = lcontainer;
-      this.containerListener = containerListener;
-    }
-
-    @Override
-    /**
-     * Connects to CM, sets up container launch context 
-     * for shell command and eventually dispatches the container 
-     * start request to the CM. 
-     */
-    public void run() {
-      LOG.info("Setting up container launch container for containerid="
-          + container.getId());
-      ContainerLaunchContext ctx = Records
-          .newRecord(ContainerLaunchContext.class);
-
-      // Set the environment
-      ctx.setEnvironment(shellEnv);
-
-      // Set the local resources
-      Map<String, LocalResource> localResources = new HashMap<String, LocalResource>();
-
-      // The container for the eventual shell commands needs its own local
-      // resources too.
-      // In this scenario, if a shell script is specified, we need to have it
-      // copied and made available to the container.
-      LocalResource shellRsrc = Records.newRecord(LocalResource.class);
-      shellRsrc.setType(LocalResourceType.FILE);
-      shellRsrc.setVisibility(LocalResourceVisibility.APPLICATION);
-      try {
-    	  shellRsrc.setResource(ConverterUtils.getYarnUrlFromURI(new URI(
-    			  "file://" + javaJarPath)));
-    	  File file = new File(javaJarPath);
-    	  LOG.info(file.length() + " *** " + file.lastModified());
-    	  shellRsrc.setSize(file.length());
-    	  shellRsrc.setTimestamp(file.lastModified());
-    	  LOG.info(shellRsrc.getSize() + " --- " + shellRsrc.getTimestamp());
-      } catch (URISyntaxException e) {
-    	  LOG.error("Error when trying to use shell script path specified"
-			+ " in env, path=" + javaJarPath);
-    	  e.printStackTrace();
-
-    	  // A failure scenario on bad input such as invalid shell script path
-    	  // We know we cannot continue launching the container
-    	  // so we should release it.
-    	  numCompletedContainers.incrementAndGet();
-    	  numFailedContainers.incrementAndGet();
-    	  return;
-      }
+	        // Get final commmand
+	        StringBuilder command = new StringBuilder();
+	        for (CharSequence str : vargs) {
+	          command.append(str).append(" ");
+	        }
+	        
+	        return command.toString();
+	    }
+    
+  	}
+  	
+    public static ProblemSetup localizeResources(ProblemSetup probSetup, Map<String, LocalResource> localResources) 
+    	throws Exception {
+      ProblemSetup dupSetup = probSetup.clone();
+    	
+      //Setup the local resources required to run a graphchi program.
+      String remoteParamPath, remoteDataDescPath, remoteJavaJarPath;
       
-      localResources.put(ExecShellStringPath, shellRsrc);
-      ctx.setLocalResources(localResources);
-
-      // Set the necessary command to execute on the allocated container
-      Vector<CharSequence> vargs = new Vector<CharSequence>(5);
-
-      // Set executable command
-      vargs.add(Environment.JAVA_HOME.$() + "/bin/java");
-
-      //Heap memory
-      vargs.add("-Xmx" + containerMemory + "m");
-      
-      //Jar path
-      vargs.add("-cp " + ExecShellStringPath);
-      //Main class name
-      vargs.add(aggRecMainClass);
-
-      // Set args for the shell command if any
-      //TODO: Application master will have to create new paramJson file by breaking up based on 
-      //memory estimates and also by estimating the number of shards 
-      //and pass it as arguments to graphchi program.
-      vargs.add("--nshards="+setup.nShards);
-      vargs.add("--paramFile="+setup.paramFile);
-      vargs.add("--dataMetadataFile="+setup.dataMetadataFile);
-      // Add log redirect params
-      vargs.add("1>" + ApplicationConstants.LOG_DIR_EXPANSION_VAR + "/stdout");
-      vargs.add("2>" + ApplicationConstants.LOG_DIR_EXPANSION_VAR + "/stderr");
-
-      // Get final commmand
-      StringBuilder command = new StringBuilder();
-      for (CharSequence str : vargs) {
-        command.append(str).append(" ");
-      }
-      LOG.info("Command to run setup to: " + command);
-
-      List<String> commands = new ArrayList<String>();
-      commands.add(command.toString());
-      ctx.setCommands(commands);
-
-      // Set up tokens for the container too. Today, for normal shell commands,
-      // the container in distribute-shell doesn't need any tokens. We are
-      // populating them mainly for NodeManagers to be able to download any
-      // files in the distributed file-system. The tokens are otherwise also
-      // useful in cases, for e.g., when one is running a "hadoop dfs" command
-      // inside the distributed shell.
-      ctx.setTokens(allTokens.duplicate());
-
-      containerListener.addContainer(container.getId(), container);
-      nmClientAsync.startContainerAsync(container, ctx);
+	  LocalResource resource = addLocalResource(probSetup.graphChiJar);
+	  remoteJavaJarPath = (new File(probSetup.graphChiJar).getName()); 
+	  localResources.put(remoteJavaJarPath, resource);
+	  dupSetup.graphChiJar = remoteJavaJarPath;
+  
+	  resource = addLocalResource(probSetup.paramFile);
+	  remoteParamPath = (new File(probSetup.paramFile).getName());
+	  localResources.put(remoteParamPath, resource);
+	  dupSetup.paramFile = remoteParamPath;
+  
+	  resource = addLocalResource(probSetup.dataMetadataFile);
+	  remoteDataDescPath = (new File(probSetup.dataMetadataFile)).getName();
+	  localResources.put(remoteDataDescPath, resource);
+	  dupSetup.dataMetadataFile = remoteDataDescPath;
+  
+      return dupSetup;
     }
-  }
-
-  /**
-   * Setup the request that will be sent to the RM for the container ask.
-   *
-   * @return the setup ResourceRequest to be sent to RM
-   */
-  private ContainerRequest setupContainerAskForRM() {
-    // setup requirements for hosts
-    // using * as any host will do for the distributed shell app
-    // set the priority for the request
-    Priority pri = Records.newRecord(Priority.class);
-    // TODO - what is the range for priority? how to decide?
-    pri.setPriority(requestPriority);
-
-    // Set up resource type requirements
-    // For now, only memory is supported so we set memory requirements
-    Resource capability = Records.newRecord(Resource.class);
-    capability.setMemory(containerMemory);
-
-    ContainerRequest request = new ContainerRequest(capability, null, null,
-        pri);
-    LOG.info("Requested container ask: " + request.toString());
-    return request;
-  }
+    
+    public static LocalResource addLocalResource(String filePath) throws Exception {
+    	File file = new File(filePath);
+    	String fullFilePath = file.getAbsolutePath();
+    	
+    	FileSystem fs = FileSystem.get(IO.getConf());
+    	Path src = new Path(fullFilePath);
+    	String pathSuffix = "local-tmp/" + file.getName();	    
+    	Path dst = new Path(fs.getHomeDirectory(), pathSuffix);
+    	fs.copyFromLocalFile(false, true, src, dst);
+    	FileStatus destStatus = fs.getFileStatus(dst);
+    	LocalResource resource = Records.newRecord(LocalResource.class);
+    	
+        resource.setType(LocalResourceType.FILE);
+        resource.setVisibility(LocalResourceVisibility.APPLICATION);	   
+        resource.setResource(ConverterUtils.getYarnUrlFromPath(dst)); 
+        resource.setTimestamp(destStatus.getModificationTime());
+        resource.setSize(destStatus.getLen());
+    	
+      	return resource;
+    }
+  
 }

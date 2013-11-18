@@ -10,7 +10,6 @@ import java.util.Map;
 import java.util.Vector;
 
 import org.apache.commons.cli.CommandLine;
-import org.apache.commons.cli.GnuParser;
 import org.apache.commons.cli.HelpFormatter;
 import org.apache.commons.cli.Options;
 import org.apache.commons.cli.ParseException;
@@ -54,6 +53,9 @@ import org.apache.hadoop.yarn.conf.YarnConfiguration;
 import org.apache.hadoop.yarn.exceptions.YarnException;
 import org.apache.hadoop.yarn.util.ConverterUtils;
 import org.apache.hadoop.yarn.util.Records;
+
+import edu.cmu.graphchi.toolkits.collaborative_filtering.utils.ExtendedGnuParser;
+import edu.cmu.graphchi.toolkits.collaborative_filtering.utils.ProblemSetup;
 
 /**
  * Client for Distributed Shell application submission to YARN.
@@ -102,7 +104,7 @@ public class Client {
   // Queue for App master
   private String amQueue = "";
   // Amt. of memory resource to request for to run the App Master
-  private int amMemory = 10; 
+  private int amMemory = 100; 
 
   // Application master jar file
   private String appMasterJar = ""; 
@@ -129,6 +131,8 @@ public class Client {
 
   // Command line options
   private Options opts;
+  
+  ProblemSetup setup;
 
   /**
    * @param args Command line arguments 
@@ -180,8 +184,7 @@ public class Client {
     opts.addOption("queue", true, "RM Queue in which this application is to be submitted");
     opts.addOption("timeout", true, "Application timeout in milliseconds");
     opts.addOption("master_memory", true, "Amount of memory in MB to be requested to run the application master");
-    opts.addOption("jar", true, "Jar file containing the application master");
-    opts.addOption("args", true, "Command line args for the shell script");
+    opts.addOption("graphChiJar", true, "Jar file containing the application master");
     opts.addOption("log_properties", true, "log4j.properties file");
     opts.addOption("debug", false, "Dump out debug information");
     opts.addOption("help", false, "Print usage");
@@ -209,7 +212,7 @@ public class Client {
    */
   public boolean init(String[] args) throws ParseException {
 
-    CommandLine cliParser = new GnuParser().parse(opts, args);
+    CommandLine cliParser = new ExtendedGnuParser(true).parse(opts, args);
 
     if (args.length == 0) {
       throw new IllegalArgumentException("No args specified for client to initialize");
@@ -228,18 +231,18 @@ public class Client {
     appName = cliParser.getOptionValue("appname", "DistributedShell");
     amPriority = Integer.parseInt(cliParser.getOptionValue("priority", "0"));
     amQueue = cliParser.getOptionValue("queue", "default");
-    amMemory = Integer.parseInt(cliParser.getOptionValue("master_memory", "10"));		
+    amMemory = Integer.parseInt(cliParser.getOptionValue("master_memory", "100"));		
 
     if (amMemory < 0) {
       throw new IllegalArgumentException("Invalid memory specified for application master, exiting."
           + " Specified memory=" + amMemory);
     }
 
-    if (!cliParser.hasOption("jar")) {
+    if (!cliParser.hasOption("graphChiJar")) {
       throw new IllegalArgumentException("No jar file specified for application master");
     }		
 
-    appMasterJar = cliParser.getOptionValue("jar");
+    appMasterJar = cliParser.getOptionValue("graphChiJar");
 
     if (cliParser.hasOption("args")) {
       shellArgs = cliParser.getOptionValue("args");
@@ -252,6 +255,8 @@ public class Client {
 
     log4jPropFile = cliParser.getOptionValue("log_properties", "");
 
+    this.setup = new ProblemSetup(args);
+    
     return true;
   }
 
@@ -373,6 +378,14 @@ public class Client {
       localResources.put("log4j.properties", log4jRsrc);
     }			
 
+    //Localize other resources (graphchi jar, paramFile, dataMetadata file)
+    try {
+    	this.setup = ApplicationMaster.localizeResources(this.setup, localResources);
+    } catch (Exception e) {
+    	e.printStackTrace();
+    	LOG.error("Error while localizing");
+    }
+    
     // Set local resource info into app master container launch context
     amContainer.setLocalResources(localResources);
 
@@ -382,6 +395,10 @@ public class Client {
     // Set the env variables to be setup in the env where the application master will be run
     LOG.info("Set the environment for the application master");
     Map<String, String> env = new HashMap<String, String>();
+    //env.put("HADOOP_HOME", "/home/mayank/Softwares/hadoop-2.2/hadoop-2.2.0");
+	//env.put("HADOOP_CONF_DIR", "/home/mayank/Softwares/hadoop-2.2/hadoop-2.2.0/etc/hadoop");
+    env.put("HADOOP_HOME", System.getenv().get("HADOOP_HOME"));
+	env.put("HADOOP_CONF_DIR", System.getenv().get("HADOOP_CONF_DIR"));
 
     // Add AppMaster.jar location to classpath 		
     // At some point we should not be required to add 
@@ -408,7 +425,7 @@ public class Client {
     env.put("CLASSPATH", classPathEnv.toString());
 
     amContainer.setEnvironment(env);
-
+    
     // Set the necessary command to execute the application master 
     Vector<CharSequence> vargs = new Vector<CharSequence>(30);
 
@@ -420,13 +437,12 @@ public class Client {
     // Set class name 
     vargs.add(appMasterMainClass);
 
-    if (!shellArgs.isEmpty()) {
-      vargs.add(shellArgs);
-    }
+    vargs.add(this.setup.toString());
+    
     if (debugFlag) {
       vargs.add("--debug");
     }
-
+    
     vargs.add("1>" + ApplicationConstants.LOG_DIR_EXPANSION_VAR + "/AppMaster.stdout");
     vargs.add("2>" + ApplicationConstants.LOG_DIR_EXPANSION_VAR + "/AppMaster.stderr");
 

@@ -1,5 +1,6 @@
 package edu.cmu.graphchi.toolkits.collaborative_filtering.utils;
 
+import java.io.File;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -7,7 +8,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import org.codehaus.jackson.map.ObjectMapper;
+
+import edu.cmu.graphchi.preprocessing.FastSharder;
+import edu.cmu.graphchi.toolkits.collaborative_filtering.algorithms.AggregateRecommender;
+import edu.cmu.graphchi.toolkits.collaborative_filtering.algorithms.RatingEdge;
 import edu.cmu.graphchi.toolkits.collaborative_filtering.algorithms.RecommenderAlgorithm;
+import edu.cmu.graphchi.toolkits.collaborative_filtering.algorithms.RecommenderFactory;
 
 
 /**
@@ -87,5 +94,40 @@ public class RecommenderPool {
 		this.pendingRecommenders.removeAll(newRec);
 		
 	}
-
+	
+	/**
+	 * Creates a json file which represents all the recommender algorithms to be run in this pool
+	 * @return
+	 */
+	public void createParamJsonFile(String fileName) throws Exception {
+		List<Map<String, String>> allParams = new ArrayList<Map<String,String>>();
+		for(RecommenderAlgorithm rec : this.allRecommenders) {
+			allParams.add(rec.getParams().getParamsMap());
+		}
+		ObjectMapper mapper = new ObjectMapper();
+		mapper.writeValue(new File(fileName), allParams);
+	}
+	
+	//For testing purpose only
+	public static void main(String[] args) {
+		ProblemSetup problemSetup = new ProblemSetup(args);
+		
+		try {
+		
+			DataSetDescription dataDesc = new DataSetDescription();
+			dataDesc.loadFromJsonFile(problemSetup.dataMetadataFile);
+			
+			//TODO: Do something else for vertex data cache.
+			List<RecommenderAlgorithm> recommenders = RecommenderFactory.buildRecommenders(dataDesc, 
+					problemSetup.paramFile, null);
+			
+			RecommenderScheduler sched = new RecommenderScheduler(1, 70, recommenders);
+			List<RecommenderPool> pools = sched.splitIntoRecPools();
+			
+			pools.get(0).createParamJsonFile("abc.json");
+			
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+	}
 }

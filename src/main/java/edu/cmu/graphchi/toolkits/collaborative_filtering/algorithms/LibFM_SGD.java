@@ -17,6 +17,7 @@ import edu.cmu.graphchi.preprocessing.FastSharder;
 import edu.cmu.graphchi.toolkits.collaborative_filtering.utils.DataSetDescription;
 import edu.cmu.graphchi.toolkits.collaborative_filtering.utils.FileInputDataReader;
 import edu.cmu.graphchi.toolkits.collaborative_filtering.utils.IO;
+import edu.cmu.graphchi.toolkits.collaborative_filtering.utils.InputDataReaderFactory;
 import edu.cmu.graphchi.toolkits.collaborative_filtering.utils.ModelParameters;
 import edu.cmu.graphchi.toolkits.collaborative_filtering.utils.ProblemSetup;
 import edu.cmu.graphchi.toolkits.collaborative_filtering.utils.VertexDataCache;
@@ -350,7 +351,7 @@ public class LibFM_SGD  implements RecommenderAlgorithm  {
 				int numVertices = (int)(ctx.getNumVertices() + 1);
 				this.vertexDataCache = new VertexDataCache(numVertices, numFeatures);
 				try {
-					this.vertexDataCache.loadVertexDataCache(new FileInputDataReader(this.datasetDesc));
+					this.vertexDataCache.loadVertexDataCache(InputDataReaderFactory.createInputDataReader(this.datasetDesc));
 				} catch (Exception e) {
 					e.printStackTrace();
 				}

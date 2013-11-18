@@ -16,7 +16,6 @@ public class HDFSInputDataReader extends FileInputDataReader {
 
 	public HDFSInputDataReader(DataSetDescription datasetDesc) {
 		super(datasetDesc);
-		// TODO Auto-generated constructor stub
 	}
 	
 	public HDFSInputDataReader(String dataSetDescFile) {
@@ -26,7 +25,7 @@ public class HDFSInputDataReader extends FileInputDataReader {
 	@Override
 	public boolean initRatingData() throws IOException, InconsistentDataException {
 		Path hdfsPath = new Path(this.ratingFile);
-		Configuration conf = new Configuration();
+		Configuration conf = IO.getConf();
 		FileSystem fs = FileSystem.get(conf);
 		
 		if(!fs.exists(hdfsPath))
@@ -44,7 +43,7 @@ public class HDFSInputDataReader extends FileInputDataReader {
 	@Override
 	public boolean initUserData()  throws IOException, InconsistentDataException {
 		Path hdfsPath = new Path(this.userFile);
-		Configuration conf = new Configuration();
+		Configuration conf = IO.getConf();
 		FileSystem fs = FileSystem.get(conf);
 		
 		if(!fs.exists(hdfsPath))
@@ -57,7 +56,7 @@ public class HDFSInputDataReader extends FileInputDataReader {
 	@Override
 	public boolean initItemData()  throws IOException, InconsistentDataException {
 		Path hdfsPath = new Path(this.itemFile);
-		Configuration conf = new Configuration();
+		Configuration conf = IO.getConf();
 		FileSystem fs = FileSystem.get(conf);
 		
 		if(!fs.exists(hdfsPath))
