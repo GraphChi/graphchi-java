@@ -11,8 +11,8 @@ package edu.cmu.graphchi.toolkits.collaborative_filtering.utils;
  * @author mayank
  */
 public class Feature {
-	int featureId;
-	float featureVal;
+	final int featureId;
+	final float featureVal;
 	
 	public Feature(int featureId, float featureVal) {
 		this.featureId = featureId;

@@ -11,7 +11,6 @@ import org.apache.hadoop.fs.Path;
 import edu.cmu.graphchi.io.MatrixMarketDataReader;
 
 
-//TODO: Is calling Configuration() with default parameters ok?
 public class HDFSInputDataReader extends FileInputDataReader {
 
 	public HDFSInputDataReader(DataSetDescription datasetDesc) {

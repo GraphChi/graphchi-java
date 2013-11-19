@@ -231,34 +231,4 @@ public class BiasSgd implements RecommenderAlgorithm {
 		return 0;
 	}
 	
-	public static void main(String args[]) throws Exception{
-    	ProblemSetup problemSetup = new ProblemSetup(args);
-    	
-    	DataSetDescription dataDesc = new DataSetDescription();
-    	dataDesc.loadFromJsonFile(problemSetup.dataMetadataFile);
-    	
-    	
-    	FastSharder<Integer, RatingEdge> sharder = AggregateRecommender.createSharder(dataDesc.getRatingsUrl(), 
-				problemSetup.nShards, 0); 
-		IO.convertMatrixMarket(dataDesc.getRatingsUrl(), problemSetup.nShards, sharder);
-		List<RecommenderAlgorithm> algosToRun = RecommenderFactory.buildRecommenders(dataDesc, 
-				problemSetup.paramFile, null);
-    	
-		//Just run the first one. It should be BIASSGD.
-		if(!(algosToRun.get(0) instanceof BiasSgd)) {
-			System.out.println("Please check the parameters file. The first algo listed is not of type BiasSgd");
-			System.exit(2);
-		}
-        GraphChiEngine<Integer, RatingEdge> engine = new GraphChiEngine<Integer, RatingEdge>(dataDesc.getRatingsUrl(), problemSetup.nShards);
-		
-		GraphChiProgram<Integer, RatingEdge> biasSgd = algosToRun.get(0);
-		
-        engine.setEdataConverter(new RatingEdgeConvertor(0));
-        engine.setEnableDeterministicExecution(false);
-        engine.setVertexDataConverter(null);  // We do not access vertex values.
-        engine.setModifiesInedges(false); // Important optimization
-        engine.setModifiesOutedges(false); // Important optimization
-        engine.run(biasSgd, 20);
-
-	}
 }

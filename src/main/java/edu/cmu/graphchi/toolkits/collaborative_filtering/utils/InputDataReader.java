@@ -47,7 +47,7 @@ public interface InputDataReader {
 	 * a list of Feature (featureId, featureVal tuple)
 	 * @return List<Feature> 
 	 */
-	public List<Feature> getNextRatingFeatures();
+	public List<Feature> getCurrRatingFeatures();
 	
 	/**
 	 * Initializes the user data from underlying data source. It is only valid to

@@ -9,6 +9,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.NoSuchElementException;
 
 import org.apache.hadoop.mapred.InvalidFileTypeException;
 import org.codehaus.jackson.map.ObjectMapper;
@@ -115,15 +116,19 @@ public class FileInputDataReader implements InputDataReader {
 
 	@Override
 	public float getCurrRating() {
-		String tok = this.ratingsReader.getCurrEdgeVal().split(DELIM, 2)[0];
+		String ratingStr = this.ratingsReader.getCurrEdgeVal();
+		if(ratingStr == null)
+			throw new NoSuchElementException("No rating data for this line: " + this.ratingsReader.getCurrEdgeVal());
+		
+		String tok = ratingStr.split(DELIM, 2)[0];
 		if(tok != null)
 			return Float.parseFloat(tok);
 		else
-			return -1;
+			throw new NoSuchElementException("No rating data for this line: " + this.ratingsReader.getCurrEdgeVal());
 	}
 
 	@Override
-	public List<Feature> getNextRatingFeatures() {
+	public List<Feature> getCurrRatingFeatures() {
 		String[] tokens = this.ratingsReader.getCurrEdgeVal().split(DELIM, 2);
 		if(tokens.length < 2) {
 			return null;
@@ -153,7 +158,7 @@ public class FileInputDataReader implements InputDataReader {
 	@Override
 	public int getCurrUser() {
 		if(this.currUserLine == null) {
-			return -1;
+			throw new NoSuchElementException("No user for the line.");
 		} else {
 			return Integer.parseInt(this.currUserLine.split(DELIM)[0]);
 		}
@@ -194,7 +199,7 @@ public class FileInputDataReader implements InputDataReader {
 	@Override
 	public int getCurrItem() {
 		if(this.currItemLine == null) {
-			return -1;
+			throw new NoSuchElementException("No item for this line.");
 		} else {
 			return this.metadata.getNumUsers() + 
 				Integer.parseInt(this.currItemLine.split(DELIM)[0]);

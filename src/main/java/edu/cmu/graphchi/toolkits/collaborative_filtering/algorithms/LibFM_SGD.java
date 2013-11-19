@@ -15,9 +15,7 @@ import edu.cmu.graphchi.engine.GraphChiEngine;
 import edu.cmu.graphchi.engine.VertexInterval;
 import edu.cmu.graphchi.preprocessing.FastSharder;
 import edu.cmu.graphchi.toolkits.collaborative_filtering.utils.DataSetDescription;
-import edu.cmu.graphchi.toolkits.collaborative_filtering.utils.FileInputDataReader;
 import edu.cmu.graphchi.toolkits.collaborative_filtering.utils.IO;
-import edu.cmu.graphchi.toolkits.collaborative_filtering.utils.InputDataReaderFactory;
 import edu.cmu.graphchi.toolkits.collaborative_filtering.utils.ModelParameters;
 import edu.cmu.graphchi.toolkits.collaborative_filtering.utils.ProblemSetup;
 import edu.cmu.graphchi.toolkits.collaborative_filtering.utils.VertexDataCache;
@@ -26,7 +24,7 @@ import gov.sandia.cognition.math.matrix.mtj.SparseVector;
 import gov.sandia.cognition.math.matrix.mtj.SparseVectorFactoryMTJ;
 
 /**
- * This is the implementation of Factorization Machines using the MCMC method
+ * This is the implementation of Factorization Machines using the SGD method
  * based on the algorithm given in the following paper:
  * "Steffen Rendle (2012): Factorization Machines with libFM, in ACM Trans. Intell. Syst. Technol., 3(3), May"
  * 
@@ -198,20 +196,25 @@ class LibFM_SGDParams extends ModelParameters  {
 		//Set feature representing an item.
 		allFeatures.setElement(item, 1);
 		
+		Iterator<VectorEntry> it;
 		//Set features representing user attributes.
-		Iterator<VectorEntry> it = userFeatures.iterator();
-		while(it.hasNext()) {
-			VectorEntry feature = it.next();
-			int featureIndex = getUserFeatureBase(datasetDesc) + feature.getIndex(); 
-			allFeatures.setElement(featureIndex, feature.getValue());
+		if(userFeatures != null) {
+			it = userFeatures.iterator();
+			while(it.hasNext()) {
+				VectorEntry feature = it.next();
+				int featureIndex = getUserFeatureBase(datasetDesc) + feature.getIndex(); 
+				allFeatures.setElement(featureIndex, feature.getValue());
+			}
 		}
 		
 		//Set features representing item attributes.
-		it = itemFeatures.iterator();
-		while(it.hasNext()) {
-			VectorEntry feature = it.next();
-			int featureIndex = getItemFeatureBase(datasetDesc) + feature.getIndex();
-			allFeatures.setElement(featureIndex, feature.getValue());
+		if(itemFeatures != null) {
+			it = itemFeatures.iterator();
+			while(it.hasNext()) {
+				VectorEntry feature = it.next();
+				int featureIndex = getItemFeatureBase(datasetDesc) + feature.getIndex();
+				allFeatures.setElement(featureIndex, feature.getValue());
+			}
 		}
 		
 		return allFeatures;
@@ -274,13 +277,19 @@ public class LibFM_SGD  implements RecommenderAlgorithm  {
 			//Update user feature aggregates.
 			int user = context.getVertexIdTranslate().backward(vertex.getId());
 			//SparseVector userFeatures = this.features.getRow(user);
-			SparseVector userFeatures = this.vertexDataCache.getFeatures(user);
+			
+			SparseVector userFeatures = null;
+			if(this.vertexDataCache != null) {
+				userFeatures = this.vertexDataCache.getFeatures(user);
+			}
 			
 			for(int e = 0; e < vertex.numOutEdges(); e++) {
 				int item = context.getVertexIdTranslate().backward(vertex.getOutEdgeId(e));
 				
-				//SparseVector itemFeatures = this.features.getRow(item);
-				SparseVector itemFeatures = this.vertexDataCache.getFeatures(item);
+				SparseVector itemFeatures = null;
+				if(this.vertexDataCache != null) {
+					itemFeatures = this.vertexDataCache.getFeatures(item);
+				}
 				
 				RatingEdge edge = vertex.edge(e).getValue();
 
@@ -346,16 +355,6 @@ public class LibFM_SGD  implements RecommenderAlgorithm  {
 					+ numFeatures;
 			
 			this.params.initParameters(numTotalFeatures);
-
-			if(this.vertexDataCache == null) {
-				int numVertices = (int)(ctx.getNumVertices() + 1);
-				this.vertexDataCache = new VertexDataCache(numVertices, numFeatures);
-				try {
-					this.vertexDataCache.loadVertexDataCache(InputDataReaderFactory.createInputDataReader(this.datasetDesc));
-				} catch (Exception e) {
-					e.printStackTrace();
-				}
-			}
 		}
 		
 		this.train_rmse = 0;
@@ -417,39 +416,5 @@ public class LibFM_SGD  implements RecommenderAlgorithm  {
 		return 0;
 	}
 	
-	public static void main(String[] args) throws Exception {
-		
-		ProblemSetup problemSetup = new ProblemSetup(args);
-    	
-    	DataSetDescription dataDesc = new DataSetDescription();
-    	dataDesc.loadFromJsonFile(problemSetup.dataMetadataFile);
-
-    	FastSharder<Integer, RatingEdge> sharder = AggregateRecommender.createSharder(dataDesc.getRatingsUrl(), 
-				problemSetup.nShards, 0); 
-		IO.convertMatrixMarket(dataDesc.getRatingsUrl(), problemSetup.nShards, sharder);
-        
-		List<RecommenderAlgorithm> algosToRun = RecommenderFactory.buildRecommenders(dataDesc, problemSetup.paramFile, null);
-
-		//Just run the first one. It should be ALS.
-		if(!(algosToRun.get(0) instanceof LibFM_SGD)) {
-			System.out.println("Please check the parameters file. The first algo listed is not of type ALS");
-			System.exit(2);
-		}
-		
-		GraphChiProgram<Integer, RatingEdge> libfm = (LibFM_SGD)algosToRun.get(0);
-		
-        // Run GraphChi 
-        GraphChiEngine<Integer, RatingEdge> engine = new GraphChiEngine<Integer, RatingEdge>(
-        	dataDesc.getRatingsUrl(), problemSetup.nShards);
-        
-        //TODO: Edge features.
-        engine.setEdataConverter(new RatingEdgeConvertor(0));
-        engine.setEnableDeterministicExecution(false);
-        engine.setVertexDataConverter(null);  // We do not access vertex values.
-        engine.setModifiesInedges(false); // Important optimization
-        engine.setModifiesOutedges(false); // Important optimization
-        engine.run(libfm, 15);
-	}
-
 }
 

@@ -10,6 +10,7 @@ import java.util.Map;
 
 import org.codehaus.jackson.map.ObjectMapper;
 import org.codehaus.jackson.map.type.TypeFactory;
+import org.mortbay.io.RuntimeIOException;
 
 import edu.cmu.graphchi.GraphChiProgram;
 import edu.cmu.graphchi.toolkits.collaborative_filtering.utils.DataSetDescription;
@@ -65,7 +66,8 @@ public class RecommenderFactory {
 				BiasSgdParams params = new BiasSgdParams(id, modelDescMap);
 				recommenders.add(new BiasSgd(dataDesc, params));
 			} else {			
-				//No model by the given name found.
+				throw new IllegalArgumentException(modelDescMap.get(MODEL_NAME_KEY) + " not found!");
+
 			}
 		}
 		
@@ -82,9 +84,8 @@ public class RecommenderFactory {
 			return models;
 		} catch (Exception e) {
 			e.printStackTrace();
-			System.exit(2);
+			throw new RuntimeIOException("Could not parse the model description json file: " + modelDescJsonFile); 
 		}
-		return null;
 	}
 	
 	public static Map<String, String> parseModelDescJson(String modelDescJson) {

@@ -1,21 +1,14 @@
 package edu.cmu.graphchi.toolkits.collaborative_filtering.algorithms;
 
-import java.util.List;
 import java.util.Map;
 import java.util.logging.Logger;
 
 import edu.cmu.graphchi.ChiLogger;
 import edu.cmu.graphchi.ChiVertex;
 import edu.cmu.graphchi.GraphChiContext;
-import edu.cmu.graphchi.GraphChiProgram;
-import edu.cmu.graphchi.datablocks.FloatConverter;
-import edu.cmu.graphchi.engine.GraphChiEngine;
 import edu.cmu.graphchi.engine.VertexInterval;
-import edu.cmu.graphchi.preprocessing.FastSharder;
 import edu.cmu.graphchi.toolkits.collaborative_filtering.utils.DataSetDescription;
-import edu.cmu.graphchi.toolkits.collaborative_filtering.utils.IO;
 import edu.cmu.graphchi.toolkits.collaborative_filtering.utils.ModelParameters;
-import edu.cmu.graphchi.toolkits.collaborative_filtering.utils.ProblemSetup;
 import edu.cmu.graphchi.util.HugeDoubleMatrix;
 import gov.sandia.cognition.math.matrix.mtj.SparseVector;
 
@@ -310,6 +303,7 @@ public class SVDPP implements RecommenderAlgorithm {
 	        params.itemFactorStep *= params.stepDec;
 	        params.userFactorStep *= params.stepDec;
 		}
+		this.iterationNum++;
 	}
 
 	@Override
@@ -343,7 +337,7 @@ public class SVDPP implements RecommenderAlgorithm {
 
 	@Override
 	public boolean hasConverged(GraphChiContext ctx) {
-		return this.iterationNum == this.params.maxIterations	;
+		return this.iterationNum == this.params.maxIterations;
 	}
 
 	@Override
@@ -357,40 +351,5 @@ public class SVDPP implements RecommenderAlgorithm {
 		// TODO Auto-generated method stub
 		return 0;
 	}
-	
-    /**
-     * @param args
-     * @throws Exception
-     */
-    public static void main(String[] args) throws Exception {
-    	ProblemSetup problemSetup = new ProblemSetup(args);
-    	
-    	DataSetDescription dataDesc = new DataSetDescription();
-    	dataDesc.loadFromJsonFile(problemSetup.dataMetadataFile);
-
-    	FastSharder<Integer, RatingEdge> sharder = AggregateRecommender.createSharder(dataDesc.getRatingsUrl(), 
-				problemSetup.nShards, 0); 
-		IO.convertMatrixMarket(dataDesc.getRatingsUrl(), problemSetup.nShards, sharder);
-        
-		List<RecommenderAlgorithm> algosToRun = RecommenderFactory.buildRecommenders(dataDesc, problemSetup.paramFile, null);
-
-		//Just run the first one. It should be ALS.
-		if(!(algosToRun.get(0) instanceof SVDPP)) {
-			System.out.println("Please check the parameters file. The first algo listed is not of type SVDPP");
-			System.exit(2);
-		}
-		
-		GraphChiProgram<Integer, RatingEdge> svdpp = algosToRun.get(0);
-        
-		/* Run GraphChi */
-        GraphChiEngine<Integer, RatingEdge> engine = new GraphChiEngine<Integer, RatingEdge>(dataDesc.getRatingsUrl(), problemSetup.nShards);
-		
-        engine.setEdataConverter(new RatingEdgeConvertor(0));
-        engine.setEnableDeterministicExecution(false);
-        engine.setVertexDataConverter(null);  // We do not access vertex values.
-        engine.setModifiesInedges(false); // Important optimization
-        engine.setModifiesOutedges(false); // Important optimization
-        engine.run(svdpp, 15);
-    }
 
 }

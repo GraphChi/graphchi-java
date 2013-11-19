@@ -23,6 +23,7 @@ import edu.cmu.graphchi.toolkits.collaborative_filtering.utils.ProblemSetup;
 import edu.cmu.graphchi.toolkits.collaborative_filtering.utils.RecommenderPool;
 import edu.cmu.graphchi.toolkits.collaborative_filtering.utils.RecommenderScheduler;
 import edu.cmu.graphchi.toolkits.collaborative_filtering.utils.VertexDataCache;
+import gov.sandia.cognition.math.matrix.mtj.SparseVector;
 
 public class AggregateRecommender implements
 		GraphChiProgram<Integer, RatingEdge> {
@@ -51,26 +52,7 @@ public class AggregateRecommender implements
 
 	@Override
 	public void beginIteration(GraphChiContext ctx) {
-		if(ctx.getIteration() == 0) {
-			//Initialize the vertex data cache 
-			if(this.vertexDataCache == null) {
-				InputDataReader reader = InputDataReaderFactory.createInputDataReader(this.datasetDesc);
-				
-				int numFeatures = this.datasetDesc.getNumItemFeatures() + 
-						this.datasetDesc.getNumUserFeatures() + this.datasetDesc.getNumRatingFeatures();
-				int numVertices = this.datasetDesc.getNumUsers() + this.datasetDesc.getNumItems() + 1;
-				
-				//Create the vertex data cache which contains all the data about vertices.
-				this.vertexDataCache = new VertexDataCache(numVertices, numFeatures);
-				try {
-					this.vertexDataCache.loadVertexDataCache(reader);
-				} catch (Exception e) {
-					e.printStackTrace();
-				}
-			}
-		}
 		this.activeRecommenderIds = recPool.getActiveRecommenders();
-		
 		for(int i : this.activeRecommenderIds) {
 			RecommenderAlgorithm rec = this.recPool.getRecommender(i);
 			rec.beginIteration(ctx);
@@ -101,11 +83,20 @@ public class AggregateRecommender implements
 			        		int userId = reader.getCurrRatingFrom();
 			        		int itemId = reader.getCurrRatingTo();
 			        		
+			        		SparseVector userFeatures = null;
+			        		if(this.vertexDataCache != null) {
+			        			userFeatures = this.vertexDataCache.getFeatures(userId);
+			        		}
+			        		
+			        		SparseVector itemFeatures = null;
+			        		if(this.vertexDataCache != null) {
+			        			itemFeatures = this.vertexDataCache.getFeatures(itemId); 
+			        		}
 			        		//TODO: Figure out how to support edge values.
+			        		SparseVector edgeFeatures = null;
+			        		
 			        		double estVal = rec.getParams().predict(userId, itemId, 
-			        				this.vertexDataCache.getFeatures(userId), 
-			        				this.vertexDataCache.getFeatures(itemId), 
-			        				null, datasetDesc);
+			        				userFeatures, itemFeatures, edgeFeatures, datasetDesc);
 			        		
 			        		validationRMSE += (reader.getCurrRating() - estVal)*(reader.getCurrRating() - estVal);
 			        		count++;
@@ -118,10 +109,11 @@ public class AggregateRecommender implements
 				}
 			}
 		}
+		
 		//Mark all recommenders that has completed
 		this.recPool.setRecommedersAsCompleted(completedRec);
 		
-		if(this.recPool.pendingRecommenders.size() == 0) {
+		if(this.recPool.getPendingRecommenders().size() == 0) {
 			//All recommenders have successfully finished. Break out of the loop
 			//TODO: How to do this?
 		}
@@ -178,18 +170,24 @@ public class AggregateRecommender implements
 					problemSetup.nShards, 0); 
 			IO.convertMatrixMarket(problemSetup.scratchDir, dataDesc.getRatingsUrl(), problemSetup.nShards, sharder);
 			
-			//TODO: Do something else for vertex data cache.
+			VertexDataCache vertexDataCache = VertexDataCache.createVertexDataCache(dataDesc);
 			List<RecommenderAlgorithm> recommenders = RecommenderFactory.buildRecommenders(dataDesc, 
-					problemSetup.paramFile, null);
-			
-			int maxAvailableMemory = (int)Runtime.getRuntime().maxMemory() / (1024*1024);
-			//RecommenderScheduler sched = new RecommenderScheduler(1, maxAvailableMemory, recommenders);
-			RecommenderScheduler sched = new RecommenderScheduler(1, 70, recommenders);
+					problemSetup.paramFile, vertexDataCache);
+
+			int heapMemory = (int)Runtime.getRuntime().maxMemory() / (1024*1024);
+			//TODO: Estimate the memory used by shards and other GraphChiEngine related stuff.
+			//Should mainly include memory used by some internal data structures, shards and vertexDataCache.
+			int engineMemoryRequirement = 0;
+			//The remaining memory available to recommenders for storing model parameters 
+			int maxAvailableMemory = heapMemory - engineMemoryRequirement;
+			RecommenderScheduler sched = new RecommenderScheduler(1, maxAvailableMemory, recommenders);
+			//RecommenderScheduler sched = new RecommenderScheduler(1, 70, recommenders);
 			
 			List<RecommenderPool> recPool = sched.splitIntoRecPools();
 			
 			recPool.get(0).resetPool();
 			AggregateRecommender aggRec = new AggregateRecommender(dataDesc, recPool.get(0));
+			aggRec.vertexDataCache = vertexDataCache;
 	    	
 	        /* Run GraphChi */
 	        GraphChiEngine<Integer, RatingEdge> engine = new GraphChiEngine<Integer, RatingEdge>(problemSetup.scratchDir,
@@ -204,7 +202,8 @@ public class AggregateRecommender implements
 	        engine.run(aggRec, 100);
 	
 		    //TODO: Persist models - Serialization has not yet been implemented
-	        for(RecommenderAlgorithm rec : aggRec.recPool.allRecommenders) {
+	        for(int i = 0; i < aggRec.recPool.getRecommenderPoolSize(); i++) {
+	        	RecommenderAlgorithm rec = aggRec.recPool.getRecommender(i);
 	        	rec.getParams().serialize(null);
 	        }
 	        

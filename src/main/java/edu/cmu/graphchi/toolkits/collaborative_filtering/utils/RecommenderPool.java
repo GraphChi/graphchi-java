@@ -18,17 +18,22 @@ import edu.cmu.graphchi.toolkits.collaborative_filtering.algorithms.RecommenderF
 
 
 /**
- * 
+ * An object of this class represents a list of recommenders to be run by
+ * in a single AggregateRecommender program. The algorithms run will save
+ * on cost of IO and will be run in a pipelined way. Thus, if there are total
+ * of 10 recommenders that are present in the pool, but only 4 can be run at a time 
+ * then the 4 will be initially run and once a slot becomes empty, other recommenders
+ * might start running.
  * @author mayank
  */
 
 public class RecommenderPool {
 
-	public List<RecommenderAlgorithm> allRecommenders;
+	private List<RecommenderAlgorithm> allRecommenders;
 	//Ids (indices in the allRecommender's list) which are pending.
-	public Set<Integer> pendingRecommenders;
+	private Set<Integer> pendingRecommenders;
 	//Ids (indices in the allRecommender's list) which are pending.
-	public Set<Integer> activeRecommenders;
+	private Set<Integer> activeRecommenders;
 
 	//Maximum available memory for the place where this pool is going to run.
 	private int maxAvailableMemory;
@@ -44,8 +49,16 @@ public class RecommenderPool {
 		this.activeRecommenders = new HashSet<Integer>();
 	}
 	
+	/**
+	 * This method allows adding new recommenders and adds them to the list of
+	 * pending recommenders. Hence, the size of recommender pool might vary dynamically.
+	 * @param rec: The recommender to be added to the recommender pool.
+	 */
 	public void addNewRecommender(RecommenderAlgorithm rec) {
+		//Add the new recommeder to pending list
 		this.pendingRecommenders.add(this.allRecommenders.size());
+		
+		
 		this.allRecommenders.add(rec);
 	}
 	
@@ -68,18 +81,43 @@ public class RecommenderPool {
 		}
 	}
 	
+	//return a copy of active recommenders to ensure that activeRecommeders is immutable.
+	//Since the list is small, its ok to create a new list everytime?
 	public Set<Integer> getActiveRecommenders(){
-		return this.activeRecommenders;
+		return  new HashSet<Integer>(this.activeRecommenders);
 	}
 	
+	//return a copy of pending recommenders to ensure that activeRecommeders is immutable
+	//Since the list is small, its ok to create a new list everytime?
+	public Set<Integer> getPendingRecommenders(){
+		return new HashSet<Integer>(this.pendingRecommenders);
+	}
+	
+	/**
+	 * Gets the ith recommender from the list of recommenders in the pool 
+	 * @param i: The index of the recommender in this pool
+	 * @return : The ith recommender in the pool
+	 */
 	public RecommenderAlgorithm getRecommender(int i) {
 		return this.allRecommenders.get(i);
 	}
 	
-	public void setRecommedersAsCompleted(List<Integer> ids) {
+	public int getRecommenderPoolSize() {
+		return this.allRecommenders.size();
+	}
+	
+	/**
+	 * Set all these recommenders as completed. Note that the list of recommender ids might
+	 * be active or pending. This method will mark them as complete.
+	 * @param ids: Ids of recommenders to be marked as completed. 
+	 */
+	public void setRecommedersAsCompleted(List<Integer> ids){
 		for(int i : ids) {
-			this.activeRecommenders.remove(new Integer(i));
-			this.currentMemoryUsed -= this.allRecommenders.get(i).getEstimatedMemoryUsage();
+			this.pendingRecommenders.remove(new Integer(i));
+			boolean wasActive = this.activeRecommenders.remove(new Integer(i));
+			if(wasActive) {
+				this.currentMemoryUsed -= this.allRecommenders.get(i).getEstimatedMemoryUsage();
+			}
 		}
 		
 		List<Integer> newRec = new ArrayList<Integer>();
@@ -96,7 +134,10 @@ public class RecommenderPool {
 	}
 	
 	/**
-	 * Creates a json file which represents all the recommender algorithms to be run in this pool
+	 * Creates a json file which represents all the recommender algorithms to be run in this pool.
+	 * This is needed to ship this pool of recommenders to some other host in case of Apache YARN.
+	 * The new config file created will be used to instantiate the graphchi program on the other host
+	 * and run the program.
 	 * @return
 	 */
 	public void createParamJsonFile(String fileName) throws Exception {
@@ -107,6 +148,7 @@ public class RecommenderPool {
 		ObjectMapper mapper = new ObjectMapper();
 		mapper.writeValue(new File(fileName), allParams);
 	}
+	
 	
 	//For testing purpose only
 	public static void main(String[] args) {

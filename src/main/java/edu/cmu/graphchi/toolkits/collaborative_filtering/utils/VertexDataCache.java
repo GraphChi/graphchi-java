@@ -44,5 +44,29 @@ public class VertexDataCache {
 		}
 		
 	}
+	
+	public static VertexDataCache createVertexDataCache(DataSetDescription datasetDesc) {
+		if(datasetDesc.getUserFeaturesUrl() != null && datasetDesc.getItemFeaturesUrl() != null) {
+			//Initialize the vertex data cache
+			int numVertices = datasetDesc.getNumUsers() + datasetDesc.getNumItems() + 1;
+			int maxFeatureId = datasetDesc.getNumUserFeatures() + datasetDesc.getNumItemFeatures()
+					+ datasetDesc.getNumRatingFeatures();
+			
+			VertexDataCache vertexDataCache = new VertexDataCache(numVertices, maxFeatureId);
+			
+			InputDataReader reader = InputDataReaderFactory.createInputDataReader(datasetDesc);
+			
+			try {
+				vertexDataCache.loadVertexDataCache(reader);
+			} catch (Exception e) {
+				e.printStackTrace();
+				//TODO: Throws Exception instead?
+				return null;
+			}
+			return vertexDataCache;
+		} else {
+			return null;
+		}
+	}
 
 }

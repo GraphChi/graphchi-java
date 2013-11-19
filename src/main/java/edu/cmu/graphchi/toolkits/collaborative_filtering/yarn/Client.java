@@ -228,7 +228,7 @@ public class Client {
 
     }
 
-    appName = cliParser.getOptionValue("appname", "DistributedShell");
+    appName = cliParser.getOptionValue("appname", "GraphChiProgram");
     amPriority = Integer.parseInt(cliParser.getOptionValue("priority", "0"));
     amQueue = cliParser.getOptionValue("queue", "default");
     amMemory = Integer.parseInt(cliParser.getOptionValue("master_memory", "100"));		
@@ -335,51 +335,10 @@ public class Client {
     // In this scenario, the jar file for the application master is part of the local resources			
     Map<String, LocalResource> localResources = new HashMap<String, LocalResource>();
 
-    LOG.info("Copy App Master jar from local filesystem and add to local environment");
-    // Copy the application master jar to the filesystem 
-    // Create a local resource to point to the destination jar path 
-    FileSystem fs = FileSystem.get(conf);
-    Path src = new Path(appMasterJar);
-    String pathSuffix = appName + "/" + appId.getId() + "/AppMaster.jar";	    
-    Path dst = new Path(fs.getHomeDirectory(), pathSuffix);
-    fs.copyFromLocalFile(false, true, src, dst);
-    FileStatus destStatus = fs.getFileStatus(dst);
-    LocalResource amJarRsrc = Records.newRecord(LocalResource.class);
 
-    // Set the type of resource - file or archive
-    // archives are untarred at destination
-    // we don't need the jar file to be untarred for now
-    amJarRsrc.setType(LocalResourceType.FILE);
-    // Set visibility of the resource 
-    // Setting to most private option
-    amJarRsrc.setVisibility(LocalResourceVisibility.APPLICATION);	   
-    // Set the resource to be copied over
-    amJarRsrc.setResource(ConverterUtils.getYarnUrlFromPath(dst)); 
-    // Set timestamp and length of file so that the framework 
-    // can do basic sanity checks for the local resource 
-    // after it has been copied over to ensure it is the same 
-    // resource the client intended to use with the application
-    amJarRsrc.setTimestamp(destStatus.getModificationTime());
-    amJarRsrc.setSize(destStatus.getLen());
-    localResources.put("AppMaster.jar",  amJarRsrc);
-
-    // Set the log4j properties if needed 
-    if (!log4jPropFile.isEmpty()) {
-      Path log4jSrc = new Path(log4jPropFile);
-      Path log4jDst = new Path(fs.getHomeDirectory(), "log4j.props");
-      fs.copyFromLocalFile(false, true, log4jSrc, log4jDst);
-      FileStatus log4jFileStatus = fs.getFileStatus(log4jDst);
-      LocalResource log4jRsrc = Records.newRecord(LocalResource.class);
-      log4jRsrc.setType(LocalResourceType.FILE);
-      log4jRsrc.setVisibility(LocalResourceVisibility.APPLICATION);	   
-      log4jRsrc.setResource(ConverterUtils.getYarnUrlFromURI(log4jDst.toUri()));
-      log4jRsrc.setTimestamp(log4jFileStatus.getModificationTime());
-      log4jRsrc.setSize(log4jFileStatus.getLen());
-      localResources.put("log4j.properties", log4jRsrc);
-    }			
-
-    //Localize other resources (graphchi jar, paramFile, dataMetadata file)
     try {
+    	ApplicationMaster.addLocalResource(appMasterJar);
+    	//Localize other resources (graphchi jar, paramFile, dataMetadata file)
     	this.setup = ApplicationMaster.localizeResources(this.setup, localResources);
     } catch (Exception e) {
     	e.printStackTrace();
@@ -395,8 +354,6 @@ public class Client {
     // Set the env variables to be setup in the env where the application master will be run
     LOG.info("Set the environment for the application master");
     Map<String, String> env = new HashMap<String, String>();
-    //env.put("HADOOP_HOME", "/home/mayank/Softwares/hadoop-2.2/hadoop-2.2.0");
-	//env.put("HADOOP_CONF_DIR", "/home/mayank/Softwares/hadoop-2.2/hadoop-2.2.0/etc/hadoop");
     env.put("HADOOP_HOME", System.getenv().get("HADOOP_HOME"));
 	env.put("HADOOP_CONF_DIR", System.getenv().get("HADOOP_CONF_DIR"));
 
@@ -476,14 +433,6 @@ public class Client {
           "Can't get Master Kerberos principal for the RM to use as renewer");
       }
 
-      // For now, only getting tokens for the default file-system.
-      final Token<?> tokens[] =
-          fs.addDelegationTokens(tokenRenewer, credentials);
-      if (tokens != null) {
-        for (Token<?> token : tokens) {
-          LOG.info("Got dt for " + fs.getUri() + "; " + token);
-        }
-      }
       DataOutputBuffer dob = new DataOutputBuffer();
       credentials.writeTokenStorageToStream(dob);
       ByteBuffer fsTokens = ByteBuffer.wrap(dob.getData(), 0, dob.getLength());

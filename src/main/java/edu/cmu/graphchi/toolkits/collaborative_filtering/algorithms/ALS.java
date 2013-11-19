@@ -261,46 +261,4 @@ public class ALS implements RecommenderAlgorithm {
 		return this.params.getEstimatedMemoryUsage(this.dataMetadata);
 	}
 
-
-    /**
-     * Usage: java edu.cmu.graphchi.ALSMatrixFactorization <input-file> <nshards> <D>
-     * Normally nshards of 10 or so is fine.
-     * @param args
-     * @throws Exception
-     */
-    public static void main(String[] args) throws Exception {
-
-    	ProblemSetup problemSetup = new ProblemSetup(args);
-    	
-    	DataSetDescription dataDesc = new DataSetDescription();
-    	dataDesc.loadFromJsonFile(problemSetup.dataMetadataFile);
-
-    	FastSharder<Integer, RatingEdge> sharder = AggregateRecommender.createSharder(dataDesc.getRatingsUrl(), 
-				problemSetup.nShards, 0); 
-		IO.convertMatrixMarket(dataDesc.getRatingsUrl(), problemSetup.nShards, sharder);
-        
-		List<RecommenderAlgorithm> algosToRun = RecommenderFactory.buildRecommenders(dataDesc, 
-				problemSetup.paramFile, null);
-
-		//Just run the first one. It should be ALS.
-		if(!(algosToRun.get(0) instanceof ALS)) {
-			System.out.println("Please check the parameters file. The first algo listed is not of type ALS");
-			System.exit(2);
-		}
-		
-		GraphChiProgram<Integer, RatingEdge> als = algosToRun.get(0);
-		
-        /* Run GraphChi */
-        GraphChiEngine<Integer, RatingEdge> engine = new GraphChiEngine<Integer, RatingEdge>(dataDesc.getRatingsUrl(), problemSetup.nShards);
-        
-        engine.setEdataConverter(new RatingEdgeConvertor(0));
-        engine.setEnableDeterministicExecution(false);
-        engine.setVertexDataConverter(null);  // We do not access vertex values.
-        engine.setModifiesInedges(false); // Important optimization
-        engine.setModifiesOutedges(false); // Important optimization
-        engine.run(als, 5);
-
-        ((ALS)als).params.serialize(problemSetup.outputLoc);
-    }
-
 }
