@@ -10,6 +10,8 @@ Version 0.2
 
 
 
+
+
 # Introduction
 
 Project for developing the Java version of GraphChi ( http://www.graphchi.org ), the disk-based graph computation engine. To learn more about GraphChi, visit the C++ version's project page: https://github.com/GraphChi/graphchi-cpp
@@ -115,9 +117,15 @@ On a new MacBook Pro (2012), I can run Pagerank on a Twitter-graph with 1.5 B ed
 I want to thank Twitter and particularly the Personalization and Recommendations Team for the my internship during Fall 2012. M
 any of the improvements to mature the GraphChi's Java-version were done during the course of the internship. 
 
-Aapo Kyrola akyrola----at----cs.cmu.edu
 
+## YourKit sponsorship
 
+YourKit is kindly supporting GraphChi project with its full-featured Java Profiler. 
+It is incredibly useful for debugging performance bottlenecks and analyzing memory usage.
+YourKit, LLC is the creator of innovative and intelligent tools for profiling
+Java and .NET applications. Take a look at YourKit's leading software products:
+[YourKit Java Profiler](http://www.yourkit.com/java/profiler/index.jsp) and
+[YourKit .NET Profiler](http://www.yourkit.com/.net/profiler/index.jsp).
 
 
 -- Aapo Kyrola, 
