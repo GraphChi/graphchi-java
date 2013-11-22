@@ -1,0 +1,13 @@
+[
+    {
+        "algorithm": "BIAS_SGD",
+        "serializedFile":"/home/shuhaoyu/Documents/CMU_semester_III/Capstone/Capstone_workspace/src/main/java/edu/cmu/graphchi/toolkits/collaborative_filtering/BiasSgd_model_param"
+    },
+    {
+        "algorithm": "ALS",
+        "id": "<DEFAULT>",
+        "reg": "0.065",
+        "latentFactors": "10",
+        "serializedFile":"/home/shuhaoyu/Documents/CMU_semester_III/Capstone/Capstone_workspace/src/main/java/edu/cmu/graphchi/toolkits/collaborative_filtering/ALS_model_param"
+    }
+]

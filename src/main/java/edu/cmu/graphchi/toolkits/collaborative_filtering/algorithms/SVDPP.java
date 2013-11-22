@@ -1,14 +1,19 @@
 package edu.cmu.graphchi.toolkits.collaborative_filtering.algorithms;
 
+import java.io.FileInputStream;
+import java.io.IOException;
+import java.io.ObjectInputStream;
 import java.util.List;
 import java.util.Map;
 import java.util.logging.Logger;
+
+import org.apache.commons.math.linear.ArrayRealVector;
+import org.apache.commons.math.linear.RealVector;
 
 import edu.cmu.graphchi.ChiLogger;
 import edu.cmu.graphchi.ChiVertex;
 import edu.cmu.graphchi.GraphChiContext;
 import edu.cmu.graphchi.GraphChiProgram;
-import edu.cmu.graphchi.datablocks.FloatConverter;
 import edu.cmu.graphchi.engine.GraphChiEngine;
 import edu.cmu.graphchi.engine.VertexInterval;
 import edu.cmu.graphchi.preprocessing.FastSharder;
@@ -16,6 +21,7 @@ import edu.cmu.graphchi.toolkits.collaborative_filtering.utils.DataSetDescriptio
 import edu.cmu.graphchi.toolkits.collaborative_filtering.utils.IO;
 import edu.cmu.graphchi.toolkits.collaborative_filtering.utils.ModelParameters;
 import edu.cmu.graphchi.toolkits.collaborative_filtering.utils.ProblemSetup;
+import edu.cmu.graphchi.toolkits.collaborative_filtering.utils.SerializationUtils;
 import edu.cmu.graphchi.util.HugeDoubleMatrix;
 import gov.sandia.cognition.math.matrix.mtj.SparseVector;
 
@@ -36,6 +42,7 @@ import gov.sandia.cognition.math.matrix.mtj.SparseVector;
  */
 
 class SVDPPParams extends ModelParameters {
+	private static final long serialVersionUID = -363718674763291726L;
 	//Model parameters to be computed
 	
 	//Computed in the first iteration of update functions currently.
@@ -44,12 +51,12 @@ class SVDPPParams extends ModelParameters {
 	double globalMean;			//global mean of all ratings.
 	
 	HugeDoubleMatrix latentFactors;	//latent factors for both users and items (numUsers+numItems) x D
-	double[] bias;					//Bias terms for both users and items. (numUsers+numItems) x 1
+	RealVector bias;					//Bias terms for both users and items. (numUsers+numItems) x 1
 	HugeDoubleMatrix weights;		//(numUsers+numItems) x D  For items, this contains weights.  
 									// For users it contains sum of weights of neighboring items.
 	
 	//meta parameters.
-	int D;	//Num features
+	int numFactors;	//Num features
 	
 	//Various regularization and step parameters
 	double itemFactorStep;	//gamma2
@@ -71,7 +78,7 @@ class SVDPPParams extends ModelParameters {
 	
 	private void setDefaults() {
 		//Default number of features
-		this.D = 8;
+		this.numFactors = 8;
 		
 		//Default values of various model parameters which can be defined by user
 		this.itemFactorStep = 0.001;
@@ -89,22 +96,30 @@ class SVDPPParams extends ModelParameters {
 		//TODO: Parse parameters from the json string and set the values
 	}
 
-	@Override
-	public void serialize(String dir) {
-		// TODO Auto-generated method stub
+	public void serializeMM(String dir) {
+		String comment = "Latent factors for SVDPP";
+		IO.mmOutputMatrix(dir+"SVDPP_latent_factors.mm" , 0, numUsers + numItems, latentFactors, comment);
+		System.err.println("SerializeOver at "+ dir + "SVDPP_latent_factors.mm");
 		
+		String commentWeight = "Weight for SVDPP";
+		IO.mmOutputMatrix(dir+"SVDPP_weights.mm" , 0, numUsers + numItems, weights, commentWeight);
+		System.err.println("SerializeOver at "+ dir + "SVDPP_weights.mm");
+		
+		String commentBias = "Bias for SVDPP";
+		IO.mmOutputVector(dir+"SVDPP_bias.mm" , 0, numUsers + numItems, bias, commentBias);
+		System.err.println("SerializeOver at "+ dir + "SVDPP_bias.mm");		
 	}
 
-	@Override
-	public void deserialize(String file) {
-		// TODO Auto-generated method stub
-	}
 	
-	public void initParameterValues() {
-		this.latentFactors = new HugeDoubleMatrix(this.numUsers + this.numItems, D);
-		this.weights = new HugeDoubleMatrix(this.numUsers + this.numItems, this.D, 0);
-		this.latentFactors.randomize(0, 1);
-		this.bias = new double[this.numUsers + this.numItems];
+	public void initParameterValues(DataSetDescription dataMetadata) {
+		if(!serialized){
+        	numUsers = dataMetadata.getNumUsers();
+        	numItems = dataMetadata.getNumItems();
+        	latentFactors = new HugeDoubleMatrix(this.numUsers + this.numItems, numFactors);
+        	latentFactors.randomize(0.0, 1.0);
+        	weights = new HugeDoubleMatrix(this.numUsers + this.numItems, numFactors, 0.0);
+        	bias = new ArrayRealVector(this.numUsers + this.numItems);
+		}
 	}
 
 	@Override
@@ -115,10 +130,10 @@ class SVDPPParams extends ModelParameters {
 		double prediction = this.globalMean;
 		
 		// + b_u + b_i
-		prediction += this.bias[userId] + this.bias[itemId];
+		prediction += this.bias.getEntry(userId) + this.bias.getEntry(itemId);
 		
 		// + q_i^T*(p_u + sum y_j/sqrt(|N(u)|))
-		for(int f = 0; f < this.D; f++) {
+		for(int f = 0; f < this.numFactors; f++) {
 			prediction += this.latentFactors.getValue(itemId, f)*(
 					this.latentFactors.getValue(userId, f) + this.weights.getValue(userId, f));
 		}
@@ -128,11 +143,37 @@ class SVDPPParams extends ModelParameters {
 		
 		return prediction;
 	}
+
+	@Override
+	public void serialize(String dir) {
+		String paramString = "itemStep_"+ itemFactorStep + "_itemReg_" + itemFactorReg
+				+ "_userStep_" + userFactorStep + "_userReg_" + userFactorReg
+				+ "_itemBiasStep_" + itemBiasStep + "_itemBiasReg_" + itemBiasReg 
+				 + "_userBiasStep_" + userBiasStep + "_userBiasReg_" + userBiasReg
+				+ "_stepDec_" + stepDec + "_factor_"+numFactors;
+		String filename = dir + "SVDPP_model_param_"+paramString;
+		try{
+			SerializationUtils.serializeParam(filename, this);
+		}catch(Exception i){
+			System.err.println("Serialization Fails at" + filename);
+		}
+	}
+	public static SVDPPParams deserialize(String file) throws IOException, ClassNotFoundException{
+		SVDPPParams params = null;
+		System.err.println("File:"+file);	  
+	    FileInputStream fileIn = new FileInputStream(file);
+	    ObjectInputStream in = new ObjectInputStream(fileIn);
+	    params = (SVDPPParams) in.readObject();
+	    in.close();
+	    fileIn.close();
+	    params.setSerializedTrue();
+	    return params;
+	}
 }
 
 public class SVDPP implements RecommenderAlgorithm {
 	SVDPPParams params;
-	DataSetDescription datasetDesc;
+	DataSetDescription dataSetDescription;
 	
 	protected Logger logger = ChiLogger.getLogger("SVDPP");
 	
@@ -141,7 +182,7 @@ public class SVDPP implements RecommenderAlgorithm {
 	public SVDPP(DataSetDescription datasetDesc, ModelParameters parameters) {
 		//Initialize the model parameters
 		this.params = (SVDPPParams)parameters;
-		this.datasetDesc = datasetDesc;
+		this.dataSetDescription = datasetDesc;
 		
 		//metadataMap contains global information computed by sharder?
 		this.train_rmse = 0;
@@ -176,18 +217,18 @@ public class SVDPP implements RecommenderAlgorithm {
 			double usrNorm = 1.0/Math.sqrt(vertex.numOutEdges());
 			
 			// Computing the value of sum_j(y_j) * (1/sqrt(N(u))) for first iteration.
-			double[] userFactors = new double[params.D];
+			double[] userFactors = new double[params.numFactors];
 			params.latentFactors.getRow(user, userFactors);
 
-			double[] sumWeights = new double[params.D];
+			double[] sumWeights = new double[params.numFactors];
 			for(int i = 0; i < vertex.numOutEdges(); i++) {
-				double[] itemWeight = new double[params.D];
+				double[] itemWeight = new double[params.numFactors];
 				params.weights.getRow(vertex.getOutEdgeId(i), itemWeight);
-				for(int f = 0; f < params.D; f++)
+				for(int f = 0; f < params.numFactors; f++)
 					sumWeights[f] += itemWeight[f];
 			}
 			
-			for(int f = 0; f < params.D; f++) {
+			for(int f = 0; f < params.numFactors; f++) {
 				sumWeights[f] *= usrNorm;
 				params.weights.setValue(user, f, sumWeights[f]);
 			}
@@ -196,20 +237,20 @@ public class SVDPP implements RecommenderAlgorithm {
 	        for(int e=0; e < vertex.numOutEdges(); e++) {
 	        	//User vertex.
 	        	int item = vertex.getOutEdgeId(e);
-	        	double[] itemFactors = new double[params.D];
+	        	double[] itemFactors = new double[params.numFactors];
 	        	params.latentFactors.getRow(item, itemFactors);
 	        	
 	        	float observation = vertex.getOutEdgeValue(e).observation;
 	        	
 	        	//TODO: Change this to use the predict method in ModelParameters.
-	        	double estScore = this.params.predict(user, item, null, null, null, this.datasetDesc);
+	        	double estScore = this.params.predict(user, item, null, null, null, this.dataSetDescription);
 	        	//double estScore = predict(user, item, observation, sumWeights);
 	        	
 	        	 // e_ui = r_ui - \hat{r_ui}
 	        	double err = observation - estScore;
 	        	
 	        	//q_i = q_i + gamma2*(e_ui*(p_u + sum_j y_j/sqrt(N(U))) - lambda7*q_i)
-	        	for (int f=0; f< params.D; f++) { 
+	        	for (int f=0; f< params.numFactors; f++) { 
 	        		itemFactors[f] = itemFactors[f] + params.itemFactorStep*(
 	        				err*(userFactors[f] + sumWeights[f]) -
 	        				params.itemFactorReg*itemFactors[f]
@@ -219,7 +260,7 @@ public class SVDPP implements RecommenderAlgorithm {
 	        	}
 	        	
 	        	//p_u = p_u + gamma2*(e_ui*q_i - lambda7*p_u)
-	        	for (int f=0; f< params.D; f++) {
+	        	for (int f=0; f< params.numFactors; f++) {
 	        		userFactors[f] = userFactors[f] + 
 	        			params.userFactorStep*(
 	        				err*itemFactors[f] - params.userFactorReg*userFactors[f]
@@ -228,9 +269,11 @@ public class SVDPP implements RecommenderAlgorithm {
 	        	}
 	        	
 	            //b_i = b_i + gamma1*(e_ui - gmma6 * b_i) 
-	        	params.bias[item] += params.itemBiasStep*(err-params.itemBiasReg*params.bias[item]);
+	        	params.bias.setEntry(item, params.bias.getEntry(item)+ params.itemBiasStep*(err-params.itemBiasReg*params.bias.getEntry(item)));
 	        	//b_u = b_u + gamma1*(e_ui - gamma6 * b_u)
-	        	params.bias[user] += params.userBiasStep*(err-params.userBiasReg*params.bias[user]);
+	        	params.bias.setEntry(user, params.bias.getEntry(user)+ params.itemBiasStep*(err-params.itemBiasReg*params.bias.getEntry(user)));
+
+
 	        	
 	        	synchronized (this) {
 					this.train_rmse += err*err;
@@ -243,7 +286,7 @@ public class SVDPP implements RecommenderAlgorithm {
 	        	//seen for a user in that iteration. This seems to differ from the paper, 
 	        	//wherein, for each rating r_ui, the weights y_j are updated. However, the results
 	        	//are similar in training RMSE.
-	        	for(int f = 0; f < params.D; f++) {
+	        	for(int f = 0; f < params.numFactors; f++) {
 	        		//Persist the sum of weights and get ready for next iteration.
 	        		this.params.weights.setValue(user, f, sumWeights[f]);
 	    			sumWeights[f] = 0;
@@ -251,10 +294,10 @@ public class SVDPP implements RecommenderAlgorithm {
 	        	//For all neighbors of u
 	        	//y_j = y_j  +   gamma2*(e_ui * (1/sqrt|N(u)|) * q_i - gamma7 * y_j)
 	        	for(int i = 0; i < vertex.numOutEdges(); i++) {
-	        		double[] nbrItemWt = new double[params.D];
+	        		double[] nbrItemWt = new double[params.numFactors];
 	        		int itemWtIndex = vertex.getOutEdgeId(i);
 		        	params.weights.getRow(itemWtIndex, nbrItemWt);
-		        	for(int f = 0; f < params.D; f++) {
+		        	for(int f = 0; f < params.numFactors; f++) {
 		        		double tmp = params.itemFactorStep*(err*usrNorm*itemFactors[f] - params.itemFactorReg*nbrItemWt[f]);
 		        		nbrItemWt[f] = nbrItemWt[f] + tmp;
 		        		params.weights.setValue(itemWtIndex, f, nbrItemWt[f]);
@@ -264,7 +307,7 @@ public class SVDPP implements RecommenderAlgorithm {
 		        	}
 	        	}
 	        	
-				for(int f = 0; f < params.D; f++)
+				for(int f = 0; f < params.numFactors; f++)
 					sumWeights[f] *= usrNorm;
 	        }
 	        
@@ -278,7 +321,7 @@ public class SVDPP implements RecommenderAlgorithm {
 
     	//Since iteration number 0 was used to compute global mean, numUsers and numItems.
         if (ctx.getIteration() == 1) {
-        	   params.initParameterValues();
+        	   params.initParameterValues(dataSetDescription);
         	   params.globalMean = params.globalMean / ctx.getNumEdges();
         }		
 	}
@@ -335,7 +378,7 @@ public class SVDPP implements RecommenderAlgorithm {
 	@Override
 	public DataSetDescription getDataSetDescription() {
 		// TODO Auto-generated method stub
-		return this.datasetDesc;
+		return this.dataSetDescription;
 	}
 	
     /**
@@ -355,12 +398,12 @@ public class SVDPP implements RecommenderAlgorithm {
 		List<RecommenderAlgorithm> algosToRun = RecommenderFactory.buildRecommenders(dataDesc, problemSetup.paramFile, null);
 
 		//Just run the first one. It should be ALS.
-		if(!(algosToRun.get(0) instanceof SVDPP)) {
+		if(!(algosToRun.get(2) instanceof SVDPP)) {
 			System.out.println("Please check the parameters file. The first algo listed is not of type SVDPP");
 			System.exit(2);
 		}
 		
-		GraphChiProgram<Integer, RatingEdge> svdpp = algosToRun.get(0);
+		GraphChiProgram<Integer, RatingEdge> svdpp = algosToRun.get(2);
         
 		/* Run GraphChi */
         GraphChiEngine<Integer, RatingEdge> engine = new GraphChiEngine<Integer, RatingEdge>(dataDesc.getRatingsUrl(), problemSetup.nShards);
@@ -371,6 +414,8 @@ public class SVDPP implements RecommenderAlgorithm {
         engine.setModifiesInedges(false); // Important optimization
         engine.setModifiesOutedges(false); // Important optimization
         engine.run(svdpp, 15);
+        
+        ((SVDPP)svdpp).params.serialize(problemSetup.outputLoc);
     }
 
 }

@@ -1,5 +1,8 @@
 package edu.cmu.graphchi.toolkits.collaborative_filtering.algorithms;
 
+import java.io.FileInputStream;
+import java.io.IOException;
+import java.io.ObjectInputStream;
 import java.util.List;
 import java.util.Map;
 import java.util.logging.Logger;
@@ -22,6 +25,7 @@ import edu.cmu.graphchi.toolkits.collaborative_filtering.utils.DataSetDescriptio
 import edu.cmu.graphchi.toolkits.collaborative_filtering.utils.IO;
 import edu.cmu.graphchi.toolkits.collaborative_filtering.utils.ModelParameters;
 import edu.cmu.graphchi.toolkits.collaborative_filtering.utils.ProblemSetup;
+import edu.cmu.graphchi.toolkits.collaborative_filtering.utils.SerializationUtils;
 import edu.cmu.graphchi.util.HugeDoubleMatrix;
 import gov.sandia.cognition.math.matrix.mtj.SparseVector;
 
@@ -49,11 +53,15 @@ import gov.sandia.cognition.math.matrix.mtj.SparseVector;
  */
 
 class ALSParams extends ModelParameters {
-	public static final String LAMBDA_KEY = "regularization";
-	public static final String NUM_LATENT_FACTORS_KEY = "num_latent_factors";
+	/**
+	 * 
+	 */
+	private static final long serialVersionUID = 6384331093067321704L;
+	private static final String LAMBDA_KEY = "regularization";
+	private static final String NUM_LATENT_FACTORS_KEY = "num_latent_factors";
 	
 	double lambda;	//regularization
-	int D;	//number of features
+	int numFactors;	//number of features
 	HugeDoubleMatrix latentFactors;
 	int numUsers;
 	int numItems;
@@ -69,7 +77,7 @@ class ALSParams extends ModelParameters {
 	
 	public void setDefaults() {
 		this.lambda = 0.065;
-		this.D = 10;
+		this.numFactors = 10;
 	}
 	
 	public void parseParameters() {
@@ -77,26 +85,48 @@ class ALSParams extends ModelParameters {
 			this.lambda = Double.parseDouble(this.paramsMap.get(LAMBDA_KEY));
 		}
 		if(this.paramsMap.containsKey(NUM_LATENT_FACTORS_KEY)) {
-			this.D = Integer.parseInt(this.paramsMap.get(NUM_LATENT_FACTORS_KEY));
+			this.numFactors = Integer.parseInt(this.paramsMap.get(NUM_LATENT_FACTORS_KEY));
 		}
 	}
 	
-    void initParameterValues(long size, int D){
-        latentFactors = new HugeDoubleMatrix(size, D);
+    void initParameterValues(long size, int D, DataSetDescription dataMetadata){
 
-        /* Fill with random data */
-        latentFactors.randomize(0.0, 1.0);
+    	if(!serialized){
+        	numUsers = dataMetadata.getNumUsers();
+        	numItems = dataMetadata.getNumItems();
+    		latentFactors = new HugeDoubleMatrix(size, D);
+            /* Fill with random data */
+            latentFactors.randomize(0.0, 1.0);
+    	}    
       }
 	
 	@Override
 	public void serialize(String dir) {
-		// TODO Auto-generated method stub
+		String paramString = "lambda_"+lambda+"_factor_"+numFactors;
+		String filename = dir + "ALS_model_param_"+paramString;
+		try{
+			SerializationUtils.serializeParam(filename, this);
+		}catch(Exception i){
+			System.err.println("Serialization Fails at" + filename);
+		}
 	}
 
-	@Override
-	public void deserialize(String file) {
-		// TODO Auto-generated method stub
-		
+	public static ALSParams deserialize(String file) throws IOException, ClassNotFoundException{
+		ALSParams params = null;
+		System.err.println("File:"+file);	  
+	    FileInputStream fileIn = new FileInputStream(file);
+	    ObjectInputStream in = new ObjectInputStream(fileIn);
+	    params = (ALSParams) in.readObject();
+	    in.close();
+	    fileIn.close();
+	    params.setSerializedTrue();
+	    return params;
+	}
+
+	public void serializeMM(String dir){
+		String comment = "Latent factors for ALS";
+		IO.mmOutputMatrix(dir+"ALS_latent_factors_lambda_"+lambda+"_factor_"+numFactors+".mm" , 0, numUsers + numItems, latentFactors, comment);
+		System.err.println("SerializeOver at "+ dir + "ALS_latent_factors.mm");
 	}
 
 	@Override
@@ -110,6 +140,7 @@ class ALSParams extends ModelParameters {
     	prediction = Math.max(prediction, datasetDesc.getMinval());
     	return prediction;
 	}
+
 }
 
 public class ALS implements RecommenderAlgorithm {
@@ -131,10 +162,10 @@ public class ALS implements RecommenderAlgorithm {
 
         int vertexId = context.getVertexIdTranslate().backward(vertex.getId());
         
-        RealMatrix XtX = new BlockRealMatrix(params.D, params.D);
-        RealVector Xty = new ArrayRealVector(params.D);
+        RealMatrix XtX = new BlockRealMatrix(params.numFactors, params.numFactors);
+        RealVector Xty = new ArrayRealVector(params.numFactors);
         RealVector latent_factor = params.latentFactors.getRowAsVector(vertexId);
-        
+
         try {
             double squaredError = 0;
             boolean is_user = vertex.numOutEdges() > 0;
@@ -146,16 +177,16 @@ public class ALS implements RecommenderAlgorithm {
             
                 //Xty.add(neighbor * observation);
                 //XtX.add(neighbor.outerProduct(neighbor));
-                for(int i=0; i < params.D; i++) {
+                for(int i=0; i < params.numFactors; i++) {
                     Xty.setEntry(i, Xty.getEntry(i) + neighbor.getEntry(i) * observation);
-                    for(int j=i; j < params.D; j++) {
+                    for(int j=i; j < params.numFactors; j++) {
                         XtX.setEntry(j,i, XtX.getEntry(j, i) + neighbor.getEntry(i) * neighbor.getEntry(j));
                     }
                 }
                 
                 // Symmetrize
-                for(int i=0; i < params.D; i++) {
-                    for(int j=i+1; j< params.D; j++) XtX.setEntry(i,j, XtX.getEntry(j, i));
+                for(int i=0; i < params.numFactors; i++) {
+                    for(int j=i+1; j< params.numFactors; j++) XtX.setEntry(i,j, XtX.getEntry(j, i));
                 }
                 
                 if (is_user){
@@ -165,7 +196,7 @@ public class ALS implements RecommenderAlgorithm {
             }
             
             // Diagonal -- add regularization
-            for (int i=0; i < params.D; i++) 
+            for (int i=0; i < params.numFactors; i++) 
             	XtX.setEntry(i, i, XtX.getEntry(i, i) + this.params.lambda * vertex.numEdges());
 
             // Solve the least-squares optimization using Cholesky Decomposition
@@ -193,8 +224,10 @@ public class ALS implements RecommenderAlgorithm {
          */
     	this.train_rmse = 0;
         if (ctx.getIteration() == 0) {
-        	params.initParameterValues(ctx.getNumVertices(), params.D);
+        	params.initParameterValues(ctx.getNumVertices(), params.numFactors, dataMetadata);
         }
+        //this.params.serialize("./");
+        
     }
 
     @Override
@@ -222,21 +255,18 @@ public class ALS implements RecommenderAlgorithm {
     
 	@Override
 	public ModelParameters getParams() {
-		// TODO Auto-generated method stub
 		return this.params;
 	}
 
 
 	@Override
 	public boolean hasConverged(GraphChiContext ctx) {
-		// TODO Auto-generated method stub
 		return ctx.getIteration() == ctx.getNumIterations() - 1;
 	}
 
 
 	@Override
 	public DataSetDescription getDataSetDescription() {
-		// TODO Auto-generated method stub
 		return this.dataMetadata;
 	}
 
@@ -262,12 +292,12 @@ public class ALS implements RecommenderAlgorithm {
 				problemSetup.paramFile, null);
 
 		//Just run the first one. It should be ALS.
-		if(!(algosToRun.get(0) instanceof ALS)) {
+		if(!(algosToRun.get(1) instanceof ALS)) {
 			System.out.println("Please check the parameters file. The first algo listed is not of type ALS");
 			System.exit(2);
 		}
 		
-		GraphChiProgram<Integer, RatingEdge> als = algosToRun.get(0);
+		GraphChiProgram<Integer, RatingEdge> als = algosToRun.get(1);
 		
         /* Run GraphChi */
         GraphChiEngine<Integer, RatingEdge> engine = new GraphChiEngine<Integer, RatingEdge>(dataDesc.getRatingsUrl(), problemSetup.nShards);

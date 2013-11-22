@@ -1,13 +1,18 @@
 [
     {
         "algorithm": "BIAS_SGD",
-        "id": "<DEFAULT>"
+        "id": "<DEFAULT>",
+        "regularization": "0.1",
+        "num_latent_factors": "10",
+        "step_size": "0.001",
+        "serializedFile":"/home/shuhaoyu/Documents/CMU_semester_III/Capstone/Capstone_workspace/src/main/java/edu/cmu/graphchi/toolkits/collaborative_filtering/BiasSgd_model_param"
     },
     {
         "algorithm": "ALS",
         "id": "<DEFAULT>",
         "reg": "0.065",
-        "latentFactors": "10"
+        "latentFactors": "10",
+        "serializedFile":"/home/shuhaoyu/Documents/CMU_semester_III/Capstone/Capstone_workspace/src/main/java/edu/cmu/graphchi/toolkits/collaborative_filtering/ALS_model_param"
     },
     {
         "algorithm": "SVDPP",
@@ -21,7 +26,10 @@
 		"itemBiasReg": "0.001",
 		"userBiasStep": "0.001",
 		"userBiasReg": "0.001",
-		"stepDec": "0.9"    
+		"stepDec": "0.9",
+        "model_factor_file": "/home/shuhaoyu/Documents/CMU_semester_III/Capstone/Capstone_workspace/src/main/java/edu/cmu/graphchi/toolkits/collaborative_filtering/SVDPP_latent_factors.mm",
+        "model_weight_file": "/home/shuhaoyu/Documents/CMU_semester_III/Capstone/Capstone_workspace/src/main/java/edu/cmu/graphchi/toolkits/collaborative_filtering/SVDPP_weights.mm",
+        "model_bias_file": "/home/shuhaoyu/Documents/CMU_semester_III/Capstone/Capstone_workspace/src/main/java/edu/cmu/graphchi/toolkits/collaborative_filtering/SVDPP_bias.mm"
     },
     {
         "algorithm": "LibFM_SGD",

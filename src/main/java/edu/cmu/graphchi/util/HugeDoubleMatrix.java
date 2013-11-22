@@ -1,5 +1,6 @@
 package edu.cmu.graphchi.util;
 
+import java.io.Serializable;
 import java.util.Random;
 
 import org.apache.commons.math.linear.ArrayRealVector;
@@ -11,9 +12,13 @@ import org.apache.commons.math.linear.RealVector;
  * in keeping all vertex-values in memory efficiently.
  * @author akyrola
  */
-public class HugeDoubleMatrix implements Cloneable {
+public class HugeDoubleMatrix implements Cloneable, Serializable {
 
-    private int BLOCKSIZE = 1024 * 1024 * 16; // 16M * 4 = 64 megabytes
+    /**
+	 * 
+	 */
+	private static final long serialVersionUID = 288413716782900056L;
+	private int BLOCKSIZE = 1024 * 1024 * 16; // 16M * 4 = 64 megabytes
     private long nrows, ncols;
     private double[][] data;
 
@@ -51,6 +56,10 @@ public class HugeDoubleMatrix implements Cloneable {
 
     public long getNumRows() {
         return nrows;
+    }
+    
+    public long getNumCols() {
+    	return ncols;
     }
 
     public double getValue(int row, int col) {

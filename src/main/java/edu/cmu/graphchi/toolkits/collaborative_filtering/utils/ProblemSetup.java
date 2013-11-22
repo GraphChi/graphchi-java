@@ -57,7 +57,7 @@ public class ProblemSetup {
     			this.dataMetadataFile = cmd.getOptionValue("dataMetadataFile");
     			
     			this.quiet = Integer.parseInt(cmd.getOptionValue("quiet", "1"));
-    			this.outputLoc = cmd.getOptionValue("outputLocation", "./");
+    			this.outputLoc = cmd.getOptionValue("outputLoc", "./");
     			
     		} catch (Exception ex){
     			System.out.println("Failed to parse command line parameters: " + ex.toString());

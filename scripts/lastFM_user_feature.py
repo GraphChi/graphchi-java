@@ -60,7 +60,7 @@ def age_key_conversion(age, age_interval):
 def parse_user_features(user_feature_file, age_interval, year_interval, month_interval, day_interval):
 
     with open(user_feature_file, 'r') as feature_file:
-        user_out_file = open(user_feature_file + "_age"+ str(age_interval)+"_"+str(year_interval)+"y"+str(month_interval)+"m"+str(day_interval)+"d"+".conv", 'w')
+        user_out_file = open(user_feature_file + "_age"+ str(age_interval)+"_"+str(year_interval)+"y"+str(month_interval)+"m"+str(day_interval)+"d"+".user", 'w')
         reader = csv.reader(feature_file, delimiter=DELIM)
         for row in reader:
 

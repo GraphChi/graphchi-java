@@ -125,11 +125,7 @@ class LibFM_SGDParams extends ModelParameters  {
 		// TODO Auto-generated method stub
 		
 	}
-	@Override
-	public void deserialize(String file) {
-		// TODO Auto-generated method stub
-		
-	}
+
 
 	@Override
 	public double predict(int userId, int itemId, SparseVector userFeatures,
@@ -181,7 +177,7 @@ class LibFM_SGDParams extends ModelParameters  {
 	public SparseVector createAllFeatureVec(int user, int item, SparseVector userFeatures, 
 			SparseVector itemFeatures, DataSetDescription datasetDesc) {
 		//Construct a row of the design matrix.
-		int numTotalFeatures = getEdgeFeaturesBase(datasetDesc) + datasetDesc.getNumRatingFeatures(); 
+		int numTotalFeatures = getEdgeFeaturesBase(datasetDesc) + datasetDesc.getNumRatingFeatures() + 1; 
 		SparseVector allFeatures = (new SparseVectorFactoryMTJ()).createVector(numTotalFeatures);
 		
 		//Set feature representing an user.
@@ -328,7 +324,7 @@ public class LibFM_SGD  implements RecommenderAlgorithm  {
 			
 			this.params.initParameters(numTotalFeatures);
 
-			if(this.vertexDataCache == null) {
+		/*	if(this.vertexDataCache == null) {
 				int numVertices = (int)(ctx.getNumVertices() + 1);
 				this.vertexDataCache = new VertexDataCache(numVertices, numFeatures);
 				try {
@@ -336,7 +332,7 @@ public class LibFM_SGD  implements RecommenderAlgorithm  {
 				} catch (Exception e) {
 					e.printStackTrace();
 				}
-			}
+			}*/
 		}
 		
 		this.train_rmse = 0;
@@ -405,13 +401,13 @@ public class LibFM_SGD  implements RecommenderAlgorithm  {
         
 		List<RecommenderAlgorithm> algosToRun = RecommenderFactory.buildRecommenders(dataDesc, problemSetup.paramFile, null);
 
-		//Just run the first one. It should be ALS.
-		if(!(algosToRun.get(0) instanceof LibFM_SGD)) {
-			System.out.println("Please check the parameters file. The first algo listed is not of type ALS");
+		//Just run the first one. It should be LibFM_SGD.
+		if(!(algosToRun.get(3) instanceof LibFM_SGD)) {
+			System.out.println("Please check the parameters file. The first algo listed is not of type LibFM_SGD");
 			System.exit(2);
 		}
 		
-		GraphChiProgram<Integer, RatingEdge> libfm = (LibFM_SGD)algosToRun.get(0);
+		GraphChiProgram<Integer, RatingEdge> libfm = (LibFM_SGD)algosToRun.get(3);
 		
         // Run GraphChi 
         GraphChiEngine<Integer, RatingEdge> engine = new GraphChiEngine<Integer, RatingEdge>(

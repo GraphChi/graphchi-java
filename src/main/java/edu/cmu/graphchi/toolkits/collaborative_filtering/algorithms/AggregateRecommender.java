@@ -46,7 +46,7 @@ public class AggregateRecommender implements
 		if(ctx.getIteration() == 0) {
 			//Initialize the vertex data cache 
 			if(this.vertexDataCache == null) {
-				int numFeatures = this.datasetDesc.getNumItemFeatures() + 
+/*				int numFeatures = this.datasetDesc.getNumItemFeatures() + 
 						this.datasetDesc.getNumUserFeatures() + this.datasetDesc.getNumRatingFeatures();
 				int numVertices = this.datasetDesc.getNumUsers() + this.datasetDesc.getNumItems() + 1;
 				
@@ -56,7 +56,7 @@ public class AggregateRecommender implements
 					this.vertexDataCache.loadVertexDataCache(new FileInputDataReader(this.datasetDesc));
 				} catch (Exception e) {
 					e.printStackTrace();
-				}
+				}*/
 			}
 			
 			//Build all the recommenders configured in the file.
@@ -172,7 +172,7 @@ public class AggregateRecommender implements
 	
 		    //TODO: Persist models - Serialization has not yet been implemented
 	        for(RecommenderAlgorithm rec : aggRec.recommenders) {
-	        	rec.getParams().serialize(null);
+	        	rec.getParams().serialize(problemSetup.outputLoc);
 	        }
 	        
 		} catch (IOException e) {
