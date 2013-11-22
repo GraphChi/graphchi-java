@@ -1,18 +1,23 @@
 package edu.cmu.graphchi.toolkits.collaborative_filtering.utils;
 
+import java.io.Serializable;
 import java.util.Map;
-
 import org.codehaus.jackson.map.ObjectMapper;
-
 import edu.cmu.graphchi.toolkits.collaborative_filtering.algorithms.RatingEdge;
 import gov.sandia.cognition.math.matrix.mtj.SparseVector;
 
-public abstract class ModelParameters {
+public abstract class ModelParameters implements Serializable{
 
+	/**
+	 * 
+	 */
+	private static final long serialVersionUID = -372468029741472974L;
+	protected boolean serialized;
 	protected String id;
 	protected Map<String, String> paramsMap;
 	
 	public ModelParameters(String id, Map<String, String> paramsMap) {
+		this.serialized = false;
 		this.id = id;
 		this.paramsMap = paramsMap;
 	}
@@ -36,13 +41,10 @@ public abstract class ModelParameters {
 	 * HDFS or some other persistent store).
 	 */
 	abstract public void serialize(String location);
-	
-	/**
-	 * This function de-serializes the model from the given location to an object.
-	 * @param location : De-Serialize the model into a Model Parameter object. (could be local FS, 
-	 * HDFS or some other persistent store).
-	 */
-	abstract public void deserialize(String location);
+
+	protected void setSerializedTrue(){
+		this.serialized = true;
+	}
 	
 	/**
 	 * 
@@ -59,7 +61,6 @@ public abstract class ModelParameters {
 			DataSetDescription datasetDesc);
 	
 	abstract public int getEstimatedMemoryUsage(DataSetDescription datasetDesc);
-	
 	
 	
 }

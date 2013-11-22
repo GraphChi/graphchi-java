@@ -1,7 +1,6 @@
 package edu.cmu.graphchi.toolkits.collaborative_filtering.algorithms;
 
 import java.util.Iterator;
-import java.util.List;
 import java.util.Map;
 import java.util.logging.Logger;
 
@@ -10,14 +9,9 @@ import org.apache.commons.math3.distribution.NormalDistribution;
 import edu.cmu.graphchi.ChiLogger;
 import edu.cmu.graphchi.ChiVertex;
 import edu.cmu.graphchi.GraphChiContext;
-import edu.cmu.graphchi.GraphChiProgram;
-import edu.cmu.graphchi.engine.GraphChiEngine;
 import edu.cmu.graphchi.engine.VertexInterval;
-import edu.cmu.graphchi.preprocessing.FastSharder;
 import edu.cmu.graphchi.toolkits.collaborative_filtering.utils.DataSetDescription;
-import edu.cmu.graphchi.toolkits.collaborative_filtering.utils.IO;
 import edu.cmu.graphchi.toolkits.collaborative_filtering.utils.ModelParameters;
-import edu.cmu.graphchi.toolkits.collaborative_filtering.utils.ProblemSetup;
 import edu.cmu.graphchi.toolkits.collaborative_filtering.utils.VertexDataCache;
 import gov.sandia.cognition.math.matrix.VectorEntry;
 import gov.sandia.cognition.math.matrix.mtj.SparseVector;
@@ -132,11 +126,7 @@ class LibFM_SGDParams extends ModelParameters  {
 		// TODO Auto-generated method stub
 		
 	}
-	@Override
-	public void deserialize(String file) {
-		// TODO Auto-generated method stub
-		
-	}
+
 
 	@Override
 	public double predict(int userId, int itemId, SparseVector userFeatures,
@@ -188,7 +178,7 @@ class LibFM_SGDParams extends ModelParameters  {
 	public SparseVector createAllFeatureVec(int user, int item, SparseVector userFeatures, 
 			SparseVector itemFeatures, DataSetDescription datasetDesc) {
 		//Construct a row of the design matrix.
-		int numTotalFeatures = getEdgeFeaturesBase(datasetDesc) + datasetDesc.getNumRatingFeatures(); 
+		int numTotalFeatures = getEdgeFeaturesBase(datasetDesc) + datasetDesc.getNumRatingFeatures() + 1; 
 		SparseVector allFeatures = (new SparseVectorFactoryMTJ()).createVector(numTotalFeatures);
 		
 		//Set feature representing an user.
@@ -355,6 +345,7 @@ public class LibFM_SGD  implements RecommenderAlgorithm  {
 					+ numFeatures;
 			
 			this.params.initParameters(numTotalFeatures);
+
 		}
 		
 		this.train_rmse = 0;

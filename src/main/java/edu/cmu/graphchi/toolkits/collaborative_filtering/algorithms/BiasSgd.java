@@ -1,40 +1,41 @@
 package edu.cmu.graphchi.toolkits.collaborative_filtering.algorithms;
 
-import java.util.List;
+import java.io.BufferedReader;
+import java.io.FileInputStream;
+import java.io.FileReader;
+import java.io.IOException;
+import java.io.ObjectInputStream;
 import java.util.Map;
-import java.util.Random;
 import java.util.logging.Logger;
 
-import org.apache.commons.math.linear.ArrayRealVector;
 import org.apache.commons.math.linear.RealVector;
 
 import edu.cmu.graphchi.ChiLogger;
 import edu.cmu.graphchi.ChiVertex;
 import edu.cmu.graphchi.GraphChiContext;
-import edu.cmu.graphchi.GraphChiProgram;
-import edu.cmu.graphchi.engine.GraphChiEngine;
 import edu.cmu.graphchi.engine.VertexInterval;
-import edu.cmu.graphchi.preprocessing.FastSharder;
 import edu.cmu.graphchi.toolkits.collaborative_filtering.utils.DataSetDescription;
 import edu.cmu.graphchi.toolkits.collaborative_filtering.utils.IO;
 import edu.cmu.graphchi.toolkits.collaborative_filtering.utils.ModelParameters;
-import edu.cmu.graphchi.toolkits.collaborative_filtering.utils.ProblemSetup;
+import edu.cmu.graphchi.toolkits.collaborative_filtering.utils.ModelUtils;
+import edu.cmu.graphchi.toolkits.collaborative_filtering.utils.SerializationUtils;
 import edu.cmu.graphchi.util.HugeDoubleMatrix;
 import gov.sandia.cognition.math.matrix.mtj.SparseVector;
 
 
 class BiasSgdParams extends ModelParameters {
-	public static final String LAMBDA_KEY = "regularization";
-	public static final String NUM_LATENT_FACTORS_KEY = "num_latent_factors";
-	public static final String STEP_SIZE_KEY = "step_size";
+	private static final long serialVersionUID = -5531511598859363016L;
+	private static final String LAMBDA_KEY = "regularization";
+	private static final String NUM_LATENT_FACTORS_KEY = "num_latent_factors";
+	private static final String STEP_SIZE_KEY = "step_size";
 	
 	double lambda;	//regularization
 	double stepSize; //step size for gradient descent
-	int numFeature;	//number of features
 	// Number of iterations - Stopping condition. 
-	//TODO: Note that may be we can have a better stopping condition based on change in training RMSE.  
 	int maxIterations;
-	
+	int numFactors;	//number of features
+	int numUsers;
+	int numItems;
 	HugeDoubleMatrix latentFactors;
 	RealVector bias;
 	
@@ -46,21 +47,11 @@ class BiasSgdParams extends ModelParameters {
 		parseParameters();
 		
 	}
-    public RealVector randomize(long size, double from, double to) {
-        Random r = new Random();
-        RealVector rv = new ArrayRealVector((int)size); //How about size is really long?
-        if(size != (int)size){
-        	System.err.println("long size is truncated");
-        }
-        for(int i = 0 ; i < size ; i++){
-        	rv.setEntry(i, (to-from) * r.nextDouble());
-        }
-        return rv;
-    }
+
 	
 	public void setDefaults() {
 		this.lambda = 0.1;
-		this.numFeature = 10;
+		this.numFactors = 10;
 		this.stepSize = 0.001;
 		
 		this.maxIterations = 20;
@@ -71,7 +62,7 @@ class BiasSgdParams extends ModelParameters {
 			this.lambda = Double.parseDouble(this.paramsMap.get(LAMBDA_KEY));
 		}
 		if(this.paramsMap.containsKey(NUM_LATENT_FACTORS_KEY)) {
-			this.numFeature = Integer.parseInt(this.paramsMap.get(NUM_LATENT_FACTORS_KEY));
+			this.numFactors = Integer.parseInt(this.paramsMap.get(NUM_LATENT_FACTORS_KEY));
 		}
 		if(this.paramsMap.containsKey(STEP_SIZE_KEY)) {
 			this.stepSize = Double.parseDouble(this.paramsMap.get(STEP_SIZE_KEY));
@@ -80,35 +71,82 @@ class BiasSgdParams extends ModelParameters {
 		//TODO: Read stopping condition (maxIteration currently from parameter file)
 	}
 	
-    void initParameterValues(long size, int D){
-        latentFactors = new HugeDoubleMatrix(size, D);
-
-        /* Fill with random data */
-        latentFactors.randomize(0.0, 1.0);
-        bias = randomize(size,0.0,1.0);        
+    void initParameterValues(long size, int D, DataSetDescription dataMetadata){
+    	if(!serialized){
+        	numUsers = dataMetadata.getNumUsers();
+        	numItems = dataMetadata.getNumItems();
+        	latentFactors = new HugeDoubleMatrix(size, D);
+            /* Fill with random data */
+            latentFactors.randomize(0.0, 1.0);
+            bias = ModelUtils.randomize(size,0.0,1.0);
+    	}  	
       }
 	
-	@Override
-	public void serialize(String dir) {
-		// TODO Auto-generated method stub
-		
+	public void serializeMM(String dir) {
+		String paramString = "lambda_"+lambda+"_factor_"+numFactors+"_stepSize_"+stepSize;
+		String comment = "Latent factors for BiasSGD";		
+		IO.mmOutputMatrix(dir+"BiasSGD_latent_factors_"+paramString+".mm" , 0, numUsers + numItems, latentFactors, comment);
+		System.err.println("SerializeOver at "+ dir+"BiasSGD_latent_factors_"+paramString+".mm");
+		String commentBias = "Bias for BiasSGD";
+		IO.mmOutputVector(dir+"BiasSGD_Bias_"+paramString+".mm" , 0, numUsers + numItems, bias, commentBias);
+		System.err.println("SerializeOver at "+ dir+"BiasSGD_Bias"+paramString+".mm");
+	}
+	
+	private void deserialzeMM(String filename) throws IOException{
+		final String delim = "\t";
+		BufferedReader br = new BufferedReader(new FileReader(filename));
+		String line = br.readLine();
+		while( SerializationUtils.isCommentLine(line)){
+			line = br.readLine();
+		}
+		String info[] = line.split(delim);
+		for(String s : info)
+			System.err.println(s);
+		int numRows = Integer.parseInt(info[0]);
+		int numDims = Integer.parseInt(info[1]);
+		this.latentFactors = new HugeDoubleMatrix(numRows, numDims);
+		for(int row = 0 ; row < numRows ; row++){
+			for(int d = 0 ; d < numDims ; d++){
+				double val = Double.parseDouble(br.readLine());
+				this.latentFactors.setValue(row, d, val);
+			}
+		}
+		br.close();
 	}
 
-	@Override
-	public void deserialize(String file) {
-		// TODO Auto-generated method stub
-		
-	}
 	@Override
 	public double predict(int originUserId, int originItemId, SparseVector userFeatures,
 			SparseVector itemFeatures, SparseVector edgeFeatures,
 			DataSetDescription datasetDesc) {		
-		// TODO Auto-generated method stub
 		double userBias = this.bias.getEntry(originUserId);
 		double itemBias = this.bias.getEntry(originItemId);
 		RealVector userFactor = this.latentFactors.getRowAsVector(originUserId);
 		RealVector itemFactor =  this.latentFactors.getRowAsVector(originItemId);
 		return userFactor.dotProduct(itemFactor) + userBias + itemBias;
+	}
+
+
+	@Override
+	public void serialize(String dir) {
+	       //TODO: This is not a good way to create a path. Use some library to join into a path
+        String filename = dir + this.id;
+		try{
+			SerializationUtils.serializeParam(filename, this);
+		}catch(Exception i){
+			System.err.println("Serialization Fails at" + filename);
+		}		
+	}
+	
+	public static BiasSgdParams deserialize(String file) throws IOException, ClassNotFoundException {
+		BiasSgdParams params = null;
+		System.err.println("File:"+file);	  
+	    FileInputStream fileIn = new FileInputStream(file);
+	    ObjectInputStream in = new ObjectInputStream(fileIn);
+	    params = (BiasSgdParams) in.readObject();
+	    in.close();
+	    fileIn.close();
+	    params.setSerializedTrue();
+	    return params;
 	}
 	
 	@Override
@@ -170,10 +208,9 @@ public class BiasSgd implements RecommenderAlgorithm {
 
 	@Override
 	public void beginIteration(GraphChiContext ctx) {
-		// TODO Auto-generated method stub
     	this.train_rmse = 0;
         if (this.iterationNum == 0) {
-        	params.initParameterValues(ctx.getNumVertices(), params.numFeature);
+        	params.initParameterValues(ctx.getNumVertices(), params.numFactors, dataSetDescription );
         }
 	}
 

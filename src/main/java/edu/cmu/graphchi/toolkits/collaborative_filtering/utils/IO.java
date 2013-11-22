@@ -2,46 +2,37 @@ package edu.cmu.graphchi.toolkits.collaborative_filtering.utils;
 
 import java.io.File;
 import java.io.FileInputStream;
+import java.io.FileNotFoundException;
 import java.io.IOException;
-import java.net.URI;
-import java.util.List;
-import java.util.Map;
+import java.io.PrintWriter;
+import java.util.logging.Logger;
 
+import org.apache.commons.math.linear.RealVector;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
-import org.apache.hadoop.fs.FileSystem.Statistics;
-import org.apache.hadoop.fs.LocatedFileStatus;
 import org.apache.hadoop.fs.Path;
-import org.apache.hadoop.fs.RemoteIterator;
 
 import edu.cmu.graphchi.ChiFilenames;
-import edu.cmu.graphchi.datablocks.FloatConverter;
-import edu.cmu.graphchi.datablocks.IntConverter;
-import edu.cmu.graphchi.preprocessing.EdgeProcessor;
+import edu.cmu.graphchi.ChiLogger;
 import edu.cmu.graphchi.preprocessing.FastSharder;
 import edu.cmu.graphchi.toolkits.collaborative_filtering.algorithms.AggregateRecommender;
+import edu.cmu.graphchi.util.HugeDoubleMatrix;
+
 
 public class IO {
-	public static final String HDFS_PREFIX = "hdfs://";
-	public static final String LOCAL_FS_PREFIX = "file://";
-	
-	public static Configuration getConf() {
-		Configuration conf = new Configuration();
-		conf.addResource(new Path(System.getenv().get("HADOOP_CONF_DIR") + "/core-site.xml"));
-		conf.addResource(new Path(System.getenv().get("HADOOP_CONF_DIR") + "/hdfs-site.xml"));
-		return conf;
-	}
-	
-	public static void convertMatrixMarket(String trainingFile, int nshards, FastSharder sharder) 
-			throws IOException{
-		  /* Run sharding (preprocessing) if the files do not exist yet */
-      if (!new File(ChiFilenames.getFilenameIntervals(trainingFile, nshards)).exists() ||
-              !new File(trainingFile + ".matrixinfo").exists()) {
-          sharder.shard(new FileInputStream(new File(trainingFile)), FastSharder.GraphInputFormat.MATRIXMARKET);
-      } else {
-          //problemSetup.logger.info("Found shards -- no need to preprocess");
-      }
-	}
+    
+    public static final String HDFS_PREFIX = "hdfs://";
+    public static final String LOCAL_FS_PREFIX = "file://";
+    
+    public static Configuration getConf() {
+        Configuration conf = new Configuration();
+        conf.addResource(new Path(System.getenv().get("HADOOP_CONF_DIR") + "/core-site.xml"));
+        conf.addResource(new Path(System.getenv().get("HADOOP_CONF_DIR") + "/hdfs-site.xml"));
+        return conf;
+    }
+    
+	static final String MATRIX_MARKET_BANNER = "%MatrixMarket matrix array real general";
+	static protected Logger logger = ChiLogger.getLogger("IO");
 	
 	public static void convertMatrixMarket(String baseFileName, String trainingFileLocation, 
 		int nshards, FastSharder sharder) throws IOException{
@@ -74,20 +65,64 @@ public class IO {
       }
 	}
 	
-
-	//For testing purposes
-	public static void main(String[] args) {
+	private static void mmOutputBanner(PrintWriter writer, String banner){
+		writer.println(banner);
+	}
+	private static void mmOutputMatrixSize(PrintWriter writer, long nRow, long nCol){
+		writer.println(nRow + "\t" + nCol);
+	}
+	public static void mmOutputMatrix(String filename, int start, int end, HugeDoubleMatrix latentFactors, String comment){
+		long nCol = latentFactors.getNumCols();
+		assert(start < end);
 		try {
-			//String hdfsFileLocation = "file:///media/sda5/Capstone/Movielens/ml-100k/working_dir/u.data_tr1.mm";
-			//String baseFileLocation = "/media/sda5/Capstone/Movielens/ml-100k/working_dir/u.data_tr1.mm";
-			String hdfsFileLocation = "hdfs://localhost:9000/user/hdfs/Movielens/ml-100k/working_dir/u.data_tr1.mm";
-			String baseFileLocation = "/home/mayank/repos/graphchi-java/tmp/abc";
-			
-			FastSharder sharder = AggregateRecommender.createSharder(baseFileLocation, 3, 0); 
-			IO.convertMatrixMarket(baseFileLocation, hdfsFileLocation, 3, sharder);
-		} catch (Exception e) {
-			e.printStackTrace();
+			PrintWriter writer = new PrintWriter(filename);
+			mmOutputBanner(writer, MATRIX_MARKET_BANNER);
+			writer.println("%" + comment);
+			mmOutputMatrixSize(writer, end - start, nCol);			
+			for(int row = start ; row < end ; row++){
+				double rowBlock[] = latentFactors.getRowBlock(row);
+				latentFactors.getRow(row,rowBlock);
+				for( int col = 0 ; col < nCol ; col++){
+					writer.println(rowBlock[col]);
+				}
+			}
+			writer.close();
+		} catch (FileNotFoundException e) {
+			// TODO Auto-generated catch block
+			logger.warning("FileNotFoundException: "+filename);
 		}
 	}
+	
+	public static void mmOutputVector(String filename, int start, int end, RealVector vector, String comment){
+		assert(start < end);
+		try{
+			PrintWriter writer = new PrintWriter(filename);
+			mmOutputBanner(writer, MATRIX_MARKET_BANNER);
+			writer.println("%" + comment);
+			mmOutputMatrixSize(writer, end - start, 1);			
+			for(int row = start ; row < end ; row++){
+				writer.println(vector.getEntry(row));
+			}
+			writer.close();
+		} catch (FileNotFoundException e){
+			logger.warning("FileNotFoundException: "+filename);
+		}
+	}
+	
+	
+	//For testing purposes
+    public static void main(String[] args) {
+        try {
+            //String hdfsFileLocation = "file:///media/sda5/Capstone/Movielens/ml-100k/working_dir/u.data_tr1.mm";
+            //String baseFileLocation = "/media/sda5/Capstone/Movielens/ml-100k/working_dir/u.data_tr1.mm";
+            String hdfsFileLocation = "hdfs://localhost:9000/user/hdfs/Movielens/ml-100k/working_dir/u.data_tr1.mm";
+            String baseFileLocation = "/home/mayank/repos/graphchi-java/tmp/abc";
+            
+            FastSharder sharder = AggregateRecommender.createSharder(baseFileLocation, 3, 0); 
+            IO.convertMatrixMarket(baseFileLocation, hdfsFileLocation, 3, sharder);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
     
 }

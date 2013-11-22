@@ -199,12 +199,12 @@ public class AggregateRecommender implements
 	        engine.setVertexDataConverter(null);  // We do not access vertex values.
 	        engine.setModifiesInedges(false); // Important optimization
 	        engine.setModifiesOutedges(false); // Important optimization
-	        engine.run(aggRec, 100);
+	        engine.run(aggRec, 20);
 	
 		    //TODO: Persist models - Serialization has not yet been implemented
 	        for(int i = 0; i < aggRec.recPool.getRecommenderPoolSize(); i++) {
 	        	RecommenderAlgorithm rec = aggRec.recPool.getRecommender(i);
-	        	rec.getParams().serialize(null);
+	        	rec.getParams().serialize(problemSetup.outputLoc);
 	        }
 	        
 		} catch (IOException e) {

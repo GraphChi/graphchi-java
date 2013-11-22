@@ -22,6 +22,7 @@ public class DataSetDescription {
 	public static final String USER_FEATURE_LOCATION = "userFeaturesUrl";
 	public static final String ITEM_FEATURE_LOCATION = "itemFeaturesUrl";
 	public static final String VALIDATION_RATINGS_LOCATION = "validationUrl";
+	public static final String TESTING_LOCATION = "testingUrl";
 	
 	public static final String NUM_USERS = "numUsers";
 	public static final String NUM_ITEMS = "numItems";
@@ -41,6 +42,7 @@ public class DataSetDescription {
 	private String itemFeaturesUrl;
 	
 	private String validationUrl;
+	private String testingUrl;
 	private long numValRatings;
 	
 	private int numUsers = -1;
@@ -106,6 +108,9 @@ public class DataSetDescription {
 		}
 		if(map.get(VALIDATION_RATINGS_LOCATION) != null) {
 			this.validationUrl = map.get(VALIDATION_RATINGS_LOCATION);
+		}
+		if(map.get(TESTING_LOCATION) != null) {
+			this.testingUrl = map.get(TESTING_LOCATION);
 		}
 		if(map.get(MIN_VALUE) != null) {
 			this.minval = Float.parseFloat(map.get(MIN_VALUE));
@@ -206,6 +211,10 @@ public class DataSetDescription {
 	public String getValidationUrl() {
 		return validationUrl;
 	}
+	
+	public String getTestingUrl() {
+		return testingUrl;
+	}
 
 	public int getNumUserFeatures() {
 		return numUserFeatures;
@@ -241,6 +250,10 @@ public class DataSetDescription {
 
 	public void setValidationUrl(String validationUrl) {
 		this.validationUrl = validationUrl;
+	}
+	
+	public void setTestingUrl(String testingUrl) {
+		this.testingUrl = testingUrl;
 	}
 
 	public void setNumUserFeatures(int numUserFeatures) {
