@@ -23,6 +23,7 @@ public class VertexDataCache {
 	}
 	
 	public void loadVertexDataCache(InputDataReader data) throws Exception {
+	    //TODO: How to handle the case when there is only user or only item data?
 		data.initUserData();
 		while(data.nextUser()) {
 			int userId = data.getCurrUser();
@@ -46,7 +47,9 @@ public class VertexDataCache {
 	}
 	
 	public static VertexDataCache createVertexDataCache(DataSetDescription datasetDesc) {
-		if(datasetDesc.getUserFeaturesUrl() != null && datasetDesc.getItemFeaturesUrl() != null) {
+	    
+		if((datasetDesc.getUserFeaturesUrl() != null && datasetDesc.getUserFeaturesUrl().length() > 0) ||
+		        (datasetDesc.getItemFeaturesUrl() != null && datasetDesc.getItemFeaturesUrl().length() > 0) ) {
 			//Initialize the vertex data cache
 			int numVertices = datasetDesc.getNumUsers() + datasetDesc.getNumItems() + 1;
 			int maxFeatureId = datasetDesc.getNumUserFeatures() + datasetDesc.getNumItemFeatures()

@@ -61,6 +61,18 @@ public class GraphChiContext {
     protected void setNumIterations(int numIterations) {
         this.numIterations = numIterations;
     }
+    
+   
+    public boolean isFinishComputation() {
+        return finishComputation;
+    }
+
+    /**
+     * set a boolean flag to indicate that the computation has finished.
+     */
+    public void setFinishComputation() {
+        this.finishComputation = true;
+    }
 
     /**
      * Get the scheduler bound to this computation.
@@ -131,6 +143,7 @@ public class GraphChiContext {
     private int numIterations;
     private long numEdges;
     private long numVertices;
+    private boolean finishComputation = false;
 
     private Scheduler scheduler;
     private VertexInterval curInterval;
@@ -146,6 +159,7 @@ public class GraphChiContext {
         ctx.scheduler = scheduler;
         ctx.curInterval = curInterval;
         ctx.vertexIdTranslate = vertexIdTranslate;
+        ctx.finishComputation = finishComputation;
         return ctx;
     }
 

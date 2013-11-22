@@ -113,9 +113,9 @@ public class AggregateRecommender implements
 		//Mark all recommenders that has completed
 		this.recPool.setRecommedersAsCompleted(completedRec);
 		
-		if(this.recPool.getPendingRecommenders().size() == 0) {
+		if(this.recPool.getPendingRecommenders().size() == 0 && this.recPool.getActiveRecommenders().size() == 0) {
 			//All recommenders have successfully finished. Break out of the loop
-			//TODO: How to do this?
+		    ctx.setFinishComputation(); 
 		}
 	}
 

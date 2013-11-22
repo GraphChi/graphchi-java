@@ -1,5 +1,6 @@
 package edu.cmu.graphchi.toolkits.collaborative_filtering.algorithms;
 
+import java.util.Arrays;
 import java.util.Map;
 import java.util.logging.Logger;
 
@@ -182,6 +183,11 @@ public class SVDPP implements RecommenderAlgorithm {
 			//sqrt(1/|N(u)|)
 			double usrNorm = 1.0/Math.sqrt(vertex.numOutEdges());
 			
+			//Allocating various arrays which are used later. This avoids creation of many objects and GC overhead
+			double[] itemWeight = new double[params.D];
+			double[] itemFactors = new double[params.D];
+			double[] nbrItemWt = new double[params.D];
+			
 			// Computing the value of sum_j(y_j) * (1/sqrt(N(u))) for first iteration.
 			double[] userFactors = new double[params.D];
 			params.latentFactors.getRow(user, userFactors);
@@ -189,7 +195,7 @@ public class SVDPP implements RecommenderAlgorithm {
 			double[] sumWeights = new double[params.D];
 			for(int i = 0; i < vertex.numOutEdges(); i++) {
 				int item = context.getVertexIdTranslate().backward(vertex.getOutEdgeId(i));
-				double[] itemWeight = new double[params.D];
+				Arrays.fill(itemWeight, 0);
 				params.weights.getRow(item, itemWeight);
 				for(int f = 0; f < params.D; f++)
 					sumWeights[f] += itemWeight[f];
@@ -204,7 +210,7 @@ public class SVDPP implements RecommenderAlgorithm {
 	        for(int e=0; e < vertex.numOutEdges(); e++) {
 	        	//User vertex.
 	        	int item = context.getVertexIdTranslate().backward(vertex.getOutEdgeId(e));
-	        	double[] itemFactors = new double[params.D];
+	        	Arrays.fill(itemFactors, 0);
 	        	params.latentFactors.getRow(item, itemFactors);
 	        	
 	        	float observation = vertex.getOutEdgeValue(e).observation;
@@ -259,7 +265,7 @@ public class SVDPP implements RecommenderAlgorithm {
 	        	//For all neighbors of u
 	        	//y_j = y_j  +   gamma2*(e_ui * (1/sqrt|N(u)|) * q_i - gamma7 * y_j)
 	        	for(int i = 0; i < vertex.numOutEdges(); i++) {
-	        		double[] nbrItemWt = new double[params.D];
+	        		Arrays.fill(nbrItemWt, 0);
 	        		int itemWtIndex = context.getVertexIdTranslate().backward(vertex.getOutEdgeId(i));
 		        	params.weights.getRow(itemWtIndex, nbrItemWt);
 		        	for(int f = 0; f < params.D; f++) {

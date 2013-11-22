@@ -278,6 +278,10 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
                 } catch (InterruptedException ie) {}
             }
             blockManager.reset();
+            if(chiContext.isFinishComputation()) {
+                break;
+            }
+            
             chiContext.setIteration(iter);
             chiContext.setNumVertices(numVertices());
             program.beginIteration(chiContext);
