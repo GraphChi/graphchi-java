@@ -1,7 +1,6 @@
 package edu.cmu.graphchi.toolkits.collaborative_filtering.utils;
 
 import java.io.BufferedReader;
-import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.FileReader;
 import java.io.IOException;

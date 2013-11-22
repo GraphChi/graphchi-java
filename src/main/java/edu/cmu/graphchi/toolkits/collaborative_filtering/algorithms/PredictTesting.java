@@ -1,14 +1,12 @@
 package edu.cmu.graphchi.toolkits.collaborative_filtering.algorithms;
 
 import java.io.BufferedReader;
-import java.io.FileNotFoundException;
 import java.io.FileReader;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.util.List;
 
 import edu.cmu.graphchi.toolkits.collaborative_filtering.utils.DataSetDescription;
-import edu.cmu.graphchi.toolkits.collaborative_filtering.utils.ModelParameters;
 import edu.cmu.graphchi.toolkits.collaborative_filtering.utils.ProblemSetup;
 import edu.cmu.graphchi.toolkits.collaborative_filtering.utils.SerializationUtils;
 
@@ -21,7 +19,6 @@ public class PredictTesting {
 	public static void predictOnTest(List<RecommenderAlgorithm> algosModel, DataSetDescription dataDesc,  String outputFiles[]) throws IOException{
 		int numUser = dataDesc.getNumUsers();
 		assert(algosModel.size() == outputFiles.length);
-		//String[] outputFiles = new String[algosModel.size()]; 
 		PrintWriter[] writers = new PrintWriter[algosModel.size()];
 		for(int i = 0 ; i < writers.length ; i++){
 			writers[i] = new PrintWriter(outputFiles[i]);
