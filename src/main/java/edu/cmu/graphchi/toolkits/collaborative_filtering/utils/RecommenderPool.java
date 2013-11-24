@@ -1,7 +1,9 @@
 package edu.cmu.graphchi.toolkits.collaborative_filtering.utils;
 
 import java.io.File;
+import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -10,9 +12,10 @@ import java.util.Set;
 
 import org.codehaus.jackson.map.ObjectMapper;
 
+import edu.cmu.graphchi.datablocks.BytesToValueConverter;
+import edu.cmu.graphchi.datablocks.IntConverter;
+import edu.cmu.graphchi.engine.GraphChiEngine;
 import edu.cmu.graphchi.preprocessing.FastSharder;
-import edu.cmu.graphchi.toolkits.collaborative_filtering.algorithms.AggregateRecommender;
-import edu.cmu.graphchi.toolkits.collaborative_filtering.algorithms.RatingEdge;
 import edu.cmu.graphchi.toolkits.collaborative_filtering.algorithms.RecommenderAlgorithm;
 import edu.cmu.graphchi.toolkits.collaborative_filtering.algorithms.RecommenderFactory;
 
@@ -28,6 +31,8 @@ import edu.cmu.graphchi.toolkits.collaborative_filtering.algorithms.RecommenderF
  */
 
 public class RecommenderPool {
+    
+    private DataSetDescription datasetDesc;
 
 	private List<RecommenderAlgorithm> allRecommenders;
 	//Ids (indices in the allRecommender's list) which are pending.
@@ -41,12 +46,62 @@ public class RecommenderPool {
 	//Current memory used by active recommenders.
 	private int currentMemoryUsed;
 	
-	public RecommenderPool(int maxAvailableMemory) {
-		this.maxAvailableMemory = maxAvailableMemory;
+	private FastSharder sharder;
+	private BytesToValueConverter<RatingEdge> edgeDataConvertor;
+	int numShards;
+    int memoryBudget;
+	
+    private boolean isMutable;
+	
+	public RecommenderPool(DataSetDescription  datasetDesc, List<RecommenderAlgorithm> recommenders) {
+	    this.datasetDesc = datasetDesc;
+	    this.allRecommenders = new ArrayList<RecommenderAlgorithm>();
+	    if(recommenders != null) {
+	        this.allRecommenders.addAll(recommenders);
+        }
+	    
+	    //Initialize various things in the pool
 		this.currentMemoryUsed = 0;
-		this.allRecommenders = new ArrayList<RecommenderAlgorithm>();
+		
 		this.pendingRecommenders = new HashSet<Integer>();
 		this.activeRecommenders = new HashSet<Integer>();
+		
+		this.edgeDataConvertor = createEdgeDataConvertor();
+		
+		this.maxAvailableMemory = computeMaxAvailableMemory();
+	}
+	
+	private BytesToValueConverter<RatingEdge> createEdgeDataConvertor() {
+	    if(edgeDataConvertor == null) {
+	        this.edgeDataConvertor = new RatingEdgeConvertor(this.datasetDesc.getNumRatingFeatures());
+	    }
+	    return this.edgeDataConvertor;
+    }
+
+    public int computeMaxAvailableMemory() {
+	    // Based on dataset description, set number of shards and memory budget. This would enable
+	    // computation of amount of memory available for the recommenders.
+	    this.numShards = 4;
+	    this.memoryBudget = 128;
+	    
+	    //This logic should be in the GraphChi Engine.
+	    long numEdges = this.datasetDesc.getNumRatings();
+	    int numVertices = this.datasetDesc.getNumUsers() + this.datasetDesc.getNumItems();
+	    int edgeSize = this.edgeDataConvertor.sizeOf();
+	    int vertexSize = 4;
+	   
+	    // The memory requirement by graphchi engine depends on number of shards, memoryBudget,
+	    // size of graph (number and sizes of edges and vertices) 
+	    
+	    int estimateEngineMemoryUsage;
+	    //estimateEngineMemoryUsage = GraphChiEngine.getEstimatedMemoryUsage(numShards, memoryBudget, numVertices, 
+	    //     vertexSize, numEdges, edgeSize);
+	    estimateEngineMemoryUsage = this.memoryBudget*2;
+	    
+	    int heapMemory = (int)Runtime.getRuntime().maxMemory() / (1024*1024);
+	    
+	    return heapMemory - estimateEngineMemoryUsage;
+	    
 	}
 	
 	/**
@@ -149,6 +204,47 @@ public class RecommenderPool {
 		mapper.writeValue(new File(fileName), allParams);
 	}
 	
+	public FastSharder createSharder(String scratchDir) throws IOException {
+        return new FastSharder<Integer, RatingEdge>(scratchDir, this.numShards, null, 
+                new RatingEdgeProcessor(), 
+            new IntConverter(), this.edgeDataConvertor);
+	}
+	
+	public boolean isMutable() {
+	    return this.isMutable;
+	}
+	
+    public DataSetDescription getDatasetDesc() {
+        return datasetDesc;
+    }
+
+    public List<RecommenderAlgorithm> getAllRecommenders() {
+        return allRecommenders;
+    }
+
+    public int getMaxAvailableMemory() {
+        return maxAvailableMemory;
+    }
+
+    public int getCurrentMemoryUsed() {
+        return currentMemoryUsed;
+    }
+
+    public FastSharder getSharder() {
+        return sharder;
+    }
+
+    public BytesToValueConverter<RatingEdge> getEdgeDataConvertor() {
+        return edgeDataConvertor;
+    }
+    
+    public int getNumShards() {
+        return numShards;
+    }
+
+    public int getMemoryBudget() {
+        return memoryBudget;
+    }
 	
 	//For testing purpose only
 	public static void main(String[] args) {
@@ -163,10 +259,10 @@ public class RecommenderPool {
 			List<RecommenderAlgorithm> recommenders = RecommenderFactory.buildRecommenders(dataDesc, 
 					problemSetup.paramFile, null);
 			
-			RecommenderScheduler sched = new RecommenderScheduler(1, 70, recommenders);
+			/*RecommenderScheduler sched = new RecommenderScheduler(null, recommenders);
 			List<RecommenderPool> pools = sched.splitIntoRecPools();
 			
-			pools.get(0).createParamJsonFile("abc.json");
+			pools.get(0).createParamJsonFile("abc.json");*/
 			
 		} catch (Exception e) {
 			e.printStackTrace();

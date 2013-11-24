@@ -5,21 +5,20 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 
-import scala.Array;
+import org.apache.hadoop.yarn.api.records.Resource;
 
 import edu.cmu.graphchi.ChiVertex;
 import edu.cmu.graphchi.GraphChiContext;
 import edu.cmu.graphchi.GraphChiProgram;
-import edu.cmu.graphchi.datablocks.IntConverter;
 import edu.cmu.graphchi.engine.GraphChiEngine;
 import edu.cmu.graphchi.engine.VertexInterval;
 import edu.cmu.graphchi.preprocessing.FastSharder;
 import edu.cmu.graphchi.toolkits.collaborative_filtering.utils.DataSetDescription;
-import edu.cmu.graphchi.toolkits.collaborative_filtering.utils.FileInputDataReader;
 import edu.cmu.graphchi.toolkits.collaborative_filtering.utils.IO;
 import edu.cmu.graphchi.toolkits.collaborative_filtering.utils.InputDataReader;
 import edu.cmu.graphchi.toolkits.collaborative_filtering.utils.InputDataReaderFactory;
 import edu.cmu.graphchi.toolkits.collaborative_filtering.utils.ProblemSetup;
+import edu.cmu.graphchi.toolkits.collaborative_filtering.utils.RatingEdge;
 import edu.cmu.graphchi.toolkits.collaborative_filtering.utils.RecommenderPool;
 import edu.cmu.graphchi.toolkits.collaborative_filtering.utils.RecommenderScheduler;
 import edu.cmu.graphchi.toolkits.collaborative_filtering.utils.VertexDataCache;
@@ -152,12 +151,6 @@ public class AggregateRecommender implements
 		}		
 	}
 
-	public static FastSharder createSharder(String graphName, int numShards, int num_edge_features) throws IOException {
-        return new FastSharder<Integer, RatingEdge>(graphName, numShards, null, 
-        		new RatingEdgeProcessor(), 
-        	new IntConverter(), new RatingEdgeConvertor(num_edge_features));
-    }
-	
 	public static void main(String[] args) {
 		ProblemSetup problemSetup = new ProblemSetup(args);
 		
@@ -166,46 +159,36 @@ public class AggregateRecommender implements
 			DataSetDescription dataDesc = new DataSetDescription();
 			dataDesc.loadFromJsonFile(problemSetup.dataMetadataFile);
 			
-			FastSharder<Integer, RatingEdge> sharder = AggregateRecommender.createSharder(problemSetup.scratchDir, 
-					problemSetup.nShards, 0); 
-			IO.convertMatrixMarket(problemSetup.scratchDir, dataDesc.getRatingsUrl(), problemSetup.nShards, sharder);
-			
 			VertexDataCache vertexDataCache = VertexDataCache.createVertexDataCache(dataDesc);
 			List<RecommenderAlgorithm> recommenders = RecommenderFactory.buildRecommenders(dataDesc, 
 					problemSetup.paramFile, vertexDataCache);
 
-			int heapMemory = (int)Runtime.getRuntime().maxMemory() / (1024*1024);
-			//TODO: Estimate the memory used by shards and other GraphChiEngine related stuff.
-			//Should mainly include memory used by some internal data structures, shards and vertexDataCache.
-			int engineMemoryRequirement = 0;
-			//The remaining memory available to recommenders for storing model parameters 
-			int maxAvailableMemory = heapMemory - engineMemoryRequirement;
-			RecommenderScheduler sched = new RecommenderScheduler(1, maxAvailableMemory, recommenders);
-			//RecommenderScheduler sched = new RecommenderScheduler(1, 70, recommenders);
+			RecommenderPool pool = new RecommenderPool(dataDesc, recommenders);
 			
-			List<RecommenderPool> recPool = sched.splitIntoRecPools();
-			
-			recPool.get(0).resetPool();
-			AggregateRecommender aggRec = new AggregateRecommender(dataDesc, recPool.get(0));
-			aggRec.vertexDataCache = vertexDataCache;
-	    	
-	        /* Run GraphChi */
-	        GraphChiEngine<Integer, RatingEdge> engine = new GraphChiEngine<Integer, RatingEdge>(problemSetup.scratchDir,
-	        	problemSetup.nShards);
-	        
-	        //TODO: Set edge features properly
-	        engine.setEdataConverter(new RatingEdgeConvertor(0) );
-	        engine.setEnableDeterministicExecution(false);
-	        engine.setVertexDataConverter(null);  // We do not access vertex values.
-	        engine.setModifiesInedges(false); // Important optimization
-	        engine.setModifiesOutedges(false); // Important optimization
-	        engine.run(aggRec, 20);
-	
-		    //TODO: Persist models - Serialization has not yet been implemented
-	        for(int i = 0; i < aggRec.recPool.getRecommenderPoolSize(); i++) {
-	        	RecommenderAlgorithm rec = aggRec.recPool.getRecommender(i);
-	        	rec.getParams().serialize(problemSetup.outputLoc);
-	        }
+		    pool.resetPool();
+            AggregateRecommender aggRec = new AggregateRecommender(dataDesc, pool);
+            aggRec.vertexDataCache = vertexDataCache;
+            
+            FastSharder<Integer, RatingEdge> sharder = pool.createSharder(problemSetup.scratchDir);
+            IO.convertMatrixMarket(problemSetup.scratchDir, dataDesc.getRatingsUrl(), problemSetup.nShards, sharder);
+            
+            /* Run GraphChi */
+            GraphChiEngine<Integer, RatingEdge> engine = new GraphChiEngine<Integer, RatingEdge>(problemSetup.scratchDir,
+                    pool.getNumShards());
+            
+            engine.setEdataConverter(pool.getEdgeDataConvertor());
+            engine.setEnableDeterministicExecution(false);
+            engine.setVertexDataConverter(null);  // We do not access vertex values.
+            engine.setModifiesInedges(pool.isMutable()); // Important optimization
+            engine.setModifiesOutedges(pool.isMutable()); // Important optimization
+            engine.setMemoryBudgetMb(pool.getMemoryBudget());
+            
+            engine.run(aggRec, 20);
+    
+            for(int i = 0; i < aggRec.recPool.getRecommenderPoolSize(); i++) {
+                RecommenderAlgorithm rec = aggRec.recPool.getRecommender(i);
+                rec.getParams().serialize(problemSetup.outputLoc);
+            }
 	        
 		} catch (IOException e) {
 			e.printStackTrace();

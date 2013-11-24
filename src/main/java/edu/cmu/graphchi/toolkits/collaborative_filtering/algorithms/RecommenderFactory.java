@@ -151,8 +151,8 @@ public class RecommenderFactory {
 				recommenders.add(new SVDPP(dataDesc, params));
 			} else if(modelDescMap.get(MODEL_NAME_KEY).equals(REC_PMF)) {
 				//Build PMF parameters.
-				/*PMFParameters params = new PMFParameters(modelDescMap.get(MODEL_ID_KEY), modelDescMap.get(MODEL_PARAM_JSON_KEY));
-				recommenders.add(new PMF(dataDesc, params));*/
+				PMFParameters params = new PMFParameters(modelDescMap.get(MODEL_ID_KEY), modelDescMap);
+				recommenders.add(new PMF(dataDesc, params));
 			} else if(modelDescMap.get(MODEL_NAME_KEY).equals(REC_LIBFM_SGD)) {
 				//Build a LibFM_SGD recommender. 
 				LibFM_SGDParams params = new LibFM_SGDParams(id, modelDescMap);

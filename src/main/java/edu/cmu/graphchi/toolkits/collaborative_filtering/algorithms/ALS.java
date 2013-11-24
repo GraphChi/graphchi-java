@@ -20,6 +20,7 @@ import edu.cmu.graphchi.engine.VertexInterval;
 import edu.cmu.graphchi.toolkits.collaborative_filtering.utils.DataSetDescription;
 import edu.cmu.graphchi.toolkits.collaborative_filtering.utils.IO;
 import edu.cmu.graphchi.toolkits.collaborative_filtering.utils.ModelParameters;
+import edu.cmu.graphchi.toolkits.collaborative_filtering.utils.RatingEdge;
 import edu.cmu.graphchi.toolkits.collaborative_filtering.utils.SerializationUtils;
 import edu.cmu.graphchi.util.HugeDoubleMatrix;
 import gov.sandia.cognition.math.matrix.mtj.SparseVector;
@@ -268,12 +269,10 @@ public class ALS implements RecommenderAlgorithm {
 		return this.params;
 	}
 
-
 	@Override
 	public boolean hasConverged(GraphChiContext ctx) {
 		return this.iterationNum == this.params.maxIterations;
 	}
-
 
 	@Override
 	public DataSetDescription getDataSetDescription() {

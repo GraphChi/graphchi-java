@@ -1,9 +1,9 @@
-/*package edu.cmu.graphchi.toolkits.collaborative_filtering.algorithms;
+package edu.cmu.graphchi.toolkits.collaborative_filtering.algorithms;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Random;
 import java.util.logging.Logger;
 
@@ -18,25 +18,25 @@ import edu.cmu.graphchi.ChiEdge;
 import edu.cmu.graphchi.ChiLogger;
 import edu.cmu.graphchi.ChiVertex;
 import edu.cmu.graphchi.GraphChiContext;
-import edu.cmu.graphchi.GraphChiProgram;
 import edu.cmu.graphchi.datablocks.BytesToValueConverter;
 import edu.cmu.graphchi.datablocks.IntConverter;
-import edu.cmu.graphchi.engine.GraphChiEngine;
 import edu.cmu.graphchi.engine.VertexInterval;
 import edu.cmu.graphchi.preprocessing.EdgeProcessor;
 import edu.cmu.graphchi.preprocessing.FastSharder;
-import edu.cmu.graphchi.toolkits.collaborative_filtering.utils.IO;
+import edu.cmu.graphchi.toolkits.collaborative_filtering.utils.DataSetDescription;
 import edu.cmu.graphchi.toolkits.collaborative_filtering.utils.ModelParameters;
-import edu.cmu.graphchi.toolkits.collaborative_filtering.utils.ProblemSetup;
+import edu.cmu.graphchi.toolkits.collaborative_filtering.utils.RatingEdge;
+import edu.cmu.graphchi.toolkits.collaborative_filtering.utils.SerializationUtils;
 import edu.cmu.graphchi.util.HugeDoubleMatrix;
 import gov.sandia.cognition.math.matrix.Matrix;
 import gov.sandia.cognition.math.matrix.mtj.DenseMatrixFactoryMTJ;
+import gov.sandia.cognition.math.matrix.mtj.SparseVector;
 import gov.sandia.cognition.statistics.distribution.InverseWishartDistribution;
 
 
 class PMFParameters extends ModelParameters {
 	
-	 * Graphical Model for Bayesian Probabilistic Matrix Factorization.
+	 /* Graphical Model for Bayesian Probabilistic Matrix Factorization.
 	 * From the paper: 
 	 * Salakhutdinov and Mnih, Bayesian Probabilistic Matrix Factorization using Markov Chain Monte Carlo. 
 	 * in International Conference on Machine Learning, 2008. 
@@ -57,7 +57,7 @@ class PMFParameters extends ModelParameters {
 					  	|
 					  	|
 					  alpha
-	 
+	 */
 	
 	//Hyper-parameters and Hyperpriors in the above Gaussian Model.
 	double alpha;
@@ -83,24 +83,26 @@ class PMFParameters extends ModelParameters {
 	HugeDoubleMatrix latentFactors; //list of latent factors (U_i and V_j vectors for different U and V)
 	
 	//Other variables used while updation of different parameters.
-	int N;	//Number of U_i's (users)	
 	RealVector sumU;	//SUM U_i
 	RealMatrix sumUUT;	//SUM U_i*U_i'
 	
-	int M;	//Number of U_i's (users)	
 	RealVector sumV;	//SUM U_i
 	RealMatrix sumVVT;	//SUM U_i*U_i'
 	
 	int burnInPeriod;	//the burn in period for Gibbs sampling.
 	int D;				//number of latent features 
+	int maxIterations; //Maximum number of iterations to run this program.
 	
+	// Contains filenames of all the samples. Note that in PMF, the model is essentially 
+	// all the samples of latent factors that were drawn after the burn-in period.
+	List<String> sampleFileNames;
 	
-	public PMFParameters(String id, String json) {
-		super(id, json);
+	public PMFParameters(String id, Map<String, String> paramsMap) {
+		super(id, paramsMap);
 		
 		setDefaults();
 		
-		parseParameters(json);
+		parseParameters(paramsMap);
 	}
 	
 	public void setDefaults() {
@@ -109,9 +111,10 @@ class PMFParameters extends ModelParameters {
 		this.alpha = 2.0;
 		this.beta0_U = 2.0;
 		this.beta0_V = 2.0;
+		this.maxIterations = 20;
 	}
 	
-	public void parseParameters(String json) {
+	public void parseParameters(Map<String, String> json) {
 		//TODO: Implement parsing json string and setting parameters.
 	}
 	
@@ -159,62 +162,96 @@ class PMFParameters extends ModelParameters {
 
 	@Override
 	public void serialize(String dir) {
-		// TODO Auto-generated method stub
-		
+	  //TODO: This is not a good way to create a path. Use some library to join into a path
+        String filename = dir + this.id;
+        try{
+            SerializationUtils.serializeParam(filename, this);
+        }catch(Exception i){
+            System.err.println("Serialization Fails at" + filename);
+        }
 	}
 
-	@Override
-	public void deserialize(String file) {
-		// TODO Auto-generated method stub
-		
-	}
+    @Override
+    public double predict(int userId, int itemId, SparseVector userFeatures,
+            SparseVector itemFeatures, SparseVector edgeFeatures,
+            DataSetDescription datasetDesc) {
+        double[] userData = new double[this.D];
+        double[] itemData = new double[this.D];
+        
+        this.latentFactors.getRow(userId, userData);
+        this.latentFactors.getRow(itemId, userData);
+        
+        return predict(userData, itemData, datasetDesc);
+    }
+    
+    public double predict(double[] u, double[] v, DataSetDescription datasetDesc) {
+        double prediction = 0;
+        for(int f = 0; f < this.D; f++) {
+            prediction += u[f]*v[f];
+        }
+        
+        prediction = Math.max(prediction, datasetDesc.getMinval());
+        prediction = Math.min(prediction, datasetDesc.getMaxval());
+
+        return (float)prediction;
+    }
+
+    @Override
+    public int getEstimatedMemoryUsage(DataSetDescription datasetDesc) {
+        // TODO Auto-generated method stub
+        return 0;
+    }
 	
 }
 
-public class PMF implements GraphChiProgram<Integer, EdgeDataType> {
+public class PMF implements RecommenderAlgorithm {
 
 	private static final boolean DEBUG = true;
-	ProblemSetup setup;
 	PMFParameters params;
+	DataSetDescription datasetDesc;
 	
-	//Root Mean Squared Error
-	double train_rmse;
 	protected Logger logger = ChiLogger.getLogger("PMF");
+	private double train_rmse = 0;
+	
+	int iterationNum;
 	
 	//Constructor
-	public PMF(ProblemSetup setup, ModelParameters params) {
-		this.setup = setup;
+	public PMF(DataSetDescription datasetDesc, ModelParameters params) {
+	    this.datasetDesc = datasetDesc;
 		this.params = (PMFParameters) params;
+		
+		this.iterationNum = 0;
 	}
 	
-	*//**
+	/*
 	 * meanU = (SUM U_i)/N
-	 * meanS = (SUM (U_i*U_i')/N)
-	 * mu0 = (beta0*mu0 + meanU)/(beta0 + N)
-	 * beta0 = beta0 + N
-	 * nu0 = nu0 + N
-	 * W0 = inv( inv(W0) + N*meanS + (beta0*N/(beta0 + N))(mu0 - meanU)*(mu0 - meanU)'
-	 * 
-	 *//*
+     * meanS = (SUM (U_i*U_i')/N)
+     * mu0 = (beta0*mu0 + meanU)/(beta0 + N)
+     * beta0 = beta0 + N
+     * nu0 = nu0 + N
+     * W0 = inv( inv(W0) + N*meanS + (beta0*N/(beta0 + N))(mu0 - meanU)*(mu0 - meanU)'
+     * 
+     */
+
 	public void sample_U() {
 		//Note, sumU and sumUUT are update in the update function itself. Hence, when
 		//sample_U is called after the 1 iteration of all vertices, we already have the sum.
 		
 		//meanU = (SUM U_i)/N
-		RealVector meanU = params.sumU.mapMultiply(1.0/params.N);
+		RealVector meanU = params.sumU.mapMultiply(1.0/datasetDesc.getNumUsers());
 		//meanS = (SUM (U_i*U_i')/N)
-		RealMatrix meanS = params.sumUUT.scalarMultiply(1.0/params.N);
+		RealMatrix meanS = params.sumUUT.scalarMultiply(1.0/datasetDesc.getNumUsers());
 		
 		//mu0 = (beta0*mu0 + meanU)/(beta0 + N)
-		RealVector mu0_ = (params.mu0_U.mapMultiply(params.beta0_U).add(meanU)).mapDivide((params.beta0_U + params.N));
+		RealVector mu0_ = (params.mu0_U.mapMultiply(params.beta0_U).add(meanU)).mapDivide((params.beta0_U + datasetDesc.getNumUsers()));
 		
-		double beta0_ = params.beta0_U + params.N;
-		int nu0_ = params.nu0_U + params.N;
+		double beta0_ = params.beta0_U + datasetDesc.getNumUsers();
+		int nu0_ = params.nu0_U + datasetDesc.getNumUsers();
 		
 		//W0 = inv( inv(W0) + N*meanS + (beta0*N/(beta0 + N))(mu0 - meanU)*(mu0 - meanU)'
 		RealVector tmp = params.mu0_U.subtract(meanU);
 		RealMatrix mu0_d_meanU_T = tmp.outerProduct(tmp); 
-		mu0_d_meanU_T = mu0_d_meanU_T.scalarMultiply((params.beta0_U*params.N/(params.beta0_U + params.N)));
+		mu0_d_meanU_T = mu0_d_meanU_T.scalarMultiply((params.beta0_U*datasetDesc.getNumUsers()/(params.beta0_U + datasetDesc.getNumUsers())));
 		RealMatrix invW0_ = params.invW0_U.add(params.sumUUT).add(mu0_d_meanU_T);
 		
 		//Update all the values.
@@ -240,7 +277,7 @@ public class PMF implements GraphChiProgram<Integer, EdgeDataType> {
 		params.sumUUT.scalarMultiply(0);
 	}
 	
-	*//**
+	/**
 	 * Sample hyperparameters for V.
 	 * TODO: Can common functionalities from sample_U and sample_V be refactored into 1 function?
 	 * meanU = (SUM U_i)/N
@@ -249,26 +286,26 @@ public class PMF implements GraphChiProgram<Integer, EdgeDataType> {
 	 * beta0 = beta0 + N
 	 * nu0 = nu0 + N
 	 * W0 = inv( inv(W0) + N*meanS + (beta0*N/(beta0 + N))(mu0 - meanU)*(mu0 - meanU)'
-	 *//*
+	 */
 	public void sample_V() {
 		//Note, sumV and sumVVT are update in the update function itself. Hence, when
 		//sample_V is called after the 1 iteration of all vertices, we already have the sum.
 		
 		//meanV = (SUM V_j)/N
-		RealVector meanV = params.sumV.mapMultiply(1.0/params.M);
+		RealVector meanV = params.sumV.mapMultiply(1.0/datasetDesc.getNumItems());
 		//meanS = (SUM (V_j*V_j')/N)
-		RealMatrix meanS = params.sumVVT.scalarMultiply(1.0/params.M);
+		RealMatrix meanS = params.sumVVT.scalarMultiply(1.0/datasetDesc.getNumItems());
 		
 		//mu0 = (beta0*mu0 + meanV)/(beta0 + N)
-		RealVector mu0_ = (params.mu0_V.mapMultiply(params.beta0_V).add(meanV)).mapDivide((params.beta0_V + params.M));
+		RealVector mu0_ = (params.mu0_V.mapMultiply(params.beta0_V).add(meanV)).mapDivide((params.beta0_V + datasetDesc.getNumItems()));
 		
-		double beta0_ = params.beta0_V + params.M;
-		int nu0_ = params.nu0_V + params.M;
+		double beta0_ = params.beta0_V + datasetDesc.getNumItems();
+		int nu0_ = params.nu0_V + datasetDesc.getNumItems();
 		
 		//W0 = inv( inv(W0) + N*meanS + (beta0*N/(beta0 + N))(mu0 - meanU)*(mu0 - meanU)'
 		RealVector tmp = params.mu0_V.subtract(meanV);
 		RealMatrix mu0_d_meanV_T = tmp.outerProduct(tmp); 
-		mu0_d_meanV_T = mu0_d_meanV_T.scalarMultiply((params.beta0_V*params.M/(params.beta0_V + params.M)));
+		mu0_d_meanV_T = mu0_d_meanV_T.scalarMultiply((params.beta0_V*datasetDesc.getNumItems()/(params.beta0_V + datasetDesc.getNumItems())));
 		RealMatrix invW0_ = params.invW0_V.add(params.sumVVT).add(mu0_d_meanV_T);
 
 		//Update all the values.
@@ -319,7 +356,7 @@ public class PMF implements GraphChiProgram<Integer, EdgeDataType> {
 		return mat;
 	}
 	
-	*//**
+	/**
 	 * The update function draws a sample for U_i / V_j
 	 * p(U_i | R, V, mu_U, lambda_U, alpha) = 
 	 * 		[PROD_j(N(R_ij|U_i'*V_j, 1/alpha)] *P(U_i|mu_U, lambda_U) )
@@ -328,23 +365,11 @@ public class PMF implements GraphChiProgram<Integer, EdgeDataType> {
 	 * 
 	 * @param vertex
 	 * @param context
-	 *//*
-	
-	@Override
-	public void update(ChiVertex<Integer, EdgeDataType> vertex, GraphChiContext context) {
+	 */
+
+	public void update(ChiVertex<Integer, RatingEdge> vertex, GraphChiContext context) {
 		boolean isUser = vertex.numOutEdges() > 0;
 		double[] nbrPVec = new double[params.D];
-		
-		//First iteration also computes number of users and number of movies
-		if(context.getIteration() == 0) {
-			synchronized (this) {
-				if(isUser) {
-					params.N++;
-				} else {
-					params.M++;
-				}
-			}
-		}
 		
 		double[] vData = new double[params.D];
 		params.latentFactors.getRow(vertex.getId(), vData);
@@ -356,8 +381,8 @@ public class PMF implements GraphChiProgram<Integer, EdgeDataType> {
 		
 		//Gather data to update the mean and the covariance for the hidden features.	
 		for(int i = 0; i < vertex.numEdges(); i++) {
-			ChiEdge<EdgeDataType> edge = vertex.edge(i); 
-			double observation = edge.getValue().observation;
+			RatingEdge edge = vertex.edge(i).getValue(); 
+			double observation = edge.observation;
 			
 			int nbrId = vertex.edge(i).getVertexId();
 			params.latentFactors.getRow(nbrId, nbrPVec);
@@ -402,23 +427,19 @@ public class PMF implements GraphChiProgram<Integer, EdgeDataType> {
 		//Compute contribution of all ratings for this vertex to RMSE.
 		if(isUser) {
 			for(int i = 0; i < vertex.numEdges(); i++) {
-				ChiEdge<EdgeDataType> edge = vertex.edge(i); 
-				float observation = edge.getValue().observation;
+				ChiEdge<RatingEdge> edge = vertex.edge(i);
+				RatingEdge pmfRatingEdge = edge.getValue();
+				float observation = pmfRatingEdge.observation;
 				int nbrId = vertex.edge(i).getVertexId();
 				params.latentFactors.getRow(nbrId, nbrPVec);
 				
 				//Aggregate the sample and compute rmse if greater than burn_in period
-				float prediction = predict(vData, nbrPVec);
-				boolean burnedIn = context.getIteration() >= params.burnInPeriod; 
-				if(burnedIn) {
-					edge.setValue(new EdgeDataType(observation, edge.getValue().aggPred + prediction,
-							edge.getValue().count + 1));
-					prediction = edge.getValue().aggPred/(float)edge.getValue().count;
-				}
-			
+				double prediction = this.params.predict(vData, nbrPVec, datasetDesc);
+				double squaredError = (observation - prediction)*(observation - prediction);
 				synchronized (this) {
-					this.train_rmse += (observation - prediction)*(observation - prediction);
-				}
+				    this.train_rmse += squaredError;
+	            }
+			
 			}
 		}
 		
@@ -450,17 +471,18 @@ public class PMF implements GraphChiProgram<Integer, EdgeDataType> {
 
 	@Override
 	public void endIteration(GraphChiContext ctx) {
-		// TODO Auto-generated method stub
+	    
+	    if(this.iterationNum > this.params.burnInPeriod){
+	        //Save the parameters.
+	        this.params.serialize("./" + this.params.getId() + "_iter" + this.iterationNum);
+	    }
+	    
+	    this.train_rmse = Math.sqrt(this.train_rmse / (1.0 * ctx.getNumEdges()));
+        this.logger.info("Current Sample's Train RMSE: " + this.train_rmse);
+	    
 		//Sample hyperparameters.
-		if(ctx.getIteration() == 0) {
-			this.logger.info("Number of Users = " + params.N + " and Number of items = " + params.M);
-		}
-		
 		sample_U();
 		sample_V();
-		
-		this.train_rmse = Math.sqrt(this.train_rmse / (1.0 * ctx.getNumEdges()));
-        this.logger.info("Train RMSE: " + this.train_rmse);
 	}
 
 	@Override
@@ -487,66 +509,52 @@ public class PMF implements GraphChiProgram<Integer, EdgeDataType> {
 		
 	}
 	
-	public float predict(double[] u, double[] v) {
-		double prediction = 0;
-		for(int f = 0; f < params.D; f++) {
-			prediction += u[f]*v[f];
-		}
-		
-		prediction = Math.max(prediction, this.setup.minval);
-		prediction = Math.min(prediction, this.setup.maxval);
-
-		return (float)prediction;
-	}
+   @Override
+    public boolean hasConverged(GraphChiContext ctx) {
+        return this.iterationNum == this.params.maxIterations;
+    }
 		
 	protected static FastSharder createSharder(String graphName, int numShards) throws IOException {
-        return new FastSharder<Integer, EdgeDataType>(graphName, numShards, null, 
-        		new EdgeProcessor<EdgeDataType>() {
-		            public EdgeDataType receiveEdge(int from, int to, String token) {
-		                return (token == null ? new EdgeDataType() : new EdgeDataType(Float.parseFloat(token),0.0f,0));
+        return new FastSharder<Integer, PMFRatingEdge>(graphName, numShards, null, 
+        		new EdgeProcessor<PMFRatingEdge>() {
+		            public PMFRatingEdge receiveEdge(int from, int to, String token) {
+		                return (token == null ? new PMFRatingEdge() : new PMFRatingEdge(Float.parseFloat(token),0.0f,0));
 		            }
         	}, 
-        	new IntConverter(), new EdgeDataTypeConvertor());
+        	new IntConverter(), new PMFRatingEdgeConvertor());
     }
-	
-    public static void main(String[] args) throws Exception {
 
-    	ProblemSetup problemSetup = new ProblemSetup(args);
-    	ModelParameters params = new PMFParameters(problemSetup.getRunId("PMF"), problemSetup.paramJson);
+    @Override
+    public ModelParameters getParams() {
+        // TODO Auto-generated method stub
+        return null;
+    }
 
-    	FastSharder sharder = PMF.createSharder(problemSetup.training, problemSetup.nShards);
-        IO.convertMatrixMarket(problemSetup, sharder);
-        
-        PMF pmf = new PMF(problemSetup, params);
-        
-        // Run GraphChi 
-        GraphChiEngine<Integer, EdgeDataType> engine = new GraphChiEngine<Integer, EdgeDataType>
-        	(problemSetup.training, problemSetup.nShards);
-        
-        engine.setEdataConverter(new EdgeDataTypeConvertor());
-        engine.setEnableDeterministicExecution(false);
-        engine.setVertexDataConverter(null);  // We do not access vertex values.
-        engine.setModifiesInedges(false); // Important optimization
-        //engine.setModifiesOutedges(false);
-        engine.run(pmf, 15);
-       
-        //svdpp.writeOutputMatrices(engine.getVertexIdTranslate());
+    @Override
+    public DataSetDescription getDataSetDescription() {
+        // TODO Auto-generated method stub
+        return null;
+    }
+
+    @Override
+    public int getEstimatedMemoryUsage() {
+        // TODO Auto-generated method stub
+        return 0;
     }
 
 }
 
-class EdgeDataType {
-	float observation;
+class PMFRatingEdge extends RatingEdge {
 	float aggPred;
 	int count;
 	
-	public EdgeDataType() {
+	public PMFRatingEdge() {
 		this.observation = 0;
 		this.aggPred = 0;
 		this.count = 0;
 	}
 	
-	public EdgeDataType(float observation, float aggPred, int count) {
+	public PMFRatingEdge(float observation, float aggPred, int count) {
 		this.observation = observation;
 		this.aggPred = aggPred;
 		this.count = count;
@@ -554,24 +562,24 @@ class EdgeDataType {
 }
 
 
-class EdgeDataTypeConvertor implements  BytesToValueConverter<EdgeDataType> {
+class PMFRatingEdgeConvertor implements  BytesToValueConverter<PMFRatingEdge> {
     public int sizeOf() {
         return 12;
     }
     
-    public EdgeDataType getValue(byte[] array) {
-    	EdgeDataType res = null;
+    public PMFRatingEdge getValue(byte[] array) {
+    	PMFRatingEdge res = null;
     	
     	ByteBuffer buf = ByteBuffer.wrap(array);
     	float obs = buf.getFloat(0);
     	float aggPred = buf.getFloat(4);
     	int count = buf.getInt(8);
     	
-    	res = new EdgeDataType(obs, aggPred, count);
+    	res = new PMFRatingEdge(obs, aggPred, count);
     	return res;
     }
     
-    public void setValue(byte[] array, EdgeDataType val) {
+    public void setValue(byte[] array, PMFRatingEdge val) {
     	  ByteBuffer buf = ByteBuffer.allocate(12);
     	  buf.putFloat(0, val.observation);
     	  buf.putFloat(4, val.aggPred);
@@ -583,4 +591,3 @@ class EdgeDataTypeConvertor implements  BytesToValueConverter<EdgeDataType> {
     	  }
     }
 }
-*/

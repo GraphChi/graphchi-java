@@ -3,7 +3,10 @@ package edu.cmu.graphchi.toolkits.collaborative_filtering.utils;
 import java.util.ArrayList;
 import java.util.List;
 
+import org.apache.hadoop.yarn.api.records.Resource;
+
 import edu.cmu.graphchi.toolkits.collaborative_filtering.algorithms.RecommenderAlgorithm;
+
 
 /**
  * This class contains the logic to take a bunch of recommenders configured to run and
@@ -25,56 +28,55 @@ import edu.cmu.graphchi.toolkits.collaborative_filtering.algorithms.RecommenderA
  * TODO: Currently, the scheduler has been statically provided number of splits of data to create
  */
 public class RecommenderScheduler {
-	//Number of splits for recommenders.
-	private int numSplits;
-	//maximum amount of memory available in JVM. In the case when heterogenous resources
-	//are available in the cluster, this might be list of resources.
-	private int maxAvailableMemory;
-	
 	private List<RecommenderAlgorithm> allRecommenders;
+	List<Resource> resources;
 	
-	public RecommenderScheduler(int numSplits, int maxMemory, List<RecommenderAlgorithm> recommenders) {
-		this.numSplits = numSplits;
-		this.maxAvailableMemory = maxMemory;
+	public RecommenderScheduler(List<Resource> resources, List<RecommenderAlgorithm> recommenders) {
 		this.allRecommenders = recommenders;
+		this.resources = resources;
 	}
 	
-	public List<RecommenderPool> splitIntoRecPools() {
-		//Current Naive algorithm, divide into pools so that each pool has 
-		//equal amount of memory usage.
-		int totalMemory = 0;
-		int minMemory = Integer.MAX_VALUE;
-		int maxMemory = Integer.MIN_VALUE;
-		for(RecommenderAlgorithm rec : allRecommenders) {
-			int mem = rec.getEstimatedMemoryUsage();
-			
-			if(mem < minMemory) {
-				minMemory = mem;
-			}
-			if(mem > maxMemory) {
-				maxMemory = mem;
-			}
-			totalMemory += mem;
-		}
-		
+	public List<RecommenderPool> splitIntoRecPools(DataSetDescription datasetDesc) {
+		// Current Naive algorithm: Assume all resources are equal and 
+	    // greedily divide into pools proportional to number of resources
+	    // available in the list of resources. 
+	    // The correct solution to this problem is essentially a bin packing problem.
+	    
 		int currMemConsumed = 0;
 		List<RecommenderPool> recPools = new ArrayList<RecommenderPool>();
-		RecommenderPool currRecPool = new RecommenderPool(maxAvailableMemory);
+		RecommenderPool currRecPool = new RecommenderPool(datasetDesc, null);
 		recPools.add(currRecPool);
+		
+		int count = 0;
+		
 		for(RecommenderAlgorithm rec : allRecommenders) {
-			int mem = rec.getEstimatedMemoryUsage();
-			if(currMemConsumed < totalMemory/numSplits - minMemory || recPools.size() == this.numSplits) {
-				currRecPool.addNewRecommender(rec);
-				currMemConsumed += mem;
+			if (recPools.size() < resources.size()) {
+			    //Greedily fill all the resources available upto the maximum (less than total available memory)
+			    int mem = rec.getEstimatedMemoryUsage();
+			    if(currMemConsumed + mem < currRecPool.getMaxAvailableMemory()) {
+			        currRecPool.addNewRecommender(rec);
+			        currMemConsumed += mem;
+			    } else 
+			        currRecPool = new RecommenderPool(datasetDesc, null);
+				    currRecPool.addNewRecommender(rec);
+				    recPools.add(currRecPool);
+				    currMemConsumed = mem;
 			} else {
-				currRecPool = new RecommenderPool(maxAvailableMemory);
-				currRecPool.addNewRecommender(rec);
-				recPools.add(currRecPool);
-				currMemConsumed = mem;
+			    //All the resources are filled up to their limit. Now for the remaining jobs,
+			    //just add to each pool one by one.
+			    recPools.get(count%recPools.size()).addNewRecommender(rec);
 			}
+			count++;
 		}
 		
 		return recPools;
 	}
-		
+	
+	
+	//For testing
+	public static void main(String[] args) {
+	    
+	    
+	}
+	
 }

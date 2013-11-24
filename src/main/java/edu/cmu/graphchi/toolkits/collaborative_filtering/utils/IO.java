@@ -118,8 +118,8 @@ public class IO {
             String hdfsFileLocation = "hdfs://localhost:9000/user/hdfs/Movielens/ml-100k/working_dir/u.data_tr1.mm";
             String baseFileLocation = "/home/mayank/repos/graphchi-java/tmp/abc";
             
-            FastSharder sharder = AggregateRecommender.createSharder(baseFileLocation, 3, 0); 
-            IO.convertMatrixMarket(baseFileLocation, hdfsFileLocation, 3, sharder);
+         /*   FastSharder sharder = AggregateRecommender.createSharder(baseFileLocation, 3, 0); 
+            IO.convertMatrixMarket(baseFileLocation, hdfsFileLocation, 3, sharder);*/
         } catch (Exception e) {
             e.printStackTrace();
         }

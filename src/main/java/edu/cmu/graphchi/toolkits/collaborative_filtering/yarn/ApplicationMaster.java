@@ -363,8 +363,13 @@ public class ApplicationMaster {
                     LOG.info("Allocated " + newContainers.size() + " new containers");
                     if(pending) {
                         //If there are pending recommenders, use the container to run the jobs.
-                        RecommenderScheduler sched = new RecommenderScheduler(newContainers.size(), maxMem, recommenders);
-                        List<RecommenderPool> recPools = sched.splitIntoRecPools();
+                        List<Resource> resources = new ArrayList<Resource>();
+                        for(Container c : newContainers) {
+                            resources.add(c.getResource());
+                        }
+                        RecommenderScheduler sched = new RecommenderScheduler(resources, recommenders);
+                        DataSetDescription datasetDesc =  new DataSetDescription(this.setup.dataMetadataFile);
+                        List<RecommenderPool> recPools = sched.splitIntoRecPools(datasetDesc);
                         for(int i = 0; i < newContainers.size(); i++) {
                             startContainer(newContainers.get(i), recPools.get(i));
                         }

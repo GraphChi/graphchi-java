@@ -12,6 +12,7 @@ import edu.cmu.graphchi.GraphChiContext;
 import edu.cmu.graphchi.engine.VertexInterval;
 import edu.cmu.graphchi.toolkits.collaborative_filtering.utils.DataSetDescription;
 import edu.cmu.graphchi.toolkits.collaborative_filtering.utils.ModelParameters;
+import edu.cmu.graphchi.toolkits.collaborative_filtering.utils.RatingEdge;
 import edu.cmu.graphchi.toolkits.collaborative_filtering.utils.VertexDataCache;
 import gov.sandia.cognition.math.matrix.VectorEntry;
 import gov.sandia.cognition.math.matrix.mtj.SparseVector;

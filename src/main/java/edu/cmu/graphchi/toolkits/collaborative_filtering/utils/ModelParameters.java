@@ -3,7 +3,6 @@ package edu.cmu.graphchi.toolkits.collaborative_filtering.utils;
 import java.io.Serializable;
 import java.util.Map;
 import org.codehaus.jackson.map.ObjectMapper;
-import edu.cmu.graphchi.toolkits.collaborative_filtering.algorithms.RatingEdge;
 import gov.sandia.cognition.math.matrix.mtj.SparseVector;
 
 public abstract class ModelParameters implements Serializable{
@@ -61,6 +60,5 @@ public abstract class ModelParameters implements Serializable{
 			DataSetDescription datasetDesc);
 	
 	abstract public int getEstimatedMemoryUsage(DataSetDescription datasetDesc);
-	
-	
+
 }

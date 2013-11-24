@@ -4,6 +4,7 @@ import edu.cmu.graphchi.GraphChiContext;
 import edu.cmu.graphchi.GraphChiProgram;
 import edu.cmu.graphchi.toolkits.collaborative_filtering.utils.DataSetDescription;
 import edu.cmu.graphchi.toolkits.collaborative_filtering.utils.ModelParameters;
+import edu.cmu.graphchi.toolkits.collaborative_filtering.utils.RatingEdge;
 
 public interface RecommenderAlgorithm extends GraphChiProgram<Integer, RatingEdge> {
 
@@ -19,5 +20,6 @@ public interface RecommenderAlgorithm extends GraphChiProgram<Integer, RatingEdg
 	 * @return
 	 */
 	public int getEstimatedMemoryUsage();
+	
 	
 }
