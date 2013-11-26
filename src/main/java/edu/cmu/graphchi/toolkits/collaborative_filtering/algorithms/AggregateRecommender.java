@@ -163,14 +163,14 @@ public class AggregateRecommender implements
 			List<RecommenderAlgorithm> recommenders = RecommenderFactory.buildRecommenders(dataDesc, 
 					problemSetup.paramFile, vertexDataCache);
 
-			RecommenderPool pool = new RecommenderPool(dataDesc, recommenders);
+			RecommenderPool pool = new RecommenderPool(dataDesc, recommenders, problemSetup.nShards);
 			
 		    pool.resetPool();
             AggregateRecommender aggRec = new AggregateRecommender(dataDesc, pool);
             aggRec.vertexDataCache = vertexDataCache;
             
             FastSharder<Integer, RatingEdge> sharder = pool.createSharder(problemSetup.scratchDir);
-            IO.convertMatrixMarket(problemSetup.scratchDir, dataDesc.getRatingsUrl(), problemSetup.nShards, sharder);
+            IO.convertMatrixMarket(problemSetup.scratchDir, dataDesc.getRatingsUrl(), pool.getNumShards(), sharder);
             
             /* Run GraphChi */
             GraphChiEngine<Integer, RatingEdge> engine = new GraphChiEngine<Integer, RatingEdge>(problemSetup.scratchDir,
@@ -182,6 +182,7 @@ public class AggregateRecommender implements
             engine.setModifiesInedges(pool.isMutable()); // Important optimization
             engine.setModifiesOutedges(pool.isMutable()); // Important optimization
             engine.setMemoryBudgetMb(pool.getMemoryBudget());
+            //engine.setMemoryBudgetMb(32);
             
             engine.run(aggRec, 20);
     

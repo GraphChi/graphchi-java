@@ -53,12 +53,24 @@ public class RecommenderPool {
 	
     private boolean isMutable;
 	
-	public RecommenderPool(DataSetDescription  datasetDesc, List<RecommenderAlgorithm> recommenders) {
+	public RecommenderPool(DataSetDescription  datasetDesc, List<RecommenderAlgorithm> recommenders,
+	        int numShards) {
 	    this.datasetDesc = datasetDesc;
+	    
+	    if(numShards > 0) {
+            this.numShards = numShards;
+        } else {
+            //TODO: Compute the number of shards dynamically?
+            this.numShards = 1;
+        }
+	    
 	    this.allRecommenders = new ArrayList<RecommenderAlgorithm>();
 	    if(recommenders != null) {
 	        this.allRecommenders.addAll(recommenders);
         }
+	    
+	    //Currently all the recommenders implemented do not mutate the edges.
+	    this.isMutable = false;
 	    
 	    //Initialize various things in the pool
 		this.currentMemoryUsed = 0;
@@ -78,29 +90,36 @@ public class RecommenderPool {
 	    return this.edgeDataConvertor;
     }
 
+	/**
+	 * Based on dataset description, numShards and memory budget, compute the memory required by engine
+	 * and the maxAvailableMemory for recommenders.
+	 * Currently the number of shards is provided as command-line argument and memory budget is constant.
+	 * In future, number of shards and memory budget can probably be automatically chosen based on requirements
+	 * of the program
+	 * @return
+	 */
     public int computeMaxAvailableMemory() {
-	    // Based on dataset description, set number of shards and memory budget. This would enable
-	    // computation of amount of memory available for the recommenders.
-	    this.numShards = 4;
+        //TODO: Maybe this should be dynamically chosen based on number of recommenders to run.
 	    this.memoryBudget = 128;
 	    
 	    //This logic should be in the GraphChi Engine.
 	    long numEdges = this.datasetDesc.getNumRatings();
 	    int numVertices = this.datasetDesc.getNumUsers() + this.datasetDesc.getNumItems();
 	    int edgeSize = this.edgeDataConvertor.sizeOf();
-	    int vertexSize = 4;
-	   
+	    int vertexSize = 0;    //All vertices currently do not store any data
+	    
 	    // The memory requirement by graphchi engine depends on number of shards, memoryBudget,
 	    // size of graph (number and sizes of edges and vertices) 
 	    
 	    int estimateEngineMemoryUsage;
-	    //estimateEngineMemoryUsage = GraphChiEngine.getEstimatedMemoryUsage(numShards, memoryBudget, numVertices, 
-	    //     vertexSize, numEdges, edgeSize);
-	    estimateEngineMemoryUsage = this.memoryBudget*2;
+	    estimateEngineMemoryUsage = GraphChiEngine.getEstimatedMemoryUsage(numShards, memoryBudget, numVertices, 
+	            vertexSize, numEdges, edgeSize);
 	    
 	    int heapMemory = (int)Runtime.getRuntime().maxMemory() / (1024*1024);
 	    
-	    return heapMemory - estimateEngineMemoryUsage;
+	    this.maxAvailableMemory = heapMemory - estimateEngineMemoryUsage; 
+	    
+	    return maxAvailableMemory;
 	    
 	}
 	
@@ -258,6 +277,9 @@ public class RecommenderPool {
 			//TODO: Do something else for vertex data cache.
 			List<RecommenderAlgorithm> recommenders = RecommenderFactory.buildRecommenders(dataDesc, 
 					problemSetup.paramFile, null);
+			
+			/*int mem = GraphChiEngine.getEstimatedMemoryUsage(16, 128, 497959, 0, 99072112, 4);
+            System.out.println("Expected Mem Usage " + mem);*/
 			
 			/*RecommenderScheduler sched = new RecommenderScheduler(null, recommenders);
 			List<RecommenderPool> pools = sched.splitIntoRecPools();

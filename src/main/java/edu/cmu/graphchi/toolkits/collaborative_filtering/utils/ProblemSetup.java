@@ -64,7 +64,7 @@ public class ProblemSetup {
     			
     			this.dataMetadataFile = cmd.getOptionValue("dataMetadataFile");
     			
-    			this.quiet = Integer.parseInt(cmd.getOptionValue("quiet", "1"));
+    			this.quiet = Integer.parseInt(cmd.getOptionValue("quiet", "0"));
     			this.outputLoc = cmd.getOptionValue("outputLoc", "./");
     			
     			this.scratchDir = cmd.getOptionValue("scratchDir", "./tmp/abc");
@@ -127,6 +127,7 @@ public class ProblemSetup {
         	
         	ProblemSetup setup = new ProblemSetup(args);
         	System.out.println(setup.toString());
+        	System.out.println(setup.clone());
         }
         
 }

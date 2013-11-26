@@ -36,7 +36,7 @@ public class RecommenderScheduler {
 		this.resources = resources;
 	}
 	
-	public List<RecommenderPool> splitIntoRecPools(DataSetDescription datasetDesc) {
+	public List<RecommenderPool> splitIntoRecPools(DataSetDescription datasetDesc, int numShards) {
 		// Current Naive algorithm: Assume all resources are equal and 
 	    // greedily divide into pools proportional to number of resources
 	    // available in the list of resources. 
@@ -44,7 +44,7 @@ public class RecommenderScheduler {
 	    
 		int currMemConsumed = 0;
 		List<RecommenderPool> recPools = new ArrayList<RecommenderPool>();
-		RecommenderPool currRecPool = new RecommenderPool(datasetDesc, null);
+		RecommenderPool currRecPool = new RecommenderPool(datasetDesc, null, numShards);
 		recPools.add(currRecPool);
 		
 		int count = 0;
@@ -57,7 +57,7 @@ public class RecommenderScheduler {
 			        currRecPool.addNewRecommender(rec);
 			        currMemConsumed += mem;
 			    } else 
-			        currRecPool = new RecommenderPool(datasetDesc, null);
+			        currRecPool = new RecommenderPool(datasetDesc, null, numShards);
 				    currRecPool.addNewRecommender(rec);
 				    recPools.add(currRecPool);
 				    currMemConsumed = mem;
