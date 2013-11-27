@@ -2,6 +2,7 @@ package edu.cmu.graphchi.toolkits.collaborative_filtering.algorithms;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.file.Paths;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
@@ -136,7 +137,7 @@ class PMFParameters extends ModelParameters {
 	}
 
 	public void initParameters(DataSetDescription datasetDesc) {
-	    int numVertices = datasetDesc.getNumUsers() + datasetDesc.getNumItems(); 
+	    int numVertices = datasetDesc.getNumUsers() + datasetDesc.getNumItems() + 1; 
 		//Inititalize hyperparameters for U
 		this.nu0_U = this.numFactors; //degrees of freedom equal to latent factors
 		this.W0_U = eye(this.numFactors);
@@ -179,12 +180,15 @@ class PMFParameters extends ModelParameters {
 
 	@Override
 	public void serialize(String dir) {
-	  //TODO: This is not a good way to create a path. Use some library to join into a path
-        String filename = dir + this.id;
-        try{
-            SerializationUtils.serializeParam(filename, this);
+        String fileName = Paths.get(dir, id).toString();
+        serialize(dir, fileName);
+	}
+	
+	public void serialize(String dir, String fileName) {
+	    try{
+            SerializationUtils.serializeParam(fileName, this);
         }catch(Exception i){
-            System.err.println("Serialization Fails at" + filename);
+            System.err.println("Serialization Fails at" + fileName);
         }
 	}
 
@@ -196,7 +200,7 @@ class PMFParameters extends ModelParameters {
         double[] itemData = new double[this.numFactors];
         
         this.latentFactors.getRow(userId, userData);
-        this.latentFactors.getRow(itemId, userData);
+        this.latentFactors.getRow(itemId, itemData);
         
         return predict(userData, itemData, datasetDesc);
     }
@@ -216,8 +220,8 @@ class PMFParameters extends ModelParameters {
     @Override
     public int getEstimatedMemoryUsage(DataSetDescription datasetDesc) {
         // TODO Auto-generated method stub
-        int estimatedMemory = HugeDoubleMatrix.getEstimatedMemory(datasetDesc.getNumUsers(),
-                datasetDesc.getNumItems());
+        int estimatedMemory = HugeDoubleMatrix.getEstimatedMemory(datasetDesc.getNumUsers()+
+                datasetDesc.getNumItems(), this.numFactors );
         //Add 1 Mb of slack (Huge double matrix assigns memory in 1 Mb chunks.)
         estimatedMemory += 1;
         return estimatedMemory;
@@ -236,10 +240,13 @@ public class PMF implements RecommenderAlgorithm {
 	
 	int iterationNum;
 	
+	private String outputLoc;
+	
 	//Constructor
-	public PMF(DataSetDescription datasetDesc, ModelParameters params) {
+	public PMF(DataSetDescription datasetDesc, ModelParameters params, String outputLoc) {
 	    this.datasetDesc = datasetDesc;
 		this.params = (PMFParameters) params;
+		this.outputLoc = outputLoc;
 		
 		this.iterationNum = 0;
 	}
@@ -393,7 +400,8 @@ public class PMF implements RecommenderAlgorithm {
 		double[] nbrPVec = new double[params.numFactors];
 		
 		double[] vData = new double[params.numFactors];
-		params.latentFactors.getRow(vertex.getId(), vData);
+		int sourceId = context.getVertexIdTranslate().backward(vertex.getId());
+		params.latentFactors.getRow(sourceId, vData);
 		
 		//Will be updated to store SUM(V_j*R_ij)
 		RealVector Xty = new ArrayRealVector(params.numFactors);
@@ -405,7 +413,7 @@ public class PMF implements RecommenderAlgorithm {
 			RatingEdge edge = vertex.edge(i).getValue(); 
 			double observation = edge.observation;
 			
-			int nbrId = vertex.edge(i).getVertexId();
+			int nbrId = context.getVertexIdTranslate().backward(vertex.edge(i).getVertexId());
 			params.latentFactors.getRow(nbrId, nbrPVec);
 			////VertexDataType nbrVertex = params.latentFactors.get(nbrId);
 			
@@ -443,7 +451,7 @@ public class PMF implements RecommenderAlgorithm {
 		MultivariateNormalDistribution dist = new MultivariateNormalDistribution(mean.toArray(), covariance.getData());
 		////vData.pVec = new ArrayRealVector(dist.sample());
 		vData = dist.sample();
-		params.latentFactors.setRow(vertex.getId(), vData);
+		params.latentFactors.setRow(sourceId, vData);
 		
 		//Compute contribution of all ratings for this vertex to RMSE.
 		if(isUser) {
@@ -451,7 +459,7 @@ public class PMF implements RecommenderAlgorithm {
 				ChiEdge<RatingEdge> edge = vertex.edge(i);
 				RatingEdge pmfRatingEdge = edge.getValue();
 				float observation = pmfRatingEdge.observation;
-				int nbrId = vertex.edge(i).getVertexId();
+				int nbrId = context.getVertexIdTranslate().backward(vertex.edge(i).getVertexId());
 				params.latentFactors.getRow(nbrId, nbrPVec);
 				
 				//Aggregate the sample and compute rmse if greater than burn_in period
@@ -495,7 +503,7 @@ public class PMF implements RecommenderAlgorithm {
 	    
 	    if(this.iterationNum > this.params.burnInPeriod){
 	        //Save the parameters.
-	        this.params.serialize("./" + this.params.getId() + "_iter" + this.iterationNum);
+	        this.params.serialize(this.outputLoc, this.params.getId() + "_iter_" + this.iterationNum);
 	    }
 	    
 	    this.train_rmse = Math.sqrt(this.train_rmse / (1.0 * ctx.getNumEdges()));
@@ -504,6 +512,8 @@ public class PMF implements RecommenderAlgorithm {
 		//Sample hyperparameters.
 		sample_U();
 		sample_V();
+		
+		this.iterationNum++;
 	}
 
 	@Override

@@ -4,6 +4,7 @@ import java.util.Arrays;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.ObjectInputStream;
+import java.nio.file.Paths;
 import java.util.List;
 import java.util.Map;
 import java.util.logging.Logger;
@@ -168,11 +169,12 @@ class SVDPPParams extends ModelParameters {
 	public void initParameterValues(DataSetDescription datasetDesc) {
 	    int numUsers = datasetDesc.getNumUsers();
         int numItems = datasetDesc.getNumItems();
+        int size = numUsers + numItems + 1;
 		if(!serialized){
-        	latentFactors = new HugeDoubleMatrix(numUsers + numItems, numFactors);
+        	latentFactors = new HugeDoubleMatrix(size, numFactors);
         	latentFactors.randomize(0.0, 1.0);
-        	weights = new HugeDoubleMatrix(numUsers + numItems, numFactors, 0.0);
-        	bias = new ArrayRealVector(numUsers + numItems);
+        	weights = new HugeDoubleMatrix(size, numFactors, 0.0);
+        	bias = new ArrayRealVector(size);
 		}
 	}
 
@@ -200,7 +202,7 @@ class SVDPPParams extends ModelParameters {
 
 	@Override
 	public int getEstimatedMemoryUsage(DataSetDescription datasetDesc) {
-	    int size = datasetDesc.getNumUsers() + datasetDesc.getNumItems();
+	    int size = datasetDesc.getNumUsers() + datasetDesc.getNumItems() + 1;
 	    //The memory usage by this model contains following components
 	    int estimatedMemory = 0;
 	    //1. latentFactors
@@ -218,13 +220,12 @@ class SVDPPParams extends ModelParameters {
 	
 	@Override
 	public void serialize(String dir) {
-	    //TODO: This is not a good way to create a path. Use some library to join into a path
-        String filename = dir + this.id;
-
+	    String fileName = Paths.get(dir, id).toString();
+	    
         try{
-			SerializationUtils.serializeParam(filename, this);
+			SerializationUtils.serializeParam(fileName, this);
 		}catch(Exception i){
-			System.err.println("Serialization Fails at" + filename);
+			System.err.println("Serialization Fails at" + fileName);
 		}
 	}
 	

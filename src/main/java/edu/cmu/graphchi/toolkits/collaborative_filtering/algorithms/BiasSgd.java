@@ -5,6 +5,7 @@ import java.io.FileInputStream;
 import java.io.FileReader;
 import java.io.IOException;
 import java.io.ObjectInputStream;
+import java.nio.file.Paths;
 import java.util.Map;
 import java.util.logging.Logger;
 
@@ -72,7 +73,7 @@ class BiasSgdParams extends ModelParameters {
 	}
 	
     void initParameterValues(DataSetDescription datasetDesc){
-        int size = datasetDesc.getNumUsers() + datasetDesc.getNumItems();
+        int size = datasetDesc.getNumUsers() + datasetDesc.getNumItems() + 1;
         
     	if(!serialized){
         	latentFactors = new HugeDoubleMatrix(size, this.numFactors);
@@ -129,11 +130,11 @@ class BiasSgdParams extends ModelParameters {
 	@Override
 	public void serialize(String dir) {
 	       //TODO: This is not a good way to create a path. Use some library to join into a path
-        String filename = dir + this.id;
+        String fileName = Paths.get(dir, this.id).toString();
 		try{
-			SerializationUtils.serializeParam(filename, this);
+			SerializationUtils.serializeParam(fileName, this);
 		}catch(Exception i){
-			System.err.println("Serialization Fails at" + filename);
+			System.err.println("Serialization Fails at" + fileName);
 		}		
 	}
 	
@@ -151,7 +152,7 @@ class BiasSgdParams extends ModelParameters {
 	
 	@Override
 	public int getEstimatedMemoryUsage(DataSetDescription datasetDesc) {
-	    int size = datasetDesc.getNumUsers() + datasetDesc.getNumItems();
+	    int size = datasetDesc.getNumUsers() + datasetDesc.getNumItems() + 1;
 	    //The memory usage here consists of 2 components.
 	    
 	    //1. The latent factors.

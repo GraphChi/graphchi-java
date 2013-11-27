@@ -277,7 +277,7 @@ public class ApplicationMaster {
           //TODO: Based on GraphChi estimates, set appropriate containerMemory and number of containers.
             DataSetDescription dataDesc = new DataSetDescription();
             dataDesc.loadFromJsonFile(setup.dataMetadataFile);
-            this.recommenders = RecommenderFactory.buildRecommenders(dataDesc, setup.paramFile, null);
+            this.recommenders = RecommenderFactory.buildRecommenders(dataDesc, setup.paramFile, null, setup);
          
             
             return true;

@@ -15,6 +15,7 @@ import org.mortbay.io.RuntimeIOException;
 
 import edu.cmu.graphchi.GraphChiProgram;
 import edu.cmu.graphchi.toolkits.collaborative_filtering.utils.DataSetDescription;
+import edu.cmu.graphchi.toolkits.collaborative_filtering.utils.ProblemSetup;
 import edu.cmu.graphchi.toolkits.collaborative_filtering.utils.SerializationUtils;
 import edu.cmu.graphchi.toolkits.collaborative_filtering.utils.VertexDataCache;
 
@@ -109,7 +110,7 @@ public class RecommenderFactory {
 	}
 	
 	public static List<RecommenderAlgorithm> buildRecommenders(DataSetDescription dataDesc, 
-		String modelDescJsonFile, VertexDataCache vertexDataCache) {
+		String modelDescJsonFile, VertexDataCache vertexDataCache, ProblemSetup setup) {
 		
 		List<Map<String,  String>> modelDescMaps = getRecommederParamsFromJson(modelDescJsonFile);
 		List<RecommenderAlgorithm> recommenders = new ArrayList<RecommenderAlgorithm>();
@@ -152,7 +153,7 @@ public class RecommenderFactory {
 			} else if(modelDescMap.get(MODEL_NAME_KEY).equals(REC_PMF)) {
 				//Build PMF parameters.
 				PMFParameters params = new PMFParameters(id, modelDescMap);
-				recommenders.add(new PMF(dataDesc, params));
+				recommenders.add(new PMF(dataDesc, params, setup.outputLoc));
 			} else if(modelDescMap.get(MODEL_NAME_KEY).equals(REC_LIBFM_SGD)) {
 				//Build a LibFM_SGD recommender. 
 				LibFM_SGDParams params = new LibFM_SGDParams(id, modelDescMap);

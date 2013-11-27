@@ -276,7 +276,7 @@ public class RecommenderPool {
 			
 			//TODO: Do something else for vertex data cache.
 			List<RecommenderAlgorithm> recommenders = RecommenderFactory.buildRecommenders(dataDesc, 
-					problemSetup.paramFile, null);
+					problemSetup.paramFile, null, problemSetup);
 			
 			/*int mem = GraphChiEngine.getEstimatedMemoryUsage(16, 128, 497959, 0, 99072112, 4);
             System.out.println("Expected Mem Usage " + mem);*/

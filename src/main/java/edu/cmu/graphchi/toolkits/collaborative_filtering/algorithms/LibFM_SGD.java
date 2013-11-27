@@ -31,7 +31,7 @@ class LibFM_SGDParams extends ModelParameters  {
 	public static final String LAMBDA_0_KEY = "lambda_0";
 	public static final String LAMBDA_W_KEY = "lambda_w";
 	public static final String LAMBDA_V_KEY = "lambda_v";
-	public static final String NUM_LATENT_FACTORS_KEY = "num_latent_factors";
+	public static final String NUM_LATENT_FACTORS_KEY = "latentFactors";
 	public static final String ETA_KEY = "eta";
 	public static final String INIT_DEV_KEY = "init_dev";
 	
@@ -78,6 +78,7 @@ class LibFM_SGDParams extends ModelParameters  {
 		}
 		if(this.paramsMap.get(LAMBDA_V_KEY) != null) {
 			float lam_v = Float.parseFloat(this.paramsMap.get(LAMBDA_V_KEY));
+			this.lambda_v = new double[this.numFactors];
 			for(int i = 0; i < this.numFactors; i++) {
 				this.lambda_v[i] = lam_v;
 			}
@@ -109,7 +110,7 @@ class LibFM_SGDParams extends ModelParameters  {
 	public void initParameters(DataSetDescription datasetDesc) {
         int numFeatures = datasetDesc.getNumItemFeatures() + 
                 datasetDesc.getNumUserFeatures() + datasetDesc.getNumRatingFeatures() + 
-                datasetDesc.getNumUsers() + datasetDesc.getNumItems();
+                datasetDesc.getNumUsers() + datasetDesc.getNumItems() + 1;
 	    
 		//Parameters. (Should this be stored in memory or should it be stored in the vertex / edge?
 		this.w_0 = 0;									//0-way interactions

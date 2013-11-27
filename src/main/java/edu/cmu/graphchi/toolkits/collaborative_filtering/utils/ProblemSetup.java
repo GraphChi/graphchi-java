@@ -1,5 +1,6 @@
 package edu.cmu.graphchi.toolkits.collaborative_filtering.utils;
 
+import java.nio.file.Paths;
 import java.util.Vector;
 import java.util.logging.Level;
 
@@ -124,7 +125,7 @@ public class ProblemSetup {
         	/*for(int i = 0; i < args.length; i++) {
         		System.out.println(i + ": " + args[i]);
         	}*/
-        	
+            
         	ProblemSetup setup = new ProblemSetup(args);
         	System.out.println(setup.toString());
         	System.out.println(setup.clone());

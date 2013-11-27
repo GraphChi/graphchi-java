@@ -3,6 +3,7 @@ package edu.cmu.graphchi.toolkits.collaborative_filtering.algorithms;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.ObjectInputStream;
+import java.nio.file.Paths;
 import java.util.Map;
 import java.util.logging.Logger;
 
@@ -100,7 +101,7 @@ class ALSParams extends ModelParameters {
 	@Override
 	public void serialize(String dir) {
 	    //TODO: This is not a good way to create a path. Use some library to join into a path
-		String filename = dir + this.id;
+		String filename = Paths.get(dir, this.id).toString();
 		try{
 			SerializationUtils.serializeParam(filename, this);
 		}catch(Exception i){

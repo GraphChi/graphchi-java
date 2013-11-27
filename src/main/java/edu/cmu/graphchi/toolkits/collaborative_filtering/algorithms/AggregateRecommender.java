@@ -163,7 +163,7 @@ public class AggregateRecommender implements
 			
 			//Create recommenders.
 			List<RecommenderAlgorithm> recommenders = RecommenderFactory.buildRecommenders(dataDesc, 
-					problemSetup.paramFile, vertexDataCache);
+					problemSetup.paramFile, vertexDataCache, problemSetup);
 
 			for(RecommenderAlgorithm rec : recommenders) {
 			    System.out.println("Estimated Mem Usage " + rec.getParams().getId() + " - " + rec.getEstimatedMemoryUsage());
@@ -193,7 +193,7 @@ public class AggregateRecommender implements
             engine.setMemoryBudgetMb(pool.getMemoryBudget());
             
             // Run for a lot of iterations. If all recommenders in the pool have converged, then they
-            // the engin will stop.
+            // the engine will stop.
             engine.run(aggRec, 1000);
     
             for(int i = 0; i < aggRec.recPool.getRecommenderPoolSize(); i++) {
@@ -206,6 +206,5 @@ public class AggregateRecommender implements
 			System.exit(2);
 		}
 	}
-	
 	
 }

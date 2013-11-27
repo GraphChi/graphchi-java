@@ -55,7 +55,7 @@ public class PredictTesting {
     	DataSetDescription dataDesc = new DataSetDescription();
     	dataDesc.loadFromJsonFile(problemSetup.dataMetadataFile);
 		List<RecommenderAlgorithm> algosToRun = RecommenderFactory.buildRecommenders(dataDesc, 
-				problemSetup.paramFile, null);
+				problemSetup.paramFile, null, problemSetup);
 		String outputFiles[] = {"./a","./b","./c","./d"};
 		try {
 			PredictTesting.predictOnTest(algosToRun, dataDesc, outputFiles);
