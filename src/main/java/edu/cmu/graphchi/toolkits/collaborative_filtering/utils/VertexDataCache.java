@@ -71,5 +71,23 @@ public class VertexDataCache {
 			return null;
 		}
 	}
+	
+	/**
+	 * 
+	 * @param datasetDesc
+	 * @return
+	 */
+	//TODO: No clue how to implement this? We would need average number of features for each vertex?
+	public static int getEstimatedMemory(DataSetDescription datasetDesc) {
+	    
+	    if((datasetDesc.getUserFeaturesUrl() != null && datasetDesc.getUserFeaturesUrl().length() > 0) ||
+	            (datasetDesc.getItemFeaturesUrl() != null && datasetDesc.getItemFeaturesUrl().length() > 0) ) {
+	    
+	        
+	    }
+	    
+	    
+	    return 0;
+	}
 
 }

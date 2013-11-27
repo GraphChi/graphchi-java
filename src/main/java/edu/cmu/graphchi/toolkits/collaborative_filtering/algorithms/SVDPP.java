@@ -44,6 +44,21 @@ import gov.sandia.cognition.math.matrix.mtj.SparseVector;
 
 class SVDPPParams extends ModelParameters {
 	private static final long serialVersionUID = -363718674763291726L;
+	
+	private static final String NUM_LATENT_FACTORS_KEY = "latentFactors";
+	private static final String MAX_ITERATIONS_KEY = "maxIterations";
+	
+	private static final String ITEM_FACTOR_STEP_KEY = "itemFactorStep";
+	private static final String ITEM_FACTOR_REG_KEY = "itemFactorReg";
+	private static final String USER_FACTOR_STEP_KEY = "userFactorStep";
+	private static final String USER_FACTOR_REG_KEY = "userFactorReg";
+	private static final String ITEM_BIAS_STEP_KEY = "itemBiasStep";
+    private static final String ITEM_BIAS_REG_KEY = "itemBiasReg";
+    private static final String USER_BIAS_STEP_KEY = "userBiasStep";
+    private static final String USER_BIAS_REG_KEY = "userBiasReg";
+    
+    private static final String STEP_DEC_KEY = "stepDec";
+	
 	//Model parameters to be computed
 	
 	// Number of iterations - Stopping condition. 
@@ -51,8 +66,6 @@ class SVDPPParams extends ModelParameters {
 	int maxIterations;
 	
 	//Computed in the first iteration of update functions currently.
-	int numUsers;				//Number of users.
-	int numItems;				//Number of items.
 	double globalMean;			//global mean of all ratings.
 	
 	HugeDoubleMatrix latentFactors;	//latent factors for both users and items (numUsers+numItems) x D
@@ -100,11 +113,45 @@ class SVDPPParams extends ModelParameters {
 	}
 	
 	public void parseParameters() {
-		//TODO: Parse parameters from the json string and set the values
+	    if(this.paramsMap.get(NUM_LATENT_FACTORS_KEY) != null) {
+	        this.numFactors = Integer.parseInt(this.paramsMap.get(NUM_LATENT_FACTORS_KEY));
+	    }
+	    if(this.paramsMap.get(MAX_ITERATIONS_KEY) != null) {
+	        this.maxIterations = Integer.parseInt(this.paramsMap.get(MAX_ITERATIONS_KEY));
+	    }
+	    
+	    //All reg and step.
+	    if(this.paramsMap.get(ITEM_FACTOR_STEP_KEY) != null) {
+	        this.itemFactorStep = Double.parseDouble(this.paramsMap.get(ITEM_FACTOR_STEP_KEY));
+        }
+	    if(this.paramsMap.get(ITEM_FACTOR_REG_KEY) != null) {
+            this.itemFactorReg = Double.parseDouble(this.paramsMap.get(ITEM_FACTOR_REG_KEY));
+        }
+	    if(this.paramsMap.get(USER_FACTOR_STEP_KEY) != null) {
+            this.userFactorStep = Double.parseDouble(this.paramsMap.get(USER_FACTOR_STEP_KEY));
+        }
+        if(this.paramsMap.get(USER_FACTOR_REG_KEY) != null) {
+            this.userFactorReg = Double.parseDouble(this.paramsMap.get(USER_FACTOR_REG_KEY));
+        }
+        if(this.paramsMap.get(ITEM_BIAS_STEP_KEY) != null) {
+            this.itemBiasStep = Double.parseDouble(this.paramsMap.get(ITEM_BIAS_STEP_KEY));
+        }
+        if(this.paramsMap.get(ITEM_FACTOR_REG_KEY) != null) {
+            this.itemBiasStep = Double.parseDouble(this.paramsMap.get(ITEM_BIAS_REG_KEY));
+        }
+        if(this.paramsMap.get(USER_BIAS_STEP_KEY) != null) {
+            this.userBiasStep = Double.parseDouble(this.paramsMap.get(USER_BIAS_STEP_KEY));
+        }
+        if(this.paramsMap.get(USER_BIAS_REG_KEY) != null) {
+            this.userBiasReg = Double.parseDouble(this.paramsMap.get(USER_BIAS_REG_KEY));
+        }
 	}
 
-	public void serializeMM(String dir) {
+	public void serializeMM(String dir, DataSetDescription datasetDesc) {
 		String comment = "Latent factors for SVDPP";
+		int numUsers = datasetDesc.getNumUsers();
+		int numItems = datasetDesc.getNumItems();
+		
 		IO.mmOutputMatrix(dir+"SVDPP_latent_factors.mm" , 0, numUsers + numItems, latentFactors, comment);
 		System.err.println("SerializeOver at "+ dir + "SVDPP_latent_factors.mm");
 		
@@ -118,14 +165,14 @@ class SVDPPParams extends ModelParameters {
 	}
 
 	
-	public void initParameterValues(DataSetDescription dataMetadata) {
+	public void initParameterValues(DataSetDescription datasetDesc) {
+	    int numUsers = datasetDesc.getNumUsers();
+        int numItems = datasetDesc.getNumItems();
 		if(!serialized){
-        	numUsers = dataMetadata.getNumUsers();
-        	numItems = dataMetadata.getNumItems();
-        	latentFactors = new HugeDoubleMatrix(this.numUsers + this.numItems, numFactors);
+        	latentFactors = new HugeDoubleMatrix(numUsers + numItems, numFactors);
         	latentFactors.randomize(0.0, 1.0);
-        	weights = new HugeDoubleMatrix(this.numUsers + this.numItems, numFactors, 0.0);
-        	bias = new ArrayRealVector(this.numUsers + this.numItems);
+        	weights = new HugeDoubleMatrix(numUsers + numItems, numFactors, 0.0);
+        	bias = new ArrayRealVector(numUsers + numItems);
 		}
 	}
 
@@ -153,8 +200,20 @@ class SVDPPParams extends ModelParameters {
 
 	@Override
 	public int getEstimatedMemoryUsage(DataSetDescription datasetDesc) {
-		// TODO Auto-generated method stub
-		return 0;
+	    int size = datasetDesc.getNumUsers() + datasetDesc.getNumItems();
+	    //The memory usage by this model contains following components
+	    int estimatedMemory = 0;
+	    //1. latentFactors
+	    estimatedMemory += HugeDoubleMatrix.getEstimatedMemory(size, this.numFactors);
+	    //2. Weights
+	    estimatedMemory += HugeDoubleMatrix.getEstimatedMemory(size, this.numFactors);
+	    //3. bias
+	    estimatedMemory += (8*size)/(1024*1024);
+	    
+	    //1 MB of slack
+	    estimatedMemory += 1;
+	    
+	    return estimatedMemory;
 	}
 	
 	@Override
@@ -206,8 +265,7 @@ public class SVDPP implements RecommenderAlgorithm {
 	
 	@Override
 	public void update(ChiVertex<Integer, RatingEdge> vertex, GraphChiContext context) {
-		//On first iteration just compute the globalMean, number of users and number of items.
-		//TODO: Is computing these values here the right thing to do?
+		//On first iteration just compute the globalMean.
 		if(this.iterationNum == 0) {
 			if(vertex.numOutEdges() > 0) {
 				double sum = 0;
@@ -215,13 +273,9 @@ public class SVDPP implements RecommenderAlgorithm {
 					sum +=  vertex.getOutEdgeValue(e).observation;
 
 				synchronized (params) {
-					params.numUsers++;
 					params.globalMean += sum;
 				}
 			} else {
-				synchronized (params) {
-					params.numItems++;
-				}
 			}
 			return;
 		}
@@ -404,8 +458,7 @@ public class SVDPP implements RecommenderAlgorithm {
 	
 	@Override
 	public int getEstimatedMemoryUsage() {
-		// TODO Auto-generated method stub
-		return 0;
+		return this.params.getEstimatedMemoryUsage(this.dataSetDescription);
 	}
 
 }

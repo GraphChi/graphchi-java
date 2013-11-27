@@ -48,7 +48,6 @@ class BiasSgdParams extends ModelParameters {
 		parseParameters();
 		
 	}
-
 	
 	public void setDefaults() {
 		this.lambda = 0.1;
@@ -72,11 +71,11 @@ class BiasSgdParams extends ModelParameters {
 		//TODO: Read stopping condition (maxIteration currently from parameter file)
 	}
 	
-    void initParameterValues(long size, int D, DataSetDescription dataMetadata){
+    void initParameterValues(DataSetDescription datasetDesc){
+        int size = datasetDesc.getNumUsers() + datasetDesc.getNumItems();
+        
     	if(!serialized){
-        	numUsers = dataMetadata.getNumUsers();
-        	numItems = dataMetadata.getNumItems();
-        	latentFactors = new HugeDoubleMatrix(size, D);
+        	latentFactors = new HugeDoubleMatrix(size, this.numFactors);
             /* Fill with random data */
             latentFactors.randomize(0.0, 1.0);
             bias = ModelUtils.randomize(size,0.0,1.0);
@@ -152,11 +151,22 @@ class BiasSgdParams extends ModelParameters {
 	
 	@Override
 	public int getEstimatedMemoryUsage(DataSetDescription datasetDesc) {
-		// TODO Auto-generated method stub
-		return 0;
+	    int size = datasetDesc.getNumUsers() + datasetDesc.getNumItems();
+	    //The memory usage here consists of 2 components.
+	    
+	    //1. The latent factors.
+	    int estimatedMemUsage = this.latentFactors.getEstimatedMemory(size, this.numFactors);
+	    
+	    //2. The bias values.
+	    estimatedMemUsage += (size*8)/(1024*1024) + 1;
+	    
+	    //Add 1 MB of slack
+	    estimatedMemUsage += 1;
+	    
+	    return estimatedMemUsage;
 	}
-	
 }
+
 public class BiasSgd implements RecommenderAlgorithm {
 
 	private DataSetDescription dataSetDescription;
@@ -211,7 +221,7 @@ public class BiasSgd implements RecommenderAlgorithm {
 	public void beginIteration(GraphChiContext ctx) {
     	this.train_rmse = 0;
         if (this.iterationNum == 0) {
-        	params.initParameterValues(ctx.getNumVertices(), params.numFactors, dataSetDescription );
+        	params.initParameterValues(dataSetDescription );
         }
 	}
 
@@ -265,8 +275,7 @@ public class BiasSgd implements RecommenderAlgorithm {
 	
 	@Override
 	public int getEstimatedMemoryUsage() {
-		// TODO Auto-generated method stub
-		return 0;
+		return this.params.getEstimatedMemoryUsage(this.dataSetDescription);
 	}
 	
 }

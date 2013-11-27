@@ -35,7 +35,13 @@ import gov.sandia.cognition.statistics.distribution.InverseWishartDistribution;
 
 
 class PMFParameters extends ModelParameters {
-	
+    private static final long serialVersionUID = -1911670561989058906L;
+    
+    public static final String NUM_LATENT_FACTORS_KEY = "latentFactors";
+    public static final String BURN_IN_KEY = "burnIn";
+    public static final String MAX_ITERATIONS_KEY = "maxIterations";
+    public static final String ALPHA_KEY = "alpha";
+    
 	 /* Graphical Model for Bayesian Probabilistic Matrix Factorization.
 	 * From the paper: 
 	 * Salakhutdinov and Mnih, Bayesian Probabilistic Matrix Factorization using Markov Chain Monte Carlo. 
@@ -90,8 +96,8 @@ class PMFParameters extends ModelParameters {
 	RealMatrix sumVVT;	//SUM U_i*U_i'
 	
 	int burnInPeriod;	//the burn in period for Gibbs sampling.
-	int D;				//number of latent features 
-	int maxIterations; //Maximum number of iterations to run this program.
+	int numFactors;		//number of latent features 
+	int maxIterations;  //Maximum number of iterations to run this program.
 	
 	// Contains filenames of all the samples. Note that in PMF, the model is essentially 
 	// all the samples of latent factors that were drawn after the burn-in period.
@@ -106,7 +112,7 @@ class PMFParameters extends ModelParameters {
 	}
 	
 	public void setDefaults() {
-		this.D = 10;
+		this.numFactors = 10;
 		this.burnInPeriod = 5;		
 		this.alpha = 2.0;
 		this.beta0_U = 2.0;
@@ -115,40 +121,51 @@ class PMFParameters extends ModelParameters {
 	}
 	
 	public void parseParameters(Map<String, String> json) {
-		//TODO: Implement parsing json string and setting parameters.
+        if(this.paramsMap.containsKey(NUM_LATENT_FACTORS_KEY)) {
+            this.numFactors = Integer.parseInt(this.paramsMap.get(NUM_LATENT_FACTORS_KEY));
+        }
+        if(this.paramsMap.containsKey(MAX_ITERATIONS_KEY)) {
+            this.maxIterations = Integer.parseInt(this.paramsMap.get(MAX_ITERATIONS_KEY));
+        }
+        if(this.paramsMap.containsKey(BURN_IN_KEY)) {
+            this.burnInPeriod = Integer.parseInt(this.paramsMap.get(BURN_IN_KEY));
+        }
+        if(this.paramsMap.containsKey(ALPHA_KEY)) {
+            this.alpha = Double.parseDouble(this.paramsMap.get(ALPHA_KEY));
+        }
 	}
-	
-	public void initParameters(long numVertices) {
-		
+
+	public void initParameters(DataSetDescription datasetDesc) {
+	    int numVertices = datasetDesc.getNumUsers() + datasetDesc.getNumItems(); 
 		//Inititalize hyperparameters for U
-		this.nu0_U = this.D; //degrees of freedom equal to latent factors
-		this.W0_U = eye(this.D);
-		this.invW0_U = eye(this.D);
-		this.mu0_U = new ArrayRealVector(this.D);
+		this.nu0_U = this.numFactors; //degrees of freedom equal to latent factors
+		this.W0_U = eye(this.numFactors);
+		this.invW0_U = eye(this.numFactors);
+		this.mu0_U = new ArrayRealVector(this.numFactors);
 		
 		//Inititalize hyperparameters for V
-		this.nu0_V = this.D; //degrees of freedom equal to latent factors
-		this.W0_V = eye(this.D);
-		this.invW0_V = eye(this.D);
-		this.mu0_V = new ArrayRealVector(this.D);
+		this.nu0_V = this.numFactors; //degrees of freedom equal to latent factors
+		this.W0_V = eye(this.numFactors);
+		this.invW0_V = eye(this.numFactors);
+		this.mu0_V = new ArrayRealVector(this.numFactors);
 		
 		//Initializing precision for U and V to identity.
-		this.lambda_U = eye(this.D);
-		this.lambda_V = eye(this.D);
+		this.lambda_U = eye(this.numFactors);
+		this.lambda_V = eye(this.numFactors);
 		
 		//Initializing mean for U and V to 0.
-		this.mu_U = new ArrayRealVector(this.D);
-		this.mu_V = new ArrayRealVector(this.D);
+		this.mu_U = new ArrayRealVector(this.numFactors);
+		this.mu_V = new ArrayRealVector(this.numFactors);
 		
 		//Initialize latent factors in memory.
-		this.latentFactors = new HugeDoubleMatrix(numVertices, this.D); 
+		this.latentFactors = new HugeDoubleMatrix(numVertices, this.numFactors); 
 		this.latentFactors.randomize(0, 1);
 		
 		//Initialize sumU, sumUUT, sumV and sumVVT
-		this.sumU = new ArrayRealVector(this.D);
-		this.sumV = new ArrayRealVector(this.D);
-		this.sumUUT = new BlockRealMatrix(this.D, this.D);
-		this.sumVVT = new BlockRealMatrix(this.D, this.D);
+		this.sumU = new ArrayRealVector(this.numFactors);
+		this.sumV = new ArrayRealVector(this.numFactors);
+		this.sumUUT = new BlockRealMatrix(this.numFactors, this.numFactors);
+		this.sumVVT = new BlockRealMatrix(this.numFactors, this.numFactors);
 	}
 
 	//TODO: Move this to utils.
@@ -175,8 +192,8 @@ class PMFParameters extends ModelParameters {
     public double predict(int userId, int itemId, SparseVector userFeatures,
             SparseVector itemFeatures, SparseVector edgeFeatures,
             DataSetDescription datasetDesc) {
-        double[] userData = new double[this.D];
-        double[] itemData = new double[this.D];
+        double[] userData = new double[this.numFactors];
+        double[] itemData = new double[this.numFactors];
         
         this.latentFactors.getRow(userId, userData);
         this.latentFactors.getRow(itemId, userData);
@@ -186,7 +203,7 @@ class PMFParameters extends ModelParameters {
     
     public double predict(double[] u, double[] v, DataSetDescription datasetDesc) {
         double prediction = 0;
-        for(int f = 0; f < this.D; f++) {
+        for(int f = 0; f < this.numFactors; f++) {
             prediction += u[f]*v[f];
         }
         
@@ -199,7 +216,11 @@ class PMFParameters extends ModelParameters {
     @Override
     public int getEstimatedMemoryUsage(DataSetDescription datasetDesc) {
         // TODO Auto-generated method stub
-        return 0;
+        int estimatedMemory = HugeDoubleMatrix.getEstimatedMemory(datasetDesc.getNumUsers(),
+                datasetDesc.getNumItems());
+        //Add 1 Mb of slack (Huge double matrix assigns memory in 1 Mb chunks.)
+        estimatedMemory += 1;
+        return estimatedMemory;
     }
 	
 }
@@ -369,15 +390,15 @@ public class PMF implements RecommenderAlgorithm {
 
 	public void update(ChiVertex<Integer, RatingEdge> vertex, GraphChiContext context) {
 		boolean isUser = vertex.numOutEdges() > 0;
-		double[] nbrPVec = new double[params.D];
+		double[] nbrPVec = new double[params.numFactors];
 		
-		double[] vData = new double[params.D];
+		double[] vData = new double[params.numFactors];
 		params.latentFactors.getRow(vertex.getId(), vData);
 		
 		//Will be updated to store SUM(V_j*R_ij)
-		RealVector Xty = new ArrayRealVector(params.D);
+		RealVector Xty = new ArrayRealVector(params.numFactors);
 		//Will be updated to store SUM(V_j*V_j')
-		RealMatrix XtX = new BlockRealMatrix(params.D, params.D);
+		RealMatrix XtX = new BlockRealMatrix(params.numFactors, params.numFactors);
 		
 		//Gather data to update the mean and the covariance for the hidden features.	
 		for(int i = 0; i < vertex.numEdges(); i++) {
@@ -390,12 +411,12 @@ public class PMF implements RecommenderAlgorithm {
 			
 			//Add V_j*R_ij for this observation.
 			////Xty = Xty.add(nbrVertex.pVec.mapMultiply(observation));
-			for(int f = 0; f < params.D; f++) {
+			for(int f = 0; f < params.numFactors; f++) {
 				double value = Xty.getEntry(f) + nbrPVec[f]*observation;
 				Xty.setEntry(f, value);
 				
 				//Add V_j*V_j' for this
-				for(int f2 = 0; f2 < params.D; f2++) {
+				for(int f2 = 0; f2 < params.numFactors; f2++) {
 					value = XtX.getEntry(f, f2) + nbrPVec[f]*nbrPVec[f2];
 					XtX.setEntry(f, f2, value);
 				}
@@ -461,7 +482,7 @@ public class PMF implements RecommenderAlgorithm {
 	@Override
 	public void beginIteration(GraphChiContext ctx) {
 		if (ctx.getIteration() == 0) {
-     	   params.initParameters(ctx.getNumVertices());
+     	   params.initParameters(this.datasetDesc);
 		}
 		// TODO Auto-generated method stub
 		synchronized (this) {
@@ -526,20 +547,17 @@ public class PMF implements RecommenderAlgorithm {
 
     @Override
     public ModelParameters getParams() {
-        // TODO Auto-generated method stub
-        return null;
+        return this.params;
     }
 
     @Override
     public DataSetDescription getDataSetDescription() {
-        // TODO Auto-generated method stub
-        return null;
+        return this.datasetDesc;
     }
 
     @Override
     public int getEstimatedMemoryUsage() {
-        // TODO Auto-generated method stub
-        return 0;
+        return this.params.getEstimatedMemoryUsage(this.datasetDesc);
     }
 
 }

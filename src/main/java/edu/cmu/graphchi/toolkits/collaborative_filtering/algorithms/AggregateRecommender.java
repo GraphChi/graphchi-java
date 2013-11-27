@@ -156,19 +156,28 @@ public class AggregateRecommender implements
 		
 		try {
 		
-			DataSetDescription dataDesc = new DataSetDescription();
-			dataDesc.loadFromJsonFile(problemSetup.dataMetadataFile);
+			DataSetDescription dataDesc = new DataSetDescription(problemSetup.dataMetadataFile);
 			
+			//Load the vertex data cache
 			VertexDataCache vertexDataCache = VertexDataCache.createVertexDataCache(dataDesc);
+			
+			//Create recommenders.
 			List<RecommenderAlgorithm> recommenders = RecommenderFactory.buildRecommenders(dataDesc, 
 					problemSetup.paramFile, vertexDataCache);
 
+			for(RecommenderAlgorithm rec : recommenders) {
+			    System.out.println("Estimated Mem Usage " + rec.getParams().getId() + " - " + rec.getEstimatedMemoryUsage());
+			}
+			
+			//Create a Pool of Recommenders
 			RecommenderPool pool = new RecommenderPool(dataDesc, recommenders, problemSetup.nShards);
 			
-		    pool.resetPool();
             AggregateRecommender aggRec = new AggregateRecommender(dataDesc, pool);
             aggRec.vertexDataCache = vertexDataCache;
             
+            pool.resetPool();
+            
+            //Preprocess and load datasets.
             FastSharder<Integer, RatingEdge> sharder = pool.createSharder(problemSetup.scratchDir);
             IO.convertMatrixMarket(problemSetup.scratchDir, dataDesc.getRatingsUrl(), pool.getNumShards(), sharder);
             
@@ -182,9 +191,10 @@ public class AggregateRecommender implements
             engine.setModifiesInedges(pool.isMutable()); // Important optimization
             engine.setModifiesOutedges(pool.isMutable()); // Important optimization
             engine.setMemoryBudgetMb(pool.getMemoryBudget());
-            //engine.setMemoryBudgetMb(32);
             
-            engine.run(aggRec, 20);
+            // Run for a lot of iterations. If all recommenders in the pool have converged, then they
+            // the engin will stop.
+            engine.run(aggRec, 1000);
     
             for(int i = 0; i < aggRec.recPool.getRecommenderPoolSize(); i++) {
                 RecommenderAlgorithm rec = aggRec.recPool.getRecommender(i);

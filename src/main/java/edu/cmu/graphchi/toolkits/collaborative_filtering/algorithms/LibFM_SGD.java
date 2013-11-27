@@ -55,21 +55,20 @@ class LibFM_SGDParams extends ModelParameters  {
 	double[] w;		//1-way interactions
 	double[][] v;	//2-way interactions
 
-	int D;			//Number of latent features 
+	int numFactors;			//Number of latent features 
 	
 	public LibFM_SGDParams(String id, Map<String, String> paramsMap) {
 		super(id, paramsMap);
 		
 		setDefaults();
 		
-		//parseJsonParams();
+		parseJsonParams();
 	}
 	
 	private void parseJsonParams() {
-		//TODO: parse stopping condition.
 		
 		if(this.paramsMap.get(NUM_LATENT_FACTORS_KEY) != null) {
-			this.D = Integer.parseInt(this.paramsMap.get(NUM_LATENT_FACTORS_KEY));
+			this.numFactors = Integer.parseInt(this.paramsMap.get(NUM_LATENT_FACTORS_KEY));
 		}
 		if(this.paramsMap.get(LAMBDA_0_KEY) != null) {
 			this.lambda_0 = Float.parseFloat(this.paramsMap.get(LAMBDA_0_KEY));
@@ -79,7 +78,7 @@ class LibFM_SGDParams extends ModelParameters  {
 		}
 		if(this.paramsMap.get(LAMBDA_V_KEY) != null) {
 			float lam_v = Float.parseFloat(this.paramsMap.get(LAMBDA_V_KEY));
-			for(int i = 0; i < this.D; i++) {
+			for(int i = 0; i < this.numFactors; i++) {
 				this.lambda_v[i] = lam_v;
 			}
 		}
@@ -94,11 +93,11 @@ class LibFM_SGDParams extends ModelParameters  {
 	private void setDefaults() {
 		this.maxIterations = 20;
 		
-		this.D = 8;
+		this.numFactors = 8;
 		this.lambda_0 = 0.15;
 		this.lambda_w = 0.15;
-		this.lambda_v = new double[this.D];
-		for(int i = 0; i < this.D; i++) {
+		this.lambda_v = new double[this.numFactors];
+		for(int i = 0; i < this.numFactors; i++) {
 			this.lambda_v[i] = 0.15;
 		}
 
@@ -107,16 +106,21 @@ class LibFM_SGDParams extends ModelParameters  {
 		
 	}
 	
-	public void initParameters(int numFeatures) {
+	public void initParameters(DataSetDescription datasetDesc) {
+        int numFeatures = datasetDesc.getNumItemFeatures() + 
+                datasetDesc.getNumUserFeatures() + datasetDesc.getNumRatingFeatures() + 
+                datasetDesc.getNumUsers() + datasetDesc.getNumItems();
+	    
 		//Parameters. (Should this be stored in memory or should it be stored in the vertex / edge?
 		this.w_0 = 0;									//0-way interactions
 		this.w = new double[numFeatures];			//1-way interactions
-		this.v = new double[numFeatures][this.D];	//2-way interactions
-		
+		this.v = new double[numFeatures][this.numFactors];	//2-way interactions
+
+		//Initialize 2 way interations
 		NormalDistribution  dist = new NormalDistribution(0, 0.1);
 		for(int j = 0; j < numFeatures; j++) {
 			this.w[j] = 0;
-			for(int f = 0; f < this.D; f++) {
+			for(int f = 0; f < this.numFactors; f++) {
 				this.v[j][f] = dist.sample();
 			}
 		}
@@ -163,7 +167,7 @@ class LibFM_SGDParams extends ModelParameters  {
 				double xj = vec.getValue();
 				double[] vj = this.v[j];
 				double dotProd = 0;
-				for(int f = 0; f < this.D; f++) {
+				for(int f = 0; f < this.numFactors; f++) {
 					dotProd += vi[f]*vj[f];
 				}
 				
@@ -233,8 +237,19 @@ class LibFM_SGDParams extends ModelParameters  {
 	
 	@Override
 	public int getEstimatedMemoryUsage(DataSetDescription datasetDesc) {
-		// TODO Auto-generated method stub
-		return 0;
+        int numFeatures = datasetDesc.getNumItemFeatures() + 
+                datasetDesc.getNumUserFeatures() + datasetDesc.getNumRatingFeatures() + 
+                datasetDesc.getNumUsers() + datasetDesc.getNumItems();
+
+        //Compute estimated memory usage.
+        //1 way factors.
+        int estimatedMemoryUsage = 8*numFeatures / (1024*1024) ;
+        //2 way factors.
+        estimatedMemoryUsage += (8*numFeatures*this.numFactors) / (1024*1024);
+        //1 MB Slack
+        estimatedMemoryUsage += 1;
+	    
+		return estimatedMemoryUsage;
 	}
 	
 }
@@ -293,12 +308,12 @@ public class LibFM_SGD  implements RecommenderAlgorithm  {
 
 				//Compute sum vj,f * xj for this observations
 				Iterator<VectorEntry> it = allFeatures.iterator();
-				double[] sum_v_x = new double[this.params.D];
+				double[] sum_v_x = new double[this.params.numFactors];
 				while(it.hasNext()) {
 					VectorEntry vec = it.next();
 					int j = vec.getIndex();
 					double xj = vec.getValue();
-					for(int f = 0; f < this.params.D; f++) {
+					for(int f = 0; f < this.params.numFactors; f++) {
 						sum_v_x[f] += this.params.v[j][f]*xj;
 					}
 				}
@@ -314,7 +329,7 @@ public class LibFM_SGD  implements RecommenderAlgorithm  {
 					this.params.w[j] = this.params.w[j] - this.params.eta*(
 							-2*err*xj + 2*this.params.lambda_w*this.params.w[j]);
 					
-					for(int f = 0; f < this.params.D; f++) {
+					for(int f = 0; f < this.params.numFactors; f++) {
 						double old_vjf_x = this.params.v[j][f]*xj;
 						this.params.v[j][f] = this.params.v[j][f] - this.params.eta*(
 								-2*err *xj*(sum_v_x[f] - this.params.v[j][f]*xj) +
@@ -338,15 +353,7 @@ public class LibFM_SGD  implements RecommenderAlgorithm  {
 	@Override
 	public void beginIteration(GraphChiContext ctx) {
 		if(this.iterationNum == 0) {
-			//On First iteration
-			int numFeatures = this.datasetDesc.getNumItemFeatures() + 
-					this.datasetDesc.getNumUserFeatures() + this.datasetDesc.getNumRatingFeatures();
-
-			int numTotalFeatures = this.datasetDesc.getNumUsers() + this.datasetDesc.getNumItems()
-					+ numFeatures;
-			
-			this.params.initParameters(numTotalFeatures);
-
+			this.params.initParameters(this.datasetDesc);
 		}
 		
 		this.train_rmse = 0;
@@ -404,8 +411,7 @@ public class LibFM_SGD  implements RecommenderAlgorithm  {
 	
 	@Override
 	public int getEstimatedMemoryUsage() {
-		// TODO Auto-generated method stub
-		return 0;
+		return this.params.getEstimatedMemoryUsage(this.datasetDesc);
 	}
 	
 }

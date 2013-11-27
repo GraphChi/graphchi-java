@@ -48,11 +48,11 @@ public class RecommenderPool {
 	
 	private FastSharder sharder;
 	private BytesToValueConverter<RatingEdge> edgeDataConvertor;
-	int numShards;
-    int memoryBudget;
+	private int numShards;
+    private int memoryBudget;
 	
     private boolean isMutable;
-	
+    
 	public RecommenderPool(DataSetDescription  datasetDesc, List<RecommenderAlgorithm> recommenders,
 	        int numShards) {
 	    this.datasetDesc = datasetDesc;
@@ -114,13 +114,13 @@ public class RecommenderPool {
 	    int estimateEngineMemoryUsage;
 	    estimateEngineMemoryUsage = GraphChiEngine.getEstimatedMemoryUsage(numShards, memoryBudget, numVertices, 
 	            vertexSize, numEdges, edgeSize);
+	    int vertexDataCacheMemUsage = VertexDataCache.getEstimatedMemory(datasetDesc);
 	    
 	    int heapMemory = (int)Runtime.getRuntime().maxMemory() / (1024*1024);
 	    
-	    this.maxAvailableMemory = heapMemory - estimateEngineMemoryUsage; 
+	    this.maxAvailableMemory = heapMemory - (estimateEngineMemoryUsage + vertexDataCacheMemUsage); 
 	    
-	    return maxAvailableMemory;
-	    
+	    return this.maxAvailableMemory;
 	}
 	
 	/**

@@ -8,9 +8,9 @@ import edu.cmu.graphchi.toolkits.collaborative_filtering.utils.RatingEdge;
 
 public interface RecommenderAlgorithm extends GraphChiProgram<Integer, RatingEdge> {
 
-	public ModelParameters getParams();
-	
-	public boolean hasConverged(GraphChiContext ctx);
+    public boolean hasConverged(GraphChiContext ctx);
+
+    public ModelParameters getParams();
 	
 	public DataSetDescription getDataSetDescription();
 	
@@ -20,6 +20,5 @@ public interface RecommenderAlgorithm extends GraphChiProgram<Integer, RatingEdg
 	 * @return
 	 */
 	public int getEstimatedMemoryUsage();
-	
 	
 }

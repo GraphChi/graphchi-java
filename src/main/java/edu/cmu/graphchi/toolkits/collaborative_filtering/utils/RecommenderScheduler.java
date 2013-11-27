@@ -5,6 +5,7 @@ import java.util.List;
 
 import org.apache.hadoop.yarn.api.records.Resource;
 
+import edu.cmu.graphchi.engine.GraphChiEngine;
 import edu.cmu.graphchi.toolkits.collaborative_filtering.algorithms.RecommenderAlgorithm;
 
 
@@ -22,11 +23,6 @@ import edu.cmu.graphchi.toolkits.collaborative_filtering.algorithms.RecommenderA
  * @author mayank
  */
 
-/*TODO: Note that currently this scheduler is naive in the sense that it does not take into
- * account a heterogenous set of resources (nodes / GraphChi instances) available with different
- * amounts of memory. In heterogenous case, the splits created might be much more interesting.
- * TODO: Currently, the scheduler has been statically provided number of splits of data to create
- */
 public class RecommenderScheduler {
 	private List<RecommenderAlgorithm> allRecommenders;
 	List<Resource> resources;
@@ -75,6 +71,9 @@ public class RecommenderScheduler {
 	
 	//For testing
 	public static void main(String[] args) {
+	    DataSetDescription dataDesc = new DataSetDescription("/media/sda5/Capstone/Netflix/netflix_mm_desc.json");
+	    
+	    System.out.println();
 	    
 	    
 	}

@@ -63,7 +63,6 @@ class ALSParams extends ModelParameters {
 	int numFactors;	//number of features
 	HugeDoubleMatrix latentFactors;
 	
-	int numUsers, numItems;
 	
 	public ALSParams(String id, Map<String, String> paramsMap) {
 		super(id, paramsMap);
@@ -89,16 +88,14 @@ class ALSParams extends ModelParameters {
 		}
 	}
 	
-    void initParameterValues(long size, int D, DataSetDescription dataMetadata){
-
+    void initParameterValues(DataSetDescription datasetDesc) {
+        int size = datasetDesc.getNumUsers() + datasetDesc.getNumItems();
     	if(!serialized){
-        	numUsers = dataMetadata.getNumUsers();
-        	numItems = dataMetadata.getNumItems();
-    		latentFactors = new HugeDoubleMatrix(size, D);
+    		latentFactors = new HugeDoubleMatrix(size, this.numFactors);
             /* Fill with random data */
             latentFactors.randomize(0.0, 1.0);
-    	}    
-      }
+    	}
+    }
 	
 	@Override
 	public void serialize(String dir) {
@@ -123,9 +120,10 @@ class ALSParams extends ModelParameters {
 	    return params;
 	}
 
-	public void serializeMM(String dir){
+	public void serializeMM(String dir, DataSetDescription datasetDesc){
 		String comment = "Latent factors for ALS";
-		IO.mmOutputMatrix(dir+"ALS_latent_factors_lambda_"+lambda+"_factor_"+numFactors+".mm" , 0, numUsers + numItems, latentFactors, comment);
+		IO.mmOutputMatrix(dir+"ALS_latent_factors_lambda_"+lambda+"_factor_"+numFactors+".mm" , 0, 
+		        datasetDesc.getNumUsers() + datasetDesc.getNumItems(), latentFactors, comment);
 		System.err.println("SerializeOver at "+ dir + "ALS_latent_factors.mm");
 	}
 
@@ -143,11 +141,12 @@ class ALSParams extends ModelParameters {
 	
 	@Override
 	public int getEstimatedMemoryUsage(DataSetDescription datasetDesc) {
-		int estimatedMemory = HugeDoubleMatrix.getEstimatedMemory(datasetDesc.getNumUsers(),
-				datasetDesc.getNumItems());
-		//Add 1 Mb of slack (Huge double matrix assigns memory in 1 Mb chunks.)
-		estimatedMemory += 1;
-		return estimatedMemory;
+	    int size = datasetDesc.getNumUsers() + datasetDesc.getNumItems();
+	    int estimatedMemory = HugeDoubleMatrix.getEstimatedMemory(size, this.numFactors);
+        //Add 1 Mb of slack
+        estimatedMemory += 1;
+        
+        return estimatedMemory;
 	}
 
 }
@@ -236,7 +235,7 @@ public class ALS implements RecommenderAlgorithm {
          */
     	this.train_rmse = 0;
         if (this.iterationNum == 0) {
-        	params.initParameterValues(ctx.getNumVertices(), params.numFactors, dataMetadata);
+        	params.initParameterValues(this.dataMetadata);
         }
     }
 
