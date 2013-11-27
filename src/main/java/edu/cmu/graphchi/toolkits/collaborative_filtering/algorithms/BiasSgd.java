@@ -129,8 +129,7 @@ class BiasSgdParams extends ModelParameters {
 
 	@Override
 	public void serialize(String dir) {
-	       //TODO: This is not a good way to create a path. Use some library to join into a path
-        String fileName = Paths.get(dir, this.id).toString();
+        String fileName = SerializationUtils.createLocationStr(dir, this.id);
 		try{
 			SerializationUtils.serializeParam(fileName, this);
 		}catch(Exception i){

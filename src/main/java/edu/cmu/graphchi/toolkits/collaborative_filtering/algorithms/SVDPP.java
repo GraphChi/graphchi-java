@@ -220,12 +220,12 @@ class SVDPPParams extends ModelParameters {
 	
 	@Override
 	public void serialize(String dir) {
-	    String fileName = Paths.get(dir, id).toString();
+	    String location = SerializationUtils.createLocationStr(dir, this.id);
 	    
         try{
-			SerializationUtils.serializeParam(fileName, this);
+			SerializationUtils.serializeParam(location, this);
 		}catch(Exception i){
-			System.err.println("Serialization Fails at" + fileName);
+			System.err.println("Serialization Fails at" + location);
 		}
 	}
 	

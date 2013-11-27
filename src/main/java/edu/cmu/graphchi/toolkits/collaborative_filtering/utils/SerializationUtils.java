@@ -5,9 +5,14 @@ import java.io.FileOutputStream;
 import java.io.FileReader;
 import java.io.IOException;
 import java.io.ObjectOutputStream;
+import java.io.OutputStream;
+import java.nio.file.Paths;
 
 import org.apache.commons.math.linear.ArrayRealVector;
 import org.apache.commons.math.linear.RealVector;
+import org.apache.hadoop.fs.FSDataOutputStream;
+import org.apache.hadoop.fs.FileSystem;
+import org.apache.hadoop.fs.Path;
 
 import edu.cmu.graphchi.util.HugeDoubleMatrix;
 
@@ -18,14 +23,39 @@ public class SerializationUtils {
 			return true;
 		return false;
 	}
-	public static void serializeParam(String filename, ModelParameters param) throws Exception{
-		FileOutputStream fileOut = new FileOutputStream(filename);
-		ObjectOutputStream out = new ObjectOutputStream(fileOut);
-		out.writeObject(param);
-		out.close();
-		fileOut.close();
-		System.out.printf("Serialized Params is saved in " + filename);
+	
+	public static String createLocationStr(String prefix, String fileName) {
+	    String location = null;
+	    if(prefix.startsWith(IO.HDFS_PREFIX)) {
+	        location = IO.HDFS_PREFIX + Paths.get(prefix.substring(IO.HDFS_PREFIX.length()), fileName);
+	    } else {
+	        location = Paths.get(prefix, fileName).toString();
+	    }
+	    return location;
 	}
+	
+	public static void serializeParam(String location, ModelParameters param) throws Exception {
+	    OutputStream out = null;
+	    if(location.startsWith(IO.HDFS_PREFIX)) {
+	        FileSystem fs = FileSystem.get(IO.getConf());
+	        Path path = new Path(location);
+	        out = fs.create(path);
+	    } else {
+    		out = new FileOutputStream(location);
+	    }
+	    ObjectOutputStream objOut = null;
+	    try {
+	        objOut = new ObjectOutputStream(out);
+	        objOut.writeObject(param);
+	    } finally {
+	        if(objOut != null)
+	            objOut.close();
+	        if(out != null)
+	            out.close();
+	    }
+        System.out.printf("Serialized Params is saved in " + location + "\n");
+	}
+	
 	public static HugeDoubleMatrix deserializeMatrix(String filename) throws IOException{
 		final String delim = "\t";
 		BufferedReader br = new BufferedReader(new FileReader(filename));

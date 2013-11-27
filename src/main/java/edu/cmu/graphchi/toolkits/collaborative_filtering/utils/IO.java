@@ -1,10 +1,12 @@
 package edu.cmu.graphchi.toolkits.collaborative_filtering.utils;
 
+import java.io.BufferedInputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.PrintWriter;
+import java.net.URL;
 import java.util.logging.Logger;
 
 import org.apache.commons.math.linear.RealVector;
@@ -23,6 +25,7 @@ public class IO {
     
     public static final String HDFS_PREFIX = "hdfs://";
     public static final String LOCAL_FS_PREFIX = "file://";
+    public static final String URL_FS_PREFIX = "https://";
     
     public static Configuration getConf() {
         Configuration conf = new Configuration();
@@ -57,6 +60,12 @@ public class IO {
 			} else if (trainingFileLocation.startsWith(LOCAL_FS_PREFIX)) {
 				String path = trainingFileLocation.substring(LOCAL_FS_PREFIX.length());
 				sharder.shard(new FileInputStream(new File(path)), FastSharder.GraphInputFormat.MATRIXMARKET);
+			} else if (trainingFileLocation.startsWith(URL_FS_PREFIX)) {
+			    //Open URL for sharding
+                URL ratingsUrl = new URL(trainingFileLocation);
+                BufferedInputStream inStream = new BufferedInputStream((ratingsUrl.openStream()));
+                sharder.shard(inStream, FastSharder.GraphInputFormat.MATRIXMARKET);
+                
 			} else {
 				
 			}
@@ -116,10 +125,10 @@ public class IO {
             //String hdfsFileLocation = "file:///media/sda5/Capstone/Movielens/ml-100k/working_dir/u.data_tr1.mm";
             //String baseFileLocation = "/media/sda5/Capstone/Movielens/ml-100k/working_dir/u.data_tr1.mm";
             String hdfsFileLocation = "hdfs://localhost:9000/user/hdfs/Movielens/ml-100k/working_dir/u.data_tr1.mm";
-            String baseFileLocation = "/home/mayank/repos/graphchi-java/tmp/abc";
+            String baseFileLocation = "file:///home/mayank/repos/graphchi-java/tmp/abc";
             
-         /*   FastSharder sharder = AggregateRecommender.createSharder(baseFileLocation, 3, 0); 
-            IO.convertMatrixMarket(baseFileLocation, hdfsFileLocation, 3, sharder);*/
+            
+            //IO.convertMatrixMarket(baseFileLocation, hdfsFileLocation, 3, sharder);
         } catch (Exception e) {
             e.printStackTrace();
         }

@@ -23,9 +23,8 @@ public class RecommenderFactory {
 	public static final String MODEL_NAME_KEY = "algorithm";
 	public static final String MODEL_ID_KEY = "id";
 	public static final String DEFAULT_MODEL_ID = "<DEFAULT>";
-
 	
-	private static final DateFormat DF = new SimpleDateFormat("MM-dd-yyyy-HH:mm:ss");
+	private static final DateFormat DF = new SimpleDateFormat("MM-dd-yyyy_HH-mm-ss");
 	
 	public static final String REC_ALS = "ALS";
 	public static final String REC_SVDPP = "SVDPP";
@@ -178,9 +177,9 @@ public class RecommenderFactory {
 				throw new IllegalArgumentException(modelDescMap.get(MODEL_NAME_KEY) + " not found!");
 
 			}
+			count++;
 		}
 		
-		count++;
 		return recommenders;
 		
 	}
