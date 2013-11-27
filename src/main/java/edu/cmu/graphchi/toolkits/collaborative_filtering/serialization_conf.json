@@ -1,0 +1,10 @@
+[
+    {
+        "serializedFile":"/home/shuhaoyu/Documents/CMU_semester_III/Capstone/Capstone_workspace/src/main/java/edu/cmu/graphchi/toolkits/collaborative_filtering/BiasSgd_model_param",
+        "outputFile":"/home/shuhaoyu/Documents/CMU_semester_III/Capstone/Capstone_workspace/src/main/java/edu/cmu/graphchi/toolkits/collaborative_filtering/BiasSgd_prediction.txt"
+    },
+    {
+        "serializedFile":"/home/shuhaoyu/Documents/CMU_semester_III/Capstone/Capstone_workspace/src/main/java/edu/cmu/graphchi/toolkits/collaborative_filtering/ALS_model_param",
+        "outputFile":"/home/shuhaoyu/Documents/CMU_semester_III/Capstone/Capstone_workspace/src/main/java/edu/cmu/graphchi/toolkits/collaborative_filtering/ALS_prediction.txt"
+    }
+]

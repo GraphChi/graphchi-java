@@ -1,18 +1,28 @@
 package edu.cmu.graphchi.toolkits.collaborative_filtering.utils;
 
 import java.io.BufferedReader;
+import java.io.File;
+import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.FileReader;
 import java.io.IOException;
+import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
 
 import org.apache.commons.math.linear.ArrayRealVector;
 import org.apache.commons.math.linear.RealVector;
+import org.codehaus.jackson.map.ObjectMapper;
+import org.codehaus.jackson.map.type.TypeFactory;
+import org.mortbay.io.RuntimeIOException;
 
 import edu.cmu.graphchi.util.HugeDoubleMatrix;
 
 public class SerializationUtils {
 	public static final String SERIALIZED_FILE_KEY = "serializedFile";
+	public static final String OUTPUTFILE_KEY = "outputFile";
 	public static boolean isCommentLine(String line){
 		if(line.charAt(0) == '%')
 			return true;
@@ -68,5 +78,34 @@ public class SerializationUtils {
 		}
 		br.close();
 		return bias;
+	}
+	public static ModelParameters deserialize(String filename) throws IOException, ClassNotFoundException{
+		ModelParameters params = null; 
+	    FileInputStream fileIn = new FileInputStream(filename);
+	    ObjectInputStream in = new ObjectInputStream(fileIn);
+	    params = (ModelParameters) in.readObject();
+	    in.close();
+	    fileIn.close();
+	    params.setSerializedTrue();
+	    return params;
+	}
+	public static List<ModelParametersPrediction> deserializeJSON(String serializeJsonFile){
+		List<ModelParametersPrediction> paramsPredict = new ArrayList<ModelParametersPrediction>();
+		try {
+			ObjectMapper mapper = new ObjectMapper();
+			List<Map<String, String>> models = mapper.readValue(
+					new File(serializeJsonFile), TypeFactory.collectionType(List.class, Map.class));
+			for(Map<String, String> model : models){
+				if(model.containsKey(SERIALIZED_FILE_KEY) && model.containsKey(OUTPUTFILE_KEY)){
+					ModelParameters param = deserialize(model.get(SERIALIZED_FILE_KEY));
+					String outputFile = model.get(OUTPUTFILE_KEY);
+					paramsPredict.add(new ModelParametersPrediction(param,outputFile));
+				}
+			}
+		} catch (Exception e) {
+			e.printStackTrace();
+			throw new RuntimeIOException("Could not parse the model description json file: " + serializeJsonFile); 
+		}
+		return paramsPredict;
 	}
 }
