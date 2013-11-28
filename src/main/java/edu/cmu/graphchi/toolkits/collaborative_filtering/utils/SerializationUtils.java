@@ -27,6 +27,7 @@ import edu.cmu.graphchi.util.HugeDoubleMatrix;
 public class SerializationUtils {
 	public static final String SERIALIZED_FILE_KEY = "serializedFile";
 	public static final String OUTPUTFILE_KEY = "outputFile";
+	public static final String ERROR_MEASURE_KEY = "errorMeasure";
 	public static boolean isCommentLine(String line){
 		if(line.charAt(0) == '%')
 			return true;
@@ -118,6 +119,16 @@ public class SerializationUtils {
 	    params.setSerializedTrue();
 	    return params;
 	}
+	private static ErrorMeasurement getErrorMeasureClass(String errorMeasureString){
+		if(errorMeasureString == null || errorMeasureString.equalsIgnoreCase(("RMSE"))){
+			return new RmseError();
+		}
+		else if(errorMeasureString.equalsIgnoreCase(("MAE"))){
+			return new MaeError();
+		}
+		// Default : RMSE
+		return new RmseError();
+	}
 	public static List<ModelParametersPrediction> deserializeJSON(String serializeJsonFile){
 		List<ModelParametersPrediction> paramsPredict = new ArrayList<ModelParametersPrediction>();
 		try {
@@ -128,7 +139,8 @@ public class SerializationUtils {
 				if(model.containsKey(SERIALIZED_FILE_KEY) && model.containsKey(OUTPUTFILE_KEY)){
 					ModelParameters param = deserialize(model.get(SERIALIZED_FILE_KEY));
 					String outputFile = model.get(OUTPUTFILE_KEY);
-					paramsPredict.add(new ModelParametersPrediction(param,outputFile));
+					ErrorMeasurement errorMeasure = getErrorMeasureClass(model.get(ERROR_MEASURE_KEY));
+					paramsPredict.add(new ModelParametersPrediction(param, errorMeasure, outputFile));
 				}
 			}
 		} catch (Exception e) {

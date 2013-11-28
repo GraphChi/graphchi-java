@@ -13,7 +13,9 @@ import edu.cmu.graphchi.toolkits.collaborative_filtering.utils.ProblemSetup;
 import edu.cmu.graphchi.toolkits.collaborative_filtering.utils.SerializationUtils;
 
 public class PredictTesting {
-	final static String delim = " ";
+	//final static String delim = " ";
+	final static String DELIM = "\\s+";
+	final static String OUTPUT_DELIM = "\t";
 	int numUser;
 	int numItem;
 	String testFilename;
@@ -42,17 +44,22 @@ public class PredictTesting {
 		}
 		
 		while((line = br.readLine()) != null){	//Line by Line of testing file
-			int userId = Integer.parseInt(line.split(delim)[0]);
-			int itemId = Integer.parseInt(line.split(delim)[1]);
+			int userId = Integer.parseInt(line.split(DELIM)[0]);
+			int itemId = Integer.parseInt(line.split(DELIM)[1]);
+			double rating = Double.parseDouble(line.split(DELIM)[2]);
 			int graphChiItemId = itemId +  numUser;
 			for(int i = 0 ; i < modelParams.size(); i++){
 				ModelParameters params = modelParams.get(i).getParams();			
 				double predictedValue = params.predict(userId, graphChiItemId, null, null, null, dataDesc);
-				writers[i].write(userId+delim+itemId+delim+predictedValue + "\n");
+				modelParams.get(i).addErrorInstance(rating, predictedValue);
+				writers[i].write(userId+OUTPUT_DELIM+itemId+OUTPUT_DELIM+predictedValue + "\n");
 			}
 		}
 		br.close();
 		for(int i = 0 ; i < writers.length ; i++){
+			double finalError = modelParams.get(i).getFinalError();
+			System.out.println("Model " + i + " " + modelParams.get(i).getErrorTypeString() 
+					+ " Error: " + finalError);
 			writers[i].close();
 		}
 		return;
