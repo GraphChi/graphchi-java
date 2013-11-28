@@ -80,7 +80,8 @@ public class RecommenderPool {
 		
 		this.edgeDataConvertor = createEdgeDataConvertor();
 		
-		this.maxAvailableMemory = computeMaxAvailableMemory();
+		int heapMemory = (int)Runtime.getRuntime().maxMemory() / (1024*1024);
+		this.maxAvailableMemory = computeMaxAvailableMemory(heapMemory);
 	}
 	
 	private BytesToValueConverter<RatingEdge> createEdgeDataConvertor() {
@@ -98,7 +99,7 @@ public class RecommenderPool {
 	 * of the program
 	 * @return
 	 */
-    public int computeMaxAvailableMemory() {
+    public int computeMaxAvailableMemory(int heapMemory) {
         //TODO: Maybe this should be dynamically chosen based on number of recommenders to run.
 	    this.memoryBudget = 128;
 	    
@@ -116,11 +117,7 @@ public class RecommenderPool {
 	            vertexSize, numEdges, edgeSize);
 	    int vertexDataCacheMemUsage = VertexDataCache.getEstimatedMemory(datasetDesc);
 	    
-	    int heapMemory = (int)Runtime.getRuntime().maxMemory() / (1024*1024);
-	    
-	    this.maxAvailableMemory = heapMemory - (estimateEngineMemoryUsage + vertexDataCacheMemUsage); 
-	    
-	    return this.maxAvailableMemory;
+	    return heapMemory - (estimateEngineMemoryUsage + vertexDataCacheMemUsage); 
 	}
 	
 	/**
@@ -239,10 +236,6 @@ public class RecommenderPool {
 
     public List<RecommenderAlgorithm> getAllRecommenders() {
         return allRecommenders;
-    }
-
-    public int getMaxAvailableMemory() {
-        return maxAvailableMemory;
     }
 
     public int getCurrentMemoryUsed() {

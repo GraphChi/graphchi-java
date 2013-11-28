@@ -3,6 +3,7 @@ package edu.cmu.graphchi.toolkits.collaborative_filtering.utils;
 import java.util.ArrayList;
 import java.util.List;
 
+import org.apache.hadoop.yarn.api.records.Container;
 import org.apache.hadoop.yarn.api.records.Resource;
 
 import edu.cmu.graphchi.engine.GraphChiEngine;
@@ -25,11 +26,11 @@ import edu.cmu.graphchi.toolkits.collaborative_filtering.algorithms.RecommenderA
 
 public class RecommenderScheduler {
 	private List<RecommenderAlgorithm> allRecommenders;
-	List<Resource> resources;
+	List<Container> containers;
 	
-	public RecommenderScheduler(List<Resource> resources, List<RecommenderAlgorithm> recommenders) {
+	public RecommenderScheduler(List<Container> containers, List<RecommenderAlgorithm> recommenders) {
 		this.allRecommenders = recommenders;
-		this.resources = resources;
+		this.containers = containers;
 	}
 	
 	public List<RecommenderPool> splitIntoRecPools(DataSetDescription datasetDesc, int numShards) {
@@ -46,10 +47,17 @@ public class RecommenderScheduler {
 		int count = 0;
 		
 		for(RecommenderAlgorithm rec : allRecommenders) {
-			if (recPools.size() < resources.size()) {
+			if (recPools.size() < containers.size()) {
 			    //Greedily fill all the resources available upto the maximum (less than total available memory)
+			    
+			    //Memory requirement of the new recommender
 			    int mem = rec.getEstimatedMemoryUsage();
-			    if(currMemConsumed + mem < currRecPool.getMaxAvailableMemory()) {
+			    
+			    //Computing max memory available in this container for recommenders.
+			    int currContainerMem = this.containers.get(count).getResource().getMemory();
+			    int maxAvailableMem = currRecPool.computeMaxAvailableMemory(currContainerMem);
+			    
+			    if(currMemConsumed + mem < maxAvailableMem) {
 			        currRecPool.addNewRecommender(rec);
 			        currMemConsumed += mem;
 			    } else 

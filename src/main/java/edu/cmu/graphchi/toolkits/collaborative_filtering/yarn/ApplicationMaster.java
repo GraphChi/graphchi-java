@@ -274,11 +274,9 @@ public class ApplicationMaster {
               + appAttemptID.getApplicationId().getClusterTimestamp()
               + ", attemptId=" + appAttemptID.getAttemptId());
           
-          //TODO: Based on GraphChi estimates, set appropriate containerMemory and number of containers.
             DataSetDescription dataDesc = new DataSetDescription();
             dataDesc.loadFromJsonFile(setup.dataMetadataFile);
             this.recommenders = RecommenderFactory.buildRecommenders(dataDesc, setup.paramFile, null, setup);
-         
             
             return true;
         }
@@ -323,21 +321,26 @@ public class ApplicationMaster {
             .registerApplicationMaster(appMasterHostname, appMasterRpcPort,
                 appMasterTrackingUrl);
     
+        //TODO: Figure out how to do this.
+        //int maxMem = response.getMaximumResourceCapability().getMemory();
         int maxMem = 500;
+        
         LOG.info("Max mem capabililty of resources in this cluster " + maxMem);
         
-        int numTotalNodes = amRMClient.getClusterNodeCount();
-        
+        /*int numTotalNodes = amRMClient.getClusterNodeCount();
+        int numNodes = numTotalNodes;*/
         int numNodes = computeMaxNodesRequired(maxMem);
-        
-        //Ideally, we should ask RM for containers based on the status of the cluster (how many nodes with how
+        LOG.info("Going to request " + numNodes + " containers");
+        //numNodes = numNodes > numTotalNodes ? numTotalNodes : numNodes;
+        // Ideally, we should ask RM for containers based on the status of the cluster (how many nodes with how
         // much memory is available). However, I do not know how to get "cluster state" in Apache YARN (like 
         // google's Omega). 
-        // Hence, current logic is: Based on maxMem (assuming heterogenous?), just ask for all possible containers.
+        // Hence, current logic is: Based on maxMem (assuming homogenous?), just ask for all possible containers.
         // Once some containers are allocated, split the recommenders to these machines and cancel any further 
         // allocated containers.
         for (int i = 0; i < numNodes; ++i) {
             ContainerRequest containerAsk = setupContainerAskForRM(maxMem, requestPriority);
+            LOG.info("CONTAINER ASK: " + containerAsk);
             amRMClient.addContainerRequest(containerAsk);
         }
     
@@ -349,8 +352,9 @@ public class ApplicationMaster {
             try {
                 count++;
                 if(pending && count > 20) {
-                    LOG.info("Allocation of container taking too long. Is there something wrong with container request?");
-                    break;
+                    LOG.info(" Allocation of container taking too long. Is there something wrong " +
+                    		"with container request? Quitting this attempt ");
+                    return false;
                 }
           
                 Thread.sleep(200);
@@ -361,20 +365,16 @@ public class ApplicationMaster {
         
                 if(newContainers.size() > 0) {
                     LOG.info("Allocated " + newContainers.size() + " new containers");
-                    LOG.info("SETUP " + setup);
                     if(pending) {
-                        //If there are pending recommenders, use the container to run the jobs.
-                        List<Resource> resources = new ArrayList<Resource>();
-                        for(Container c : newContainers) {
-                            resources.add(c.getResource());
-                        }
-                        RecommenderScheduler sched = new RecommenderScheduler(resources, recommenders);
+                        RecommenderScheduler sched = new RecommenderScheduler(newContainers, recommenders);
                         DataSetDescription datasetDesc =  new DataSetDescription(this.setup.dataMetadataFile);
                         List<RecommenderPool> recPools = sched.splitIntoRecPools(datasetDesc, setup.nShards);
                         for(int i = 0; i < newContainers.size(); i++) {
                             startContainer(newContainers.get(i), recPools.get(i));
                         }
-                        //Assigned all the GraphChi jobs
+                        // Note that by setting pending = false, here we are essentially using 
+                        // as many containers as RM assigned to us in the first attempt and scheduling
+                        // all our jobs on these containers.
                         pending = false;
                         numTotalContainers = newContainers.size();
                     } else {
