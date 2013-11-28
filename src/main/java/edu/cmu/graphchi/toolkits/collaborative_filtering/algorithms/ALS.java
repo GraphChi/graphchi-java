@@ -100,12 +100,12 @@ class ALSParams extends ModelParameters {
 	
 	@Override
 	public void serialize(String dir) {
-	    //TODO: This is not a good way to create a path. Use some library to join into a path
-		String filename = Paths.get(dir, this.id).toString();
+		String location = SerializationUtils.createLocationStr(dir, this.id);
 		try{
-			SerializationUtils.serializeParam(filename, this);
-		}catch(Exception i){
-			System.err.println("Serialization Fails at" + filename);
+			SerializationUtils.serializeParam(location, this);
+		}catch(Exception e){
+			System.err.println(" Failed to serialize object at " + location);
+			e.printStackTrace();
 		}
 	}
 

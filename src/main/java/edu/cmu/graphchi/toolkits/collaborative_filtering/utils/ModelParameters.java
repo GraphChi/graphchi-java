@@ -1,9 +1,11 @@
 package edu.cmu.graphchi.toolkits.collaborative_filtering.utils;
 
+import gov.sandia.cognition.math.matrix.mtj.SparseVector;
+
 import java.io.Serializable;
 import java.util.Map;
+
 import org.codehaus.jackson.map.ObjectMapper;
-import gov.sandia.cognition.math.matrix.mtj.SparseVector;
 
 public abstract class ModelParameters implements Serializable{
 

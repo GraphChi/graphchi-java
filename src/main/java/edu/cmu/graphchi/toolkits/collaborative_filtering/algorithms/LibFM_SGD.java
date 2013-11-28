@@ -13,6 +13,7 @@ import edu.cmu.graphchi.engine.VertexInterval;
 import edu.cmu.graphchi.toolkits.collaborative_filtering.utils.DataSetDescription;
 import edu.cmu.graphchi.toolkits.collaborative_filtering.utils.ModelParameters;
 import edu.cmu.graphchi.toolkits.collaborative_filtering.utils.RatingEdge;
+import edu.cmu.graphchi.toolkits.collaborative_filtering.utils.SerializationUtils;
 import edu.cmu.graphchi.toolkits.collaborative_filtering.utils.VertexDataCache;
 import gov.sandia.cognition.math.matrix.VectorEntry;
 import gov.sandia.cognition.math.matrix.mtj.SparseVector;
@@ -129,8 +130,12 @@ class LibFM_SGDParams extends ModelParameters  {
 
 	@Override
 	public void serialize(String dir) {
-		// TODO Auto-generated method stub
-		
+	    String location = SerializationUtils.createLocationStr(dir, this.id);
+        try{
+            SerializationUtils.serializeParam(location, this);
+        }catch(Exception i){
+            System.err.println(" Failed to serialize object at " + location);
+        }
 	}
 
 

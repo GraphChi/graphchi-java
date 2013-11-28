@@ -16,9 +16,11 @@ public class InputDataReaderFactory {
 			return new HDFSInputDataReader(datasetDesc);
 		} else if (datasetDesc.getRatingsUrl().startsWith(IO.LOCAL_FS_PREFIX)) {
 			return new FileInputDataReader(datasetDesc);
-		} else {
-			return null;
-		}
+		} else if (datasetDesc.getRatingsUrl().startsWith(IO.URL_FS_PREFIX)) {
+            return new URLFileInputDataReader(datasetDesc);
+        } else {
+            throw new NoSuchFieldError();
+        }
 		
 	}
 	

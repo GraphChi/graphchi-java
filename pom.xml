@@ -89,6 +89,11 @@
 			<artifactId>gov-sandia-cognition-learning-core</artifactId>
 			<version>3.3.3</version>
 		</dependency>
+		<dependency>
+            <groupId>com.amazonaws</groupId>
+            <artifactId>aws-java-sdk</artifactId>
+            <version>1.6.7</version>
+        </dependency>
     </dependencies>
  
   	<build>

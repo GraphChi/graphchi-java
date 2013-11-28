@@ -180,7 +180,7 @@ class PMFParameters extends ModelParameters {
 
 	@Override
 	public void serialize(String dir) {
-        String fileName = Paths.get(dir, id).toString();
+        String fileName = SerializationUtils.createLocationStr(dir, this.id);
         serialize(dir, fileName);
 	}
 	
@@ -503,7 +503,9 @@ public class PMF implements RecommenderAlgorithm {
 	    
 	    if(this.iterationNum > this.params.burnInPeriod){
 	        //Save the parameters.
-	        this.params.serialize(this.outputLoc, this.params.getId() + "_iter_" + this.iterationNum);
+	        String location = SerializationUtils.createLocationStr(this.outputLoc, 
+	                this.params.getId() + "_iter_" + this.iterationNum);
+	        this.params.serialize(this.outputLoc, location);
 	    }
 	    
 	    this.train_rmse = Math.sqrt(this.train_rmse / (1.0 * ctx.getNumEdges()));
