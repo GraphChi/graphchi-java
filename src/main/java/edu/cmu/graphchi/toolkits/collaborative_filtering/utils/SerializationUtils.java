@@ -36,9 +36,19 @@ public class SerializationUtils {
 	public static String createLocationStr(String prefix, String fileName) {
 	    String location = null;
 	    if(prefix.startsWith(IO.HDFS_PREFIX)) {
-	        location = IO.HDFS_PREFIX + Paths.get(prefix.substring(IO.HDFS_PREFIX.length()), fileName);
+	        String suffix = prefix.substring(IO.HDFS_PREFIX.length()) + "/" + fileName;
+	        suffix = suffix.replaceAll("/{2,}", "/");
+	        location = IO.HDFS_PREFIX + suffix;
 	    } else {
-	        location = Paths.get(prefix, fileName).toString();
+	        if(prefix.contains("//")) {
+	            String prePreFix = prefix.split("//")[0] + "//";
+	            String suffix = prefix.split("//")[1] + "/" + fileName;
+	            suffix = suffix.replaceAll("/{2,}", "/");
+	            location = prePreFix + suffix;
+	        } else {
+	            location = prefix + "/" + fileName;
+	            location = location.replaceAll("/{2,}", "/");
+	        }
 	    }
 	    return location;
 	}
@@ -87,6 +97,7 @@ public class SerializationUtils {
 		br.close();
 		return latentFactors;
 	}
+	
 	public static RealVector deserializeVector(String filename) throws IOException{
 		final String delim = "\t";
 		BufferedReader br = new BufferedReader(new FileReader(filename));
@@ -108,6 +119,7 @@ public class SerializationUtils {
 		br.close();
 		return bias;
 	}
+	
 	public static ModelParameters deserialize(String filename) throws IOException, ClassNotFoundException{
 		ModelParameters params = null; 
 	    FileInputStream fileIn = new FileInputStream(filename);
@@ -118,6 +130,7 @@ public class SerializationUtils {
 	    params.setSerializedTrue();
 	    return params;
 	}
+
 	public static List<ModelParametersPrediction> deserializeJSON(String serializeJsonFile){
 		List<ModelParametersPrediction> paramsPredict = new ArrayList<ModelParametersPrediction>();
 		try {
@@ -137,4 +150,21 @@ public class SerializationUtils {
 		}
 		return paramsPredict;
 	}
+
+	public static void main(String[] args) {
+	    String prefix = "hdfs://abcd/";
+	    String suffix = "/bgd/asdas";
+	    
+	    System.out.println(createLocationStr(prefix, suffix));
+	    
+	    prefix = "file://abcd/";
+        suffix = "/bgd/asdas";
+        System.out.println(createLocationStr(prefix, suffix));
+        
+        prefix = "foo:///abcd/";
+        suffix = "/bgd/asdas";
+        System.out.println(createLocationStr(prefix, suffix));
+	    
+	}
+	
 }
