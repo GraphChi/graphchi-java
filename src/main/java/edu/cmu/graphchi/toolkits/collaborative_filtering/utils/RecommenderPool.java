@@ -40,10 +40,12 @@ public class RecommenderPool {
 	//Ids (indices in the allRecommender's list) which are pending.
 	private Set<Integer> activeRecommenders;
 
-	//Maximum available memory for the place where this pool is going to run.
+	//Total Memory available to this pool. This will generally be equal to total heap size.
+	private int totalMemory;	
+	//Maximum available memory available after subtraccting the GraphChiEngine overhead
 	private int maxAvailableMemory;
 	
-	//Current memory used by active recommenders.
+    //Current memory used by active recommenders.
 	private int currentMemoryUsed;
 	
 	private FastSharder sharder;
@@ -54,8 +56,9 @@ public class RecommenderPool {
     private boolean isMutable;
     
 	public RecommenderPool(DataSetDescription  datasetDesc, List<RecommenderAlgorithm> recommenders,
-	        int numShards) {
+	        int numShards, int totalMemory) {
 	    this.datasetDesc = datasetDesc;
+	    this.totalMemory = totalMemory;
 	    
 	    if(numShards > 0) {
             this.numShards = numShards;
@@ -80,11 +83,10 @@ public class RecommenderPool {
 		
 		this.edgeDataConvertor = createEdgeDataConvertor();
 		
-		int heapMemory = (int)Runtime.getRuntime().maxMemory() / (1024*1024);
-		this.maxAvailableMemory = computeMaxAvailableMemory(heapMemory);
+		this.maxAvailableMemory = computeMaxAvailableMemory(totalMemory);
 	}
 	
-	private BytesToValueConverter<RatingEdge> createEdgeDataConvertor() {
+    private BytesToValueConverter<RatingEdge> createEdgeDataConvertor() {
 	    if(edgeDataConvertor == null) {
 	        this.edgeDataConvertor = new RatingEdgeConvertor(this.datasetDesc.getNumRatingFeatures());
 	    }
@@ -99,7 +101,7 @@ public class RecommenderPool {
 	 * of the program
 	 * @return
 	 */
-    public int computeMaxAvailableMemory(int heapMemory) {
+    private int computeMaxAvailableMemory(int heapMemory) {
         //TODO: Maybe this should be dynamically chosen based on number of recommenders to run.
 	    this.memoryBudget = 128;
 	    
@@ -238,10 +240,6 @@ public class RecommenderPool {
         return allRecommenders;
     }
 
-    public int getCurrentMemoryUsed() {
-        return currentMemoryUsed;
-    }
-
     public FastSharder getSharder() {
         return sharder;
     }
@@ -256,6 +254,53 @@ public class RecommenderPool {
 
     public int getMemoryBudget() {
         return memoryBudget;
+    }
+    
+    public int getMaxAvailableMemory() {
+        return maxAvailableMemory;
+    }
+    
+    public int getTotalMemory() {
+        return totalMemory;
+    }
+    
+    @Override
+    public int hashCode() {
+        final int prime = 31;
+        int result = 1;
+        result = prime * result
+                + ((allRecommenders == null) ? 0 : allRecommenders.hashCode());
+        result = prime * result
+                + ((datasetDesc == null) ? 0 : datasetDesc.hashCode());
+        result = prime * result + numShards;
+        result = prime * result + totalMemory;
+        return result;
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj)
+            return true;
+        if (obj == null)
+            return false;
+        if (getClass() != obj.getClass())
+            return false;
+        RecommenderPool other = (RecommenderPool) obj;
+        if (allRecommenders == null) {
+            if (other.allRecommenders != null)
+                return false;
+        } else if (!allRecommenders.equals(other.allRecommenders))
+            return false;
+        if (datasetDesc == null) {
+            if (other.datasetDesc != null)
+                return false;
+        } else if (!datasetDesc.equals(other.datasetDesc))
+            return false;
+        if (numShards != other.numShards)
+            return false;
+        if (totalMemory != other.totalMemory)
+            return false;
+        return true;
     }
 	
 	//For testing purpose only

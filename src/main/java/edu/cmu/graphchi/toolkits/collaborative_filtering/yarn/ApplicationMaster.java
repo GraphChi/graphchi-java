@@ -24,6 +24,8 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -67,10 +69,14 @@ import org.apache.hadoop.yarn.api.records.FinalApplicationStatus;
 import org.apache.hadoop.yarn.api.records.LocalResource;
 import org.apache.hadoop.yarn.api.records.LocalResourceType;
 import org.apache.hadoop.yarn.api.records.LocalResourceVisibility;
+import org.apache.hadoop.yarn.api.records.NodeId;
+import org.apache.hadoop.yarn.api.records.NodeReport;
+import org.apache.hadoop.yarn.api.records.NodeState;
 import org.apache.hadoop.yarn.api.records.Priority;
 import org.apache.hadoop.yarn.api.records.Resource;
 import org.apache.hadoop.yarn.api.records.ResourceRequest;
 import org.apache.hadoop.yarn.client.api.AMRMClient;
+import org.apache.hadoop.yarn.client.api.YarnClient;
 import org.apache.hadoop.yarn.client.api.AMRMClient.ContainerRequest;
 import org.apache.hadoop.yarn.client.api.async.NMClientAsync;
 import org.apache.hadoop.yarn.client.api.async.impl.NMClientAsyncImpl;
@@ -158,6 +164,9 @@ public class ApplicationMaster {
     // Configuration
     private Configuration conf;
     
+    //YARN Client
+    YarnClient yarnClient;
+    
     private AMRMClient<ContainerRequest> amRMClient;
     
     // Handle to communicate with the Node Manager
@@ -186,6 +195,10 @@ public class ApplicationMaster {
     
     // Counter for completed containers ( complete denotes successful or failed )
     private AtomicInteger numCompletedContainers = new AtomicInteger();
+    
+    // Counter for completed containers ( complete denotes successful or failed )
+    private AtomicInteger numAllocatedContainers = new AtomicInteger();
+    
     // Count of failed containers
     private AtomicInteger numFailedContainers = new AtomicInteger();
      
@@ -246,7 +259,10 @@ public class ApplicationMaster {
     public boolean init(String[] args) throws ParseException, IOException {
         LOG.info("Inside Init");
         this.setup = new ProblemSetup(args);
-          
+        Configuration conf = new YarnConfiguration();
+        this.yarnClient = YarnClient.createYarnClient();
+        yarnClient.init(conf);
+        
         Map<String, String> envs = System.getenv();
           
         ContainerId containerId = ConverterUtils.toContainerId(envs
@@ -289,6 +305,7 @@ public class ApplicationMaster {
      */
     @SuppressWarnings({ "unchecked" })
     public boolean run() throws YarnException, IOException {
+        yarnClient.start();
         LOG.info("Starting ApplicationMaster");
     
         Credentials credentials =
@@ -322,68 +339,82 @@ public class ApplicationMaster {
                 appMasterTrackingUrl);
     
         //TODO: Figure out how to do this.
-        //int maxMem = response.getMaximumResourceCapability().getMemory();
-        int maxMem = 500;
+        List<NodeReport> reports = this.yarnClient.getNodeReports();
+        LOG.info("Cluster Status");
+        List<Resource> availableResources = new ArrayList<Resource>();
+        for(NodeReport nr : reports) {
+            LOG.info("    NodeId: " + nr.getNodeId() + " Capabilities " + nr.getCapability()
+                    + " Used Resources " + nr.getUsed());
+            int availableMem = nr.getCapability().getMemory() - nr.getUsed().getMemory();
+            int availableVCores = nr.getCapability().getVirtualCores() - nr.getUsed().getVirtualCores();
+            Resource resource = Resource.newInstance(availableMem, availableVCores);
+            
+            availableResources.add(resource);
+        }
+
+        /*Based on available resources scheduler should decide the best allocation of recommenders to resources
+        and return a list of resources that should be requested from the ResourceManager*/
+        DataSetDescription datasetDesc =  new DataSetDescription(this.setup.dataMetadataFile);
+        List<RecommenderPool> recommenderPools =  RecommenderScheduler.splitRecommenderPool(availableResources, recommenders, datasetDesc, this.setup.nShards);
         
-        LOG.info("Max mem capabililty of resources in this cluster " + maxMem);
-        
-        /*int numTotalNodes = amRMClient.getClusterNodeCount();
-        int numNodes = numTotalNodes;*/
-        int numNodes = computeMaxNodesRequired(maxMem);
-        LOG.info("Going to request " + numNodes + " containers");
-        //numNodes = numNodes > numTotalNodes ? numTotalNodes : numNodes;
-        // Ideally, we should ask RM for containers based on the status of the cluster (how many nodes with how
-        // much memory is available). However, I do not know how to get "cluster state" in Apache YARN (like 
-        // google's Omega). 
-        // Hence, current logic is: Based on maxMem (assuming homogenous?), just ask for all possible containers.
-        // Once some containers are allocated, split the recommenders to these machines and cancel any further 
-        // allocated containers.
-        for (int i = 0; i < numNodes; ++i) {
-            ContainerRequest containerAsk = setupContainerAskForRM(maxMem, requestPriority);
+        for (RecommenderPool res : recommenderPools) {
+            ContainerRequest containerAsk = setupContainerAskForRM(res.getTotalMemory(), requestPriority);
             LOG.info("CONTAINER ASK: " + containerAsk);
             amRMClient.addContainerRequest(containerAsk);
         }
     
         float progress = 0;
-        boolean pending = true;
-        this.numTotalContainers = -1;
-        int count = 0;
+        
+        List<RecommenderPool> pendingPools = new ArrayList<RecommenderPool>();
+        for(RecommenderPool p : recommenderPools)
+            pendingPools.add(p);
+        
+        this.numTotalContainers = recommenderPools.size();
+        this.numCompletedContainers.set(0);
+        this.numAllocatedContainers.set(0);
+        
         while (numCompletedContainers.get() != numTotalContainers) {
             try {
-                count++;
-                if(pending && count > 20) {
-                    LOG.info(" Allocation of container taking too long. Is there something wrong " +
-                    		"with container request? Quitting this attempt ");
-                    return false;
-                }
-          
                 Thread.sleep(200);
           
                 AllocateResponse allocResp = amRMClient.allocate(progress);
                 List<Container> newContainers = allocResp.getAllocatedContainers();
                 List<ContainerStatus> completedContainers = allocResp.getCompletedContainersStatuses();
+                
+                if(this.numAllocatedContainers.get() >= this.numTotalContainers && pendingPools.size() != 0) {
+                    //Ask for new containers for pending pools
+                    LOG.warn("The number of allocated containers has exceeded number of total containers, but " +
+                    		"the pending pool size is still not 0. Asking for new containers from RM");
+                    for (RecommenderPool res : pendingPools) {
+                        ContainerRequest containerAsk = setupContainerAskForRM(res.getTotalMemory(), requestPriority);
+                        LOG.info("NEW CONTAINER ASK: " + containerAsk);
+                        amRMClient.addContainerRequest(containerAsk);
+                    }
+                    
+                }
         
                 if(newContainers.size() > 0) {
                     LOG.info("Allocated " + newContainers.size() + " new containers");
-                    if(pending) {
-                        RecommenderScheduler sched = new RecommenderScheduler(newContainers, recommenders);
-                        DataSetDescription datasetDesc =  new DataSetDescription(this.setup.dataMetadataFile);
-                        List<RecommenderPool> recPools = sched.splitIntoRecPools(datasetDesc, setup.nShards);
-                        for(int i = 0; i < newContainers.size(); i++) {
-                            startContainer(newContainers.get(i), recPools.get(i));
+                    numAllocatedContainers.addAndGet(newContainers.size());
+                    for(Container container : newContainers) {
+                        //Find matching recommender pool from pendingRecommender pools.
+                        RecommenderPool pool = null;
+                        for(RecommenderPool p : pendingPools) {
+                            if(p.getTotalMemory() == container.getResource().getMemory()) {
+                                pool = p;
+                                break;
+                            }
                         }
-                        // Note that by setting pending = false, here we are essentially using 
-                        // as many containers as RM assigned to us in the first attempt and scheduling
-                        // all our jobs on these containers.
-                        pending = false;
-                        numTotalContainers = newContainers.size();
-                    } else {
-                        //Release these containers as no longer required.
-                        for(Container c : newContainers) {
-                            LOG.info("Releasing extra " + newContainers.size() + " new containers");
-                            amRMClient.releaseAssignedContainer(c.getId());
+                        if(pool == null) {
+                            LOG.warn("No Takers for Container " + container + " Releasing container");
+                            amRMClient.releaseAssignedContainer(container.getId());
+                        } else {
+                            startContainer(container, pool);
+                            //This pool has now got a container. Remove it from pending pools
+                            pendingPools.remove(pool);
                         }
                     }
+
                 }
               
                 onContainersCompleted(completedContainers);
@@ -393,16 +424,6 @@ public class ApplicationMaster {
         finish();
         
         return success;
-    }
-    
-    private int computeMaxNodesRequired(int maxMem) {
-        int totalMemRequirement = 0;
-        
-        for(RecommenderAlgorithm rec : this.recommenders) {
-            totalMemRequirement += rec.getEstimatedMemoryUsage();
-        }
-        
-        return (int)Math.ceil((double)totalMemRequirement/maxMem);
     }
     
     @VisibleForTesting

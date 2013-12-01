@@ -124,7 +124,7 @@ def create_hosts_file(slave_instances, master_instance, user="ec2-user"):
     
     with open("./slaves", "w") as slaves_file:
         for ins in slave_instances:
-            slaves_file.write(ins.public_dns_name + "\n")
+            slaves_file.write(ins.private_ip_address + "\n")
     env.host_string = master_instance.public_dns_name
     local("scp slaves yarn@" + master_instance.public_dns_name + ":" 
         + HADOOP_CONF_DIR + "/slaves")

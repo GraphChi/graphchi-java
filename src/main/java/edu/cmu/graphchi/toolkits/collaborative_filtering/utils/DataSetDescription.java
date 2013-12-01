@@ -16,7 +16,8 @@ import org.codehaus.jackson.map.ObjectMapper;
  */
 
 public class DataSetDescription {
-	public static final String BASE_FILE_PATH = "baseFilePath";
+
+    public static final String BASE_FILE_PATH = "baseFilePath";
 	
 	public static final String RATINGS_LOCATION = "ratingsUrl";
 	public static final String USER_FEATURE_LOCATION = "userFeaturesUrl";
@@ -284,6 +285,92 @@ public class DataSetDescription {
 		this.numValRatings = numValRatings;
 	}
 
+	@Override
+    public int hashCode() {
+        final int prime = 31;
+        int result = 1;
+        result = prime * result
+                + ((itemFeaturesUrl == null) ? 0 : itemFeaturesUrl.hashCode());
+        result = prime * result + Float.floatToIntBits(maxval);
+        long temp;
+        temp = Double.doubleToLongBits(meanRating);
+        result = prime * result + (int) (temp ^ (temp >>> 32));
+        result = prime * result + Float.floatToIntBits(minval);
+        result = prime * result + numItemFeatures;
+        result = prime * result + numItems;
+        result = prime * result + numRatingFeatures;
+        result = prime * result + (int) (numRatings ^ (numRatings >>> 32));
+        result = prime * result + numUserFeatures;
+        result = prime * result + numUsers;
+        result = prime * result
+                + (int) (numValRatings ^ (numValRatings >>> 32));
+        result = prime * result
+                + ((ratingsUrl == null) ? 0 : ratingsUrl.hashCode());
+        result = prime * result
+                + ((testingUrl == null) ? 0 : testingUrl.hashCode());
+        result = prime * result
+                + ((userFeaturesUrl == null) ? 0 : userFeaturesUrl.hashCode());
+        result = prime * result
+                + ((validationUrl == null) ? 0 : validationUrl.hashCode());
+        return result;
+    }
 
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj)
+            return true;
+        if (obj == null)
+            return false;
+        if (getClass() != obj.getClass())
+            return false;
+        DataSetDescription other = (DataSetDescription) obj;
+        if (itemFeaturesUrl == null) {
+            if (other.itemFeaturesUrl != null)
+                return false;
+        } else if (!itemFeaturesUrl.equals(other.itemFeaturesUrl))
+            return false;
+        if (Float.floatToIntBits(maxval) != Float.floatToIntBits(other.maxval))
+            return false;
+        if (Double.doubleToLongBits(meanRating) != Double
+                .doubleToLongBits(other.meanRating))
+            return false;
+        if (Float.floatToIntBits(minval) != Float.floatToIntBits(other.minval))
+            return false;
+        if (numItemFeatures != other.numItemFeatures)
+            return false;
+        if (numItems != other.numItems)
+            return false;
+        if (numRatingFeatures != other.numRatingFeatures)
+            return false;
+        if (numRatings != other.numRatings)
+            return false;
+        if (numUserFeatures != other.numUserFeatures)
+            return false;
+        if (numUsers != other.numUsers)
+            return false;
+        if (numValRatings != other.numValRatings)
+            return false;
+        if (ratingsUrl == null) {
+            if (other.ratingsUrl != null)
+                return false;
+        } else if (!ratingsUrl.equals(other.ratingsUrl))
+            return false;
+        if (testingUrl == null) {
+            if (other.testingUrl != null)
+                return false;
+        } else if (!testingUrl.equals(other.testingUrl))
+            return false;
+        if (userFeaturesUrl == null) {
+            if (other.userFeaturesUrl != null)
+                return false;
+        } else if (!userFeaturesUrl.equals(other.userFeaturesUrl))
+            return false;
+        if (validationUrl == null) {
+            if (other.validationUrl != null)
+                return false;
+        } else if (!validationUrl.equals(other.validationUrl))
+            return false;
+        return true;
+    }
 	
 }

@@ -1,9 +1,13 @@
 package edu.cmu.graphchi.toolkits.collaborative_filtering.utils;
 
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
 import org.apache.hadoop.yarn.api.records.Container;
+import org.apache.hadoop.yarn.api.records.NodeId;
 import org.apache.hadoop.yarn.api.records.Resource;
 
 import edu.cmu.graphchi.engine.GraphChiEngine;
@@ -33,57 +37,53 @@ public class RecommenderScheduler {
 		this.containers = containers;
 	}
 	
-	public List<RecommenderPool> splitIntoRecPools(DataSetDescription datasetDesc, int numShards) {
-		// Current Naive algorithm: Assume all resources are equal and 
-	    // greedily divide into pools proportional to number of resources
-	    // available in the list of resources. 
-	    // The correct solution to this problem is essentially a bin packing problem.
-	    
-		int currMemConsumed = 0;
-		List<RecommenderPool> recPools = new ArrayList<RecommenderPool>();
-		RecommenderPool currRecPool = new RecommenderPool(datasetDesc, null, numShards);
-		recPools.add(currRecPool);
-		
-		int count = 0;
-		
-		for(RecommenderAlgorithm rec : allRecommenders) {
-			if (recPools.size() < containers.size()) {
-			    //Greedily fill all the resources available upto the maximum (less than total available memory)
-			    
-			    //Memory requirement of the new recommender
-			    int mem = rec.getEstimatedMemoryUsage();
-			    
-			    //Computing max memory available in this container for recommenders.
-			    int currContainerMem = this.containers.get(count).getResource().getMemory();
-			    int maxAvailableMem = currRecPool.computeMaxAvailableMemory(currContainerMem);
-			    
-			    if(currMemConsumed + mem < maxAvailableMem) {
-			        currRecPool.addNewRecommender(rec);
-			        currMemConsumed += mem;
-			    } else 
-			        currRecPool = new RecommenderPool(datasetDesc, null, numShards);
-				    currRecPool.addNewRecommender(rec);
-				    recPools.add(currRecPool);
-				    currMemConsumed = mem;
-			} else {
-			    //All the resources are filled up to their limit. Now for the remaining jobs,
-			    //just add to each pool one by one.
-			    recPools.get(count%recPools.size()).addNewRecommender(rec);
-			}
-			count++;
-		}
-		
-		return recPools;
-	}
-	
-	
 	//For testing
 	public static void main(String[] args) {
 	    DataSetDescription dataDesc = new DataSetDescription("/media/sda5/Capstone/Netflix/netflix_mm_desc.json");
 	    
 	    System.out.println();
-	    
-	    
 	}
+
+    public static List<RecommenderPool> splitRecommenderPool(
+            List<Resource> availableResourcesInNodes,
+            List<RecommenderAlgorithm> recommenders,
+            DataSetDescription datasetDesc, int nShards) {
+        // Current Naive algorithm: Assume all resources are equal and 
+        // greedily divide into pools proportional to number of resources
+        // available in the list of resources. 
+        // The correct solution to this problem is essentially a bin packing problem.
+        
+        List<RecommenderPool> recPools = new ArrayList<RecommenderPool>();
+        List<RecommenderAlgorithm> pendingRec = new ArrayList<RecommenderAlgorithm>();
+        for(RecommenderAlgorithm rec : recommenders)
+            pendingRec.add(rec);
+        
+        for(Resource r : availableResourcesInNodes) {
+            if (pendingRec.size() < 1) {
+                break;
+            }
+            
+            int currMemConsumed = 0;
+            RecommenderPool recPool = new RecommenderPool(datasetDesc, null, nShards, r.getMemory());
+            int maxAvailableMem = recPool.getMaxAvailableMemory();
+            //Greedily fill the recommender pool according to available resources
+            for(RecommenderAlgorithm rec : pendingRec){
+                if(currMemConsumed + rec.getEstimatedMemoryUsage() < maxAvailableMem) {
+                    recPool.addNewRecommender(rec);
+                    currMemConsumed += rec.getEstimatedMemoryUsage();
+                }
+            }
+            
+            //TODO: There is not equals method implemented in RecommenderAlgorithms. But the reference should 
+            //match for RecommenderAlgorithm in recPool and pendingRec and hence this should work ok.
+            if(recPool.getAllRecommenders().size() > 0) {
+                pendingRec.removeAll(recPool.getAllRecommenders());
+                recPools.add(recPool);
+            }
+            
+        }
+        
+        return recPools;
+    }
 	
 }

@@ -18,13 +18,9 @@ import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.classification.InterfaceAudience;
 import org.apache.hadoop.classification.InterfaceStability;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.fs.FileStatus;
-import org.apache.hadoop.fs.FileSystem;
-import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.io.DataOutputBuffer;
 import org.apache.hadoop.security.Credentials;
 import org.apache.hadoop.security.UserGroupInformation;
-import org.apache.hadoop.security.token.Token;
 import org.apache.hadoop.yarn.api.ApplicationClientProtocol;
 import org.apache.hadoop.yarn.api.ApplicationConstants;
 import org.apache.hadoop.yarn.api.ApplicationConstants.Environment;
@@ -36,8 +32,6 @@ import org.apache.hadoop.yarn.api.records.ApplicationSubmissionContext;
 import org.apache.hadoop.yarn.api.records.ContainerLaunchContext;
 import org.apache.hadoop.yarn.api.records.FinalApplicationStatus;
 import org.apache.hadoop.yarn.api.records.LocalResource;
-import org.apache.hadoop.yarn.api.records.LocalResourceType;
-import org.apache.hadoop.yarn.api.records.LocalResourceVisibility;
 import org.apache.hadoop.yarn.api.records.NodeReport;
 import org.apache.hadoop.yarn.api.records.NodeState;
 import org.apache.hadoop.yarn.api.records.Priority;
@@ -51,7 +45,6 @@ import org.apache.hadoop.yarn.client.api.YarnClient;
 import org.apache.hadoop.yarn.client.api.YarnClientApplication;
 import org.apache.hadoop.yarn.conf.YarnConfiguration;
 import org.apache.hadoop.yarn.exceptions.YarnException;
-import org.apache.hadoop.yarn.util.ConverterUtils;
 import org.apache.hadoop.yarn.util.Records;
 
 import edu.cmu.graphchi.toolkits.collaborative_filtering.utils.ExtendedGnuParser;
@@ -104,7 +97,7 @@ public class Client {
     // Queue for App master
     private String amQueue = "";
     // Amt. of memory resource to request for to run the App Master
-    private int amMemory = 100; 
+    private int amMemory; 
 
     // Application master jar file
     private String appMasterJar = ""; 
@@ -113,9 +106,6 @@ public class Client {
 
     // Args to be passed to the shell command
     private String shellArgs = "";
-
-    // Amt of memory to request for container in which shell script will be executed
-    private int containerMemory = 10; 
 
     // log4j.properties file 
     // if available, add to local resources and set into classpath 
@@ -228,7 +218,7 @@ public class Client {
         appName = cliParser.getOptionValue("appname", "GraphChiProgram");
         amPriority = Integer.parseInt(cliParser.getOptionValue("priority", "0"));
         amQueue = cliParser.getOptionValue("queue", "default");
-        amMemory = Integer.parseInt(cliParser.getOptionValue("master_memory", "100"));		
+        amMemory = Integer.parseInt(cliParser.getOptionValue("master_memory", "1024"));		
 
         if (amMemory < 0) {
             throw new IllegalArgumentException("Invalid memory specified for application master, exiting."
@@ -246,8 +236,6 @@ public class Client {
             System.out.println(shellArgs);
         }
     
-        containerMemory = Integer.parseInt(cliParser.getOptionValue("container_memory", "10"));
-
         clientTimeout = Integer.parseInt(cliParser.getOptionValue("timeout", "600000"));
 
         log4jPropFile = cliParser.getOptionValue("log_properties", "");
