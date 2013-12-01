@@ -158,13 +158,15 @@ public class ALS implements RecommenderAlgorithm {
 	ALSParams params;
 	protected Logger logger = ChiLogger.getLogger("ALS");
     double train_rmse = 0.0;
+    String outputLoc;
     
     int iterationNum;
     
-    public ALS(DataSetDescription dataMetadata, ModelParameters params) {
+    public ALS(DataSetDescription dataMetadata, ModelParameters params, String outputLoc) {
     	this.dataMetadata = dataMetadata;
     	this.params = (ALSParams)params;
     	this.iterationNum = 0;
+    	this.outputLoc = outputLoc;
     }
 
     
@@ -282,6 +284,12 @@ public class ALS implements RecommenderAlgorithm {
 	@Override
 	public int getEstimatedMemoryUsage() {
 		return this.params.getEstimatedMemoryUsage(this.dataMetadata);
+	}
+
+
+	@Override
+	public String getSerializedOutputLoc() {
+		return outputLoc;
 	}
 
 }

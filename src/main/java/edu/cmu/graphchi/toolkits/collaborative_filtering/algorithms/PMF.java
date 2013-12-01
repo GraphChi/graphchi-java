@@ -572,6 +572,12 @@ public class PMF implements RecommenderAlgorithm {
         return this.params.getEstimatedMemoryUsage(this.datasetDesc);
     }
 
+	@Override
+	public String getSerializedOutputLoc() {
+		// TODO Auto-generated method stub
+		return null;
+	}
+
 }
 
 class PMFRatingEdge extends RatingEdge {

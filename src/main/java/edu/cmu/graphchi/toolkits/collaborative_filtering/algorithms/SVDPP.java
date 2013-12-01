@@ -246,6 +246,7 @@ class SVDPPParams extends ModelParameters {
 public class SVDPP implements RecommenderAlgorithm {
 	SVDPPParams params;
 	DataSetDescription dataSetDescription;
+	String outputLoc;
 	
 	protected Logger logger = ChiLogger.getLogger("SVDPP");
 	
@@ -253,10 +254,11 @@ public class SVDPP implements RecommenderAlgorithm {
 	
 	int iterationNum;
 	
-	public SVDPP(DataSetDescription datasetDesc, ModelParameters parameters) {
+	public SVDPP(DataSetDescription datasetDesc, ModelParameters parameters, String outputLoc) {
 		//Initialize the model parameters
 		this.params = (SVDPPParams)parameters;
 		this.dataSetDescription = datasetDesc;
+		this.outputLoc = outputLoc;
 		
 		//metadataMap contains global information computed by sharder?
 		this.train_rmse = 0;
@@ -442,7 +444,6 @@ public class SVDPP implements RecommenderAlgorithm {
 	
 	@Override
 	public ModelParameters getParams() {
-		// TODO Auto-generated method stub
 		return this.params;
 	}
 
@@ -453,13 +454,17 @@ public class SVDPP implements RecommenderAlgorithm {
 
 	@Override
 	public DataSetDescription getDataSetDescription() {
-		// TODO Auto-generated method stub
 		return this.dataSetDescription;
 	}
 	
 	@Override
 	public int getEstimatedMemoryUsage() {
 		return this.params.getEstimatedMemoryUsage(this.dataSetDescription);
+	}
+
+	@Override
+	public String getSerializedOutputLoc() {
+		return outputLoc;
 	}
 
 }

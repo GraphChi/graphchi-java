@@ -1,5 +1,6 @@
 package edu.cmu.graphchi.toolkits.collaborative_filtering.algorithms;
 
+import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
@@ -64,6 +65,9 @@ public class AggregateRecommender implements
 		for(int i : this.activeRecommenderIds) {
 			RecommenderAlgorithm rec = this.recPool.getRecommender(i);
 			rec.endIteration(ctx);
+			if( ctx.getIteration() % 5 == 1){
+				rec.getParams().serialize(rec.getSerializedOutputLoc());
+			}
 			
 			if(rec.hasConverged(ctx)) {
 				//Mark this recommender
@@ -71,7 +75,8 @@ public class AggregateRecommender implements
 				//Compute the validation error
 				try {
 					double validationRMSE = 0;
-					if(this.datasetDesc.getValidationUrl() != null) {
+					String validationDir = (new File(this.datasetDesc.getValidationUrl())).getParent();
+					if(this.datasetDesc.getValidationUrl() != null && validationDir != null) {
 			        	DataSetDescription valDataDesc = new DataSetDescription();
 			        	valDataDesc.setRatingsUrl(this.datasetDesc.getValidationUrl());
 			        	InputDataReader reader = InputDataReaderFactory.createInputDataReader(valDataDesc);
@@ -201,7 +206,7 @@ public class AggregateRecommender implements
             
             // Run for a lot of iterations. If all recommenders in the pool have converged, then they
             // the engine will stop.
-            engine.run(aggRec, 1000);
+            engine.run(aggRec, 100);
     
             for(int i = 0; i < aggRec.recPool.getRecommenderPoolSize(); i++) {
                 RecommenderAlgorithm rec = aggRec.recPool.getRecommender(i);

@@ -173,13 +173,15 @@ public class BiasSgd implements RecommenderAlgorithm {
 	private BiasSgdParams params;
 	protected Logger logger = ChiLogger.getLogger("BiasSGD");
     double train_rmse = 0.0;
+    String outputLoc;
     
     int iterationNum ;
     
-    public BiasSgd(DataSetDescription dataSetDescription , ModelParameters params) {
+    public BiasSgd(DataSetDescription dataSetDescription , ModelParameters params, String outputLoc) {
     	this.dataSetDescription = dataSetDescription;
     	this.params = (BiasSgdParams)params;
     	this.iterationNum = 0;
+    	this.outputLoc = outputLoc;
     }
 	//@Override
 	public void update(ChiVertex<Integer, RatingEdge> vertex,
@@ -276,6 +278,10 @@ public class BiasSgd implements RecommenderAlgorithm {
 	@Override
 	public int getEstimatedMemoryUsage() {
 		return this.params.getEstimatedMemoryUsage(this.dataSetDescription);
+	}
+	@Override
+	public String getSerializedOutputLoc() {
+		return outputLoc;
 	}
 	
 }

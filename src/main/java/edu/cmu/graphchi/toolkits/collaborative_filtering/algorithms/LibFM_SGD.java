@@ -263,6 +263,7 @@ class LibFM_SGDParams extends ModelParameters  {
 public class LibFM_SGD  implements RecommenderAlgorithm  {
 	DataSetDescription datasetDesc;
 	LibFM_SGDParams  params;
+	String outputLoc;
 	
 	//Contains data about user and item features. Currently this is held in memory.
 	VertexDataCache vertexDataCache = null;
@@ -274,11 +275,12 @@ public class LibFM_SGD  implements RecommenderAlgorithm  {
 	//Train RMSE
 	double train_rmse;
 	
-	public LibFM_SGD(DataSetDescription dataDesc, ModelParameters par) {
+	public LibFM_SGD(DataSetDescription dataDesc, ModelParameters par, String outputLoc) {
 		this.params = (LibFM_SGDParams)par;
 		this.datasetDesc = dataDesc;
 		
 		this.iterationNum = 0;
+		this.outputLoc = outputLoc;
 	}
 	
 	@Override
@@ -418,6 +420,11 @@ public class LibFM_SGD  implements RecommenderAlgorithm  {
 	@Override
 	public int getEstimatedMemoryUsage() {
 		return this.params.getEstimatedMemoryUsage(this.datasetDesc);
+	}
+
+	@Override
+	public String getSerializedOutputLoc() {
+		return outputLoc;
 	}
 	
 }

@@ -1,7 +1,6 @@
 package edu.cmu.graphchi.toolkits.collaborative_filtering.algorithms;
 
 import java.io.File;
-import java.io.IOException;
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
@@ -13,7 +12,6 @@ import org.codehaus.jackson.map.ObjectMapper;
 import org.codehaus.jackson.map.type.TypeFactory;
 import org.mortbay.io.RuntimeIOException;
 
-import edu.cmu.graphchi.GraphChiProgram;
 import edu.cmu.graphchi.toolkits.collaborative_filtering.utils.DataSetDescription;
 import edu.cmu.graphchi.toolkits.collaborative_filtering.utils.ProblemSetup;
 import edu.cmu.graphchi.toolkits.collaborative_filtering.utils.SerializationUtils;
@@ -43,8 +41,7 @@ public class RecommenderFactory {
 		List<Map<String,  String>> modelDescMaps = getRecommederParamsFromJson(modelDescJsonFile);
 		
 		List<RecommenderAlgorithm> recommenders = new ArrayList<RecommenderAlgorithm>();
-		
-		int count = 1;
+
 		
 		for(Map<String, String> modelDescMap : modelDescMaps) {
 			
@@ -63,7 +60,7 @@ public class RecommenderFactory {
 				else{
 					continue;
 				}
-				recommenders.add(new ALS(dataDesc, params));
+				recommenders.add(new ALS(dataDesc, params, null));
 			} else if(modelDescMap.get(MODEL_NAME_KEY).equals(REC_SVDPP)) {
 				//Build a SVDPP recommender engine
 				SVDPPParams params;
@@ -78,7 +75,7 @@ public class RecommenderFactory {
 				else{
 					continue;
 				}
-				recommenders.add(new SVDPP(dataDesc, params));
+				recommenders.add(new SVDPP(dataDesc, params, null));
 			} else if(modelDescMap.get(MODEL_NAME_KEY).equals(REC_PMF)) {
 				//Build PMF parameters.
 				/*PMFParameters params = new PMFParameters(modelDescMap.get(MODEL_ID_KEY), modelDescMap.get(MODEL_PARAM_JSON_KEY));
@@ -97,13 +94,12 @@ public class RecommenderFactory {
 				else{
 					continue;
 				}
-				recommenders.add(new BiasSgd(dataDesc, params));
+				recommenders.add(new BiasSgd(dataDesc, params, null));
 			} else {			
 				//No model by the given name found.
 			}
 		}
-		
-		count++;
+			
 		return recommenders;
 		
 	}
@@ -133,7 +129,7 @@ public class RecommenderFactory {
 				else{
 					params = new ALSParams(id, modelDescMap);
 				}
-				recommenders.add(new ALS(dataDesc, params));
+				recommenders.add(new ALS(dataDesc, params, setup.outputLoc));
 			} else if(modelDescMap.get(MODEL_NAME_KEY).equals(REC_SVDPP)) {
 				//Build a SVDPP recommender engine
 				SVDPPParams params;
@@ -148,7 +144,7 @@ public class RecommenderFactory {
 				else{
 					params = new SVDPPParams(id, modelDescMap);
 				}
-				recommenders.add(new SVDPP(dataDesc, params));
+				recommenders.add(new SVDPP(dataDesc, params, setup.outputLoc));
 			} else if(modelDescMap.get(MODEL_NAME_KEY).equals(REC_PMF)) {
 				//Build PMF parameters.
 				PMFParameters params = new PMFParameters(id, modelDescMap);
@@ -156,7 +152,7 @@ public class RecommenderFactory {
 			} else if(modelDescMap.get(MODEL_NAME_KEY).equals(REC_LIBFM_SGD)) {
 				//Build a LibFM_SGD recommender. 
 				LibFM_SGDParams params = new LibFM_SGDParams(id, modelDescMap);
-				LibFM_SGD rec = new LibFM_SGD(dataDesc, params);
+				LibFM_SGD rec = new LibFM_SGD(dataDesc, params, setup.outputLoc);
 				rec.vertexDataCache = vertexDataCache;
 				recommenders.add(rec);				
 			} else if(modelDescMap.get(MODEL_NAME_KEY).equals(REC_BIAS_SGD)){
@@ -172,7 +168,7 @@ public class RecommenderFactory {
 				else{
 					params = new BiasSgdParams(id, modelDescMap);
 				}
-				recommenders.add(new BiasSgd(dataDesc, params));
+				recommenders.add(new BiasSgd(dataDesc, params, setup.outputLoc));
 			} else {			
 				throw new IllegalArgumentException(modelDescMap.get(MODEL_NAME_KEY) + " not found!");
 
