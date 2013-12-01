@@ -170,7 +170,14 @@ public class AggregateRecommender implements
 			}
 			
 			//Create a Pool of Recommenders
-			RecommenderPool pool = new RecommenderPool(dataDesc, recommenders, problemSetup.nShards);
+			int heapMemory = (int)Runtime.getRuntime().maxMemory() / (1024*1024);
+			RecommenderPool pool = new RecommenderPool(dataDesc, recommenders, problemSetup.nShards, heapMemory);
+			
+			int engineMem = GraphChiEngine.getEstimatedMemoryUsage(pool.getNumShards(), pool.getMemoryBudget(), 
+                    dataDesc.getNumUsers() + dataDesc.getNumItems(), 0, dataDesc.getNumRatings(), 
+                    pool.getEdgeDataConvertor().sizeOf());
+			System.out.println("Estimated engine memory = " + engineMem);
+			
 			
             AggregateRecommender aggRec = new AggregateRecommender(dataDesc, pool);
             aggRec.vertexDataCache = vertexDataCache;
