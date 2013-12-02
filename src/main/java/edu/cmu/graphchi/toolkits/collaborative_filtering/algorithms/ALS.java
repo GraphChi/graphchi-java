@@ -56,6 +56,7 @@ class ALSParams extends ModelParameters {
 	private static final long serialVersionUID = 6384331093067321704L;
 	private static final String LAMBDA_KEY = "regularization";
 	private static final String NUM_LATENT_FACTORS_KEY = "num_latent_factors";
+	private static final String MAX_ITERATIONS_KEY = "maxIterations";
 	
 	double lambda;	//regularization
 	// Number of iterations - Stopping condition. 
@@ -87,6 +88,9 @@ class ALSParams extends ModelParameters {
 		if(this.paramsMap.containsKey(NUM_LATENT_FACTORS_KEY)) {
 			this.numFactors = Integer.parseInt(this.paramsMap.get(NUM_LATENT_FACTORS_KEY));
 		}
+	    if(this.paramsMap.containsKey(MAX_ITERATIONS_KEY)) {
+	        this.maxIterations = Integer.parseInt(this.paramsMap.get(MAX_ITERATIONS_KEY));
+	    }
 	}
 	
     void initParameterValues(DataSetDescription datasetDesc) {

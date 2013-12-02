@@ -5,7 +5,6 @@ import java.io.FileInputStream;
 import java.io.FileReader;
 import java.io.IOException;
 import java.io.ObjectInputStream;
-import java.nio.file.Paths;
 import java.util.Map;
 import java.util.logging.Logger;
 
@@ -27,11 +26,14 @@ import gov.sandia.cognition.math.matrix.mtj.SparseVector;
 
 class BiasSgdParams extends ModelParameters {
 	private static final long serialVersionUID = -5531511598859363016L;
-	private static final String LAMBDA_KEY = "regularization";
-	private static final String NUM_LATENT_FACTORS_KEY = "num_latent_factors";
+	private static final String BIAS_REG_KEY = "bias_reg";
+	private static final String FACTOR_REG_KEY = "factor_reg";
+	private static final String NUM_LATENT_FACTORS_KEY = "latentFactors";
 	private static final String STEP_SIZE_KEY = "step_size";
+	private static final String MAX_ITERATIONS_KEY = "maxIterations";
 	
-	double lambda;	//regularization
+	double biasReg;	//bias regularization
+	double factorReg;  //factor regularization
 	double stepSize; //step size for gradient descent
 	// Number of iterations - Stopping condition. 
 	int maxIterations;
@@ -51,25 +53,30 @@ class BiasSgdParams extends ModelParameters {
 	}
 	
 	public void setDefaults() {
-		this.lambda = 0.1;
+		this.biasReg = 0.001;
+		this.factorReg = 0.06;
 		this.numFactors = 10;
-		this.stepSize = 0.001;
+		this.stepSize = 0.005;
 		
 		this.maxIterations = 20;
 	}
 	
 	public void parseParameters() {
-		if(this.paramsMap.containsKey(LAMBDA_KEY)) {
-			this.lambda = Double.parseDouble(this.paramsMap.get(LAMBDA_KEY));
+		if(this.paramsMap.containsKey(BIAS_REG_KEY)) {
+			this.biasReg = Double.parseDouble(this.paramsMap.get(BIAS_REG_KEY));
 		}
+		if(this.paramsMap.containsKey(FACTOR_REG_KEY)) {
+            this.factorReg = Double.parseDouble(this.paramsMap.get(FACTOR_REG_KEY));
+        }
 		if(this.paramsMap.containsKey(NUM_LATENT_FACTORS_KEY)) {
 			this.numFactors = Integer.parseInt(this.paramsMap.get(NUM_LATENT_FACTORS_KEY));
 		}
 		if(this.paramsMap.containsKey(STEP_SIZE_KEY)) {
 			this.stepSize = Double.parseDouble(this.paramsMap.get(STEP_SIZE_KEY));
 		}
-		
-		//TODO: Read stopping condition (maxIteration currently from parameter file)
+		if(this.paramsMap.containsKey(MAX_ITERATIONS_KEY)) {
+            this.maxIterations = Integer.parseInt(this.paramsMap.get(MAX_ITERATIONS_KEY));
+        }
 	}
 	
     void initParameterValues(DataSetDescription datasetDesc){
@@ -84,7 +91,7 @@ class BiasSgdParams extends ModelParameters {
       }
 	
 	public void serializeMM(String dir) {
-		String paramString = "lambda_"+lambda+"_factor_"+numFactors+"_stepSize_"+stepSize;
+		String paramString = "lambda_"+biasReg+"_factor_"+numFactors+"_stepSize_"+stepSize;
 		String comment = "Latent factors for BiasSGD";		
 		IO.mmOutputMatrix(dir+"BiasSGD_latent_factors_"+paramString+".mm" , 0, numUsers + numItems, latentFactors, comment);
 		System.err.println("SerializeOver at "+ dir+"BiasSGD_latent_factors_"+paramString+".mm");
@@ -200,17 +207,17 @@ public class BiasSgd implements RecommenderAlgorithm {
 				double error = observation - estimatedRating;
 				squaredError += Math.pow(error,2);
 				params.bias.setEntry(userId, params.bias.getEntry(userId)
-						+ params.stepSize*(error - params.lambda * params.bias.getEntry(userId)));
+						+ params.stepSize*(error - params.biasReg * params.bias.getEntry(userId)));
 				params.bias.setEntry(itemId, params.bias.getEntry(itemId)
-						+ params.stepSize*(error - params.lambda * params.bias.getEntry(itemId)));
+						+ params.stepSize*(error - params.biasReg * params.bias.getEntry(itemId)));
 				RealVector itemFactor = params.latentFactors.getRowAsVector(itemId);
 				params.latentFactors.setRow(userId, 
 						userFactor.add(
-						(itemFactor.mapMultiply(error).subtract(userFactor.mapMultiply(params.lambda))).mapMultiply(params.stepSize))
+						(itemFactor.mapMultiply(error).subtract(userFactor.mapMultiply(params.factorReg))).mapMultiply(params.stepSize))
 						.getData());
 				params.latentFactors.setRow(itemId,
 						itemFactor.add(
-						(userFactor.mapMultiply(error).subtract(itemFactor.mapMultiply(params.lambda))).mapMultiply(params.stepSize))
+						(userFactor.mapMultiply(error).subtract(itemFactor.mapMultiply(params.factorReg))).mapMultiply(params.stepSize))
 						.getData());
 			}
      	   synchronized (this) {

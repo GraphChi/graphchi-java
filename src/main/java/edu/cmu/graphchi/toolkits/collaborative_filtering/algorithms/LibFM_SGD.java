@@ -29,12 +29,15 @@ import gov.sandia.cognition.math.matrix.mtj.SparseVectorFactoryMTJ;
  */
 
 class LibFM_SGDParams extends ModelParameters  {
-	public static final String LAMBDA_0_KEY = "lambda_0";
+    private static final long serialVersionUID = 1L;
+    
+    public static final String LAMBDA_0_KEY = "lambda_0";
 	public static final String LAMBDA_W_KEY = "lambda_w";
 	public static final String LAMBDA_V_KEY = "lambda_v";
 	public static final String NUM_LATENT_FACTORS_KEY = "latentFactors";
 	public static final String ETA_KEY = "eta";
 	public static final String INIT_DEV_KEY = "init_dev";
+	private static final String MAX_ITERATIONS_KEY = "maxIterations";
 	
 	// Number of iterations - Stopping condition. 
 	//TODO: Note that may be we can have a better stopping condition based on change in training RMSE.  
@@ -67,7 +70,9 @@ class LibFM_SGDParams extends ModelParameters  {
 	}
 	
 	private void parseJsonParams() {
-		
+	    if(this.paramsMap.containsKey(MAX_ITERATIONS_KEY)) {
+	       this.maxIterations = Integer.parseInt(this.paramsMap.get(MAX_ITERATIONS_KEY));
+	    }
 		if(this.paramsMap.get(NUM_LATENT_FACTORS_KEY) != null) {
 			this.numFactors = Integer.parseInt(this.paramsMap.get(NUM_LATENT_FACTORS_KEY));
 		}

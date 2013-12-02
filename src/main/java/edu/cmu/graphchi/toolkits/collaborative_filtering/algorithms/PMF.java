@@ -2,7 +2,6 @@ package edu.cmu.graphchi.toolkits.collaborative_filtering.algorithms;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.nio.file.Paths;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
@@ -574,8 +573,7 @@ public class PMF implements RecommenderAlgorithm {
 
 	@Override
 	public String getSerializedOutputLoc() {
-		// TODO Auto-generated method stub
-		return null;
+	    return this.outputLoc;
 	}
 
 }
