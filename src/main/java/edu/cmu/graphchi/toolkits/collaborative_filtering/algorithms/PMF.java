@@ -2,6 +2,7 @@ package edu.cmu.graphchi.toolkits.collaborative_filtering.algorithms;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
@@ -102,6 +103,9 @@ class PMFParameters extends ModelParameters {
 	// Contains filenames of all the samples. Note that in PMF, the model is essentially 
 	// all the samples of latent factors that were drawn after the burn-in period.
 	List<String> sampleFileNames;
+	// Contains all the latent factor samples. All the samples will be loaded into memory only for testing
+	// or validations
+	List<PMFParameters> allSampleParams;
 	
 	public PMFParameters(String id, Map<String, String> paramsMap) {
 		super(id, paramsMap);
@@ -109,6 +113,8 @@ class PMFParameters extends ModelParameters {
 		setDefaults();
 		
 		parseParameters(paramsMap);
+		
+		this.sampleFileNames = new ArrayList<String>();
 	}
 	
 	public void setDefaults() {
@@ -195,13 +201,32 @@ class PMFParameters extends ModelParameters {
     public double predict(int userId, int itemId, SparseVector userFeatures,
             SparseVector itemFeatures, SparseVector edgeFeatures,
             DataSetDescription datasetDesc) {
+        
+        if(this.sampleFileNames != null && this.allSampleParams == null) {
+            System.err.println("Going to load all parameters which will be used for prediction");
+            this.allSampleParams = new ArrayList<PMFParameters>();
+            try {
+                for(String fileName : this.sampleFileNames) {
+                    PMFParameters params = (PMFParameters)SerializationUtils.deserialize(fileName);
+                    this.allSampleParams.add(params);
+                }
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }
+        
         double[] userData = new double[this.numFactors];
         double[] itemData = new double[this.numFactors];
+
+        double sumPred = 0;
+        for(PMFParameters latFact : this.allSampleParams) {
+            latFact.latentFactors.getRow(userId, userData);
+            latFact.latentFactors.getRow(itemId, itemData);
+            
+            sumPred += predict(userData, itemData, datasetDesc);
+        }
         
-        this.latentFactors.getRow(userId, userData);
-        this.latentFactors.getRow(itemId, itemData);
-        
-        return predict(userData, itemData, datasetDesc);
+        return sumPred/this.allSampleParams.size();
     }
     
     public double predict(double[] u, double[] v, DataSetDescription datasetDesc) {
@@ -504,6 +529,7 @@ public class PMF implements RecommenderAlgorithm {
 	        //Save the parameters.
 	        String location = SerializationUtils.createLocationStr(this.outputLoc, 
 	                this.params.getId() + "_iter_" + this.iterationNum);
+	        this.params.sampleFileNames.add(location);
 	        this.params.serialize(this.outputLoc, location);
 	    }
 	    
