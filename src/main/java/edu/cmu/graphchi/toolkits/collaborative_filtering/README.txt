@@ -22,7 +22,7 @@ file.
 
 Step 4: 
 Run the program using a command as follows:
-java -Xmx1024m -cp ./target/graphchi-java-0.2-jar-with-dependencies.jar edu.cmu.graphchi.toolkits.collaborave_filtering.algorithms.AggregateRecommender --nshards=4 --paramFile="sample_data/all_desc.json" --dataMetadataFile="sample_data/file_ml-100k_desc.json" --scratchDir=/tmp/abc --outputLoc=/tmp/
+java -Xmx1024m -cp ./target/graphchi-java-0.2-jar-with-dependencies.jar edu.cmu.graphchi.toolkits.collaborative_filtering.algorithms.AggregateRecommender --nshards=4 --paramFile="sample_data/all_desc.json" --dataMetadataFile="sample_data/Movielens/ml-100k/file_ml-100k_desc.json" --scratchDir=/tmp/abc --outputLoc=/tmp/
 
 Step 5:
 Testing the trained model. Once all algorithms have converged, the serialized model files will be saved in the
@@ -35,7 +35,7 @@ accuracy of the model parameters by running on test data. Following setup is req
    Step b: Create a test Description JSON file, which lists all the model file locations and the list of testing 
    metrics to use. An example of such file is present in sample_data/all_tests.json
    Step c: Run Command:
-   java -Xmx1024m -cp ./target/graphchi-java-0.2-jar-with-dependencies.jar edu.cmu.graphchi.toolkits.collaborative_filtering.algorithms.TestPredictions --nshards=4 --testDescFile="sample_data/all_tests.json" --dataMetadataFile="sample_data/file_test_ml-100k_desc.json"
+   java -Xmx1024m -cp ./target/graphchi-java-0.2-jar-with-dependencies.jar edu.cmu.graphchi.toolkits.collaborative_filtering.algorithms.TestPredictions --nshards=4 --testDescFile="sample_data/Movielens/ml-100k/all_tests.json" --dataMetadataFile="sample_data/Movielens/ml-100k/file_test_ml-100k_desc.json"
 
 
 ===== FORMAT OF THE FILES ======
@@ -76,5 +76,4 @@ This is a file with the same format as User Feature File, but containing item fe
 ========= RUNNING ON YARN =========
 See the YARN_README.txt for details. This would first require setting up a YARN cluster and then running the
 algorithms on the cluster
-
 
