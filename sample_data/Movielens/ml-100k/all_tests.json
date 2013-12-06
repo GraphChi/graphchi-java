@@ -1,0 +1,52 @@
+[
+    {
+        "serializedFile":"/tmp/BIAS_SGD_003_1_10_001_100",
+        "outputFile":"/tmp/out.txt",
+        "errorMeasure": "RMSE"
+    },
+    {
+        "serializedFile":"/tmp/BIAS_SGD_003_1_10_001_100",
+        "outputFile":"/tmp/out.txt",
+        "errorMeasure": "MAE"
+    },
+    {
+        "serializedFile":"/tmp/SVDPP_10_01_1_007_005_50",
+        "outputFile":"/tmp/out.txt",
+        "errorMeasure": "RMSE"
+    },
+    {
+        "serializedFile":"/tmp/SVDPP_10_01_1_007_005_50",
+        "outputFile":"/tmp/out.txt",
+        "errorMeasure": "MAE"
+    },
+    {
+        "serializedFile":"/tmp/ALS_065",
+        "outputFile":"/tmp/out.txt",
+        "errorMeasure": "RMSE"
+    },
+    {
+        "serializedFile":"/tmp/ALS_065",
+        "outputFile":"/tmp/out.txt",
+        "errorMeasure": "MAE"
+    },
+    {
+        "serializedFile": "/tmp/LibFM_1__20_002_50",
+        "outputFile":"/tmp/out.txt",
+        "errorMeasure": "RMSE"
+    },
+    {
+        "serializedFile": "/tmp/LibFM_1__20_002_50",
+        "outputFile":"/tmp/out.txt",
+        "errorMeasure": "MAE"
+    },
+    {
+        "serializedFile":"/tmp/PMF_065_10_5b",
+        "outputFile":"/tmp/out.txt",
+        "errorMeasure": "RMSE"
+    },
+    {
+        "serializedFile":"/tmp/PMF_065_10_5b",
+        "outputFile":"/tmp/out.txt",
+        "errorMeasure": "MAE"
+    }
+]

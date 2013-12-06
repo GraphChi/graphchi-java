@@ -3,7 +3,13 @@ package edu.cmu.graphchi.toolkits.collaborative_filtering.algorithms;
 import java.io.IOException;
 import java.util.List;
 
+import org.apache.commons.cli.CommandLine;
+import org.apache.commons.cli.CommandLineParser;
+import org.apache.commons.cli.HelpFormatter;
+import org.apache.commons.cli.Options;
+
 import edu.cmu.graphchi.toolkits.collaborative_filtering.utils.DataSetDescription;
+import edu.cmu.graphchi.toolkits.collaborative_filtering.utils.ExtendedGnuParser;
 import edu.cmu.graphchi.toolkits.collaborative_filtering.utils.InputDataReader;
 import edu.cmu.graphchi.toolkits.collaborative_filtering.utils.InputDataReaderFactory;
 import edu.cmu.graphchi.toolkits.collaborative_filtering.utils.ModelParameters;
@@ -65,18 +71,30 @@ public class TestPredictions {
     }
     
     public static void main(String args[]){
-        ProblemSetup problemSetup = new ProblemSetup(args);     
-        DataSetDescription dataDesc = new DataSetDescription();
-        dataDesc.loadFromJsonFile(problemSetup.dataMetadataFile);
-        List<ModelParametersPrediction> params = SerializationUtils.deserializeJSON(problemSetup.paramFile);
+        Options options = new Options();
+        options.addOption("dataMetadataFile", true, "Metadata about test data. Should be " +
+                "json file with complete description of the test data.");
+        options.addOption("testDescFile", true, "File containing the location of model files and tests to run");
+
+        CommandLineParser parser = new ExtendedGnuParser(true);
         
-        TestPredictions testPredictions = new TestPredictions(params, dataDesc);
-        
+        HelpFormatter help = new HelpFormatter();
         try {
+            CommandLine cmd = parser.parse(options, args);
+            
+            String datasetDescFile = cmd.getOptionValue("dataMetadataFile");
+            String testDescFile = cmd.getOptionValue("testDescFile");
+            
+            DataSetDescription dataDesc = new DataSetDescription(datasetDescFile);
+            List<ModelParametersPrediction> params = SerializationUtils.deserializeJSON(testDescFile);
+            
+            TestPredictions testPredictions = new TestPredictions(params, dataDesc);
             testPredictions.predictOnTest();
+            
         } catch (Exception e) {
-            // TODO Auto-generated catch block
             e.printStackTrace();
+            help.printHelp("java -cp <graphchi_jar> " +
+                    "edu.cmu.graphchi.toolkits.collaborative_filtering.algorithms.TestPredictions <options>", options);
         }
     }
 }

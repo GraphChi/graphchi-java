@@ -9,6 +9,8 @@ import org.apache.commons.cli.CommandLineParser;
 import org.apache.commons.cli.GnuParser;
 import org.apache.commons.cli.HelpFormatter;
 import org.apache.commons.cli.Options;
+import org.apache.pig.parser.InvalidCommandException;
+import org.eclipse.jdt.core.compiler.InvalidInputException;
 
 import edu.cmu.graphchi.ChiLogger;
 
@@ -41,7 +43,6 @@ public class ProblemSetup {
         	this.parse_command_line_arguments(args);
         }
         
-        //TODO: Use Apache CLI or some other package which has a better command line interface.
         public void parse_command_line_arguments(String [] args){
         	Options options = new Options();
         	options.addOption("nshards", true, "Number of shards for GraphChi");
@@ -61,20 +62,21 @@ public class ProblemSetup {
     			this.nShards = Integer.parseInt(cmd.getOptionValue("nshards", "1"));
     			
     			//Parameters.
-    			this.paramFile = cmd.getOptionValue("paramFile");
+    			this.paramFile = verifyRequiredValue(cmd.getOptionValue("paramFile"));
     			
-    			this.dataMetadataFile = cmd.getOptionValue("dataMetadataFile");
+    			this.dataMetadataFile = verifyRequiredValue(cmd.getOptionValue("dataMetadataFile"));
     			
     			this.quiet = Integer.parseInt(cmd.getOptionValue("quiet", "0"));
     			this.outputLoc = cmd.getOptionValue("outputLoc", "./");
     			
-    			this.scratchDir = cmd.getOptionValue("scratchDir", "./tmp/abc");
+    			this.scratchDir = cmd.getOptionValue("scratchDir", "/tmp/abc");
     			
     			this.graphChiJar = cmd.getOptionValue("graphChiJar", "graphchi-java-0.2-jar-with-dependencies.jar");
     			
     		} catch (Exception ex){
     			System.out.println("Failed to parse command line parameters: " + ex.toString());
-    			help.printHelp("<algorithm> <options>", options);
+    			help.printHelp("java -cp <graphchi_jar> " +
+                        "edu.cmu.graphchi.toolkits.collaborative_filtering.algorithms.AggregateRecommender <options>", options);
     			
     			System.exit(1);
     		}
@@ -83,6 +85,14 @@ public class ProblemSetup {
     			ChiLogger.getLogger("engine").setLevel(Level.SEVERE);
     		    ChiLogger.getLogger("memoryshard").setLevel(Level.SEVERE);
     		}
+        }
+        
+        private String verifyRequiredValue(String optionsVal) throws InvalidInputException {
+            if(optionsVal == null) {
+                throw new InvalidInputException("The command entered is wrong");
+            } else {
+                return optionsVal;
+            }
         }
         
         @Override
