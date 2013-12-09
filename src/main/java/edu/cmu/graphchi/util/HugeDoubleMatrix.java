@@ -1,5 +1,6 @@
 package edu.cmu.graphchi.util;
 
+import java.io.Serializable;
 import java.util.Random;
 
 import org.apache.commons.math.linear.ArrayRealVector;
@@ -11,13 +12,19 @@ import org.apache.commons.math.linear.RealVector;
  * in keeping all vertex-values in memory efficiently.
  * @author akyrola
  */
-public class HugeDoubleMatrix implements Cloneable {
-
-    private int BLOCKSIZE = 1024 * 1024 * 16; // 16M * 4 = 64 megabytes
+public class HugeDoubleMatrix implements Cloneable, Serializable {
+	private static final long serialVersionUID = 288413716782900056L;
+	
+	private static int BLOCKSIZE_BASE = 1024 * 1024; 
+    private int BLOCKSIZE =  BLOCKSIZE_BASE; // 1M * 8 = 8 megabytes
     private long nrows, ncols;
     private double[][] data;
 
-
+    public static int getEstimatedMemory(int rows, int columns) {
+    	int nblocks = getNBlocks(rows*columns, BLOCKSIZE_BASE) + 1;
+    	return (nblocks*BLOCKSIZE_BASE*8/(1024*1024)) + 1;
+    }
+    
     public HugeDoubleMatrix(long nrows, long ncols, double initialValue) {
         this.nrows = (long)nrows;
         this.ncols = (long)ncols;
@@ -25,7 +32,7 @@ public class HugeDoubleMatrix implements Cloneable {
         while(BLOCKSIZE % ncols != 0) BLOCKSIZE++;
 
         long elements = nrows * ncols;
-        int nblocks = (int) (elements / (long)BLOCKSIZE + (elements % BLOCKSIZE == 0 ? 0 : 1));
+        int nblocks = getNBlocks(elements, BLOCKSIZE);
         data = new double[nblocks][];
 
         System.out.println("Creating " + nblocks + " blocks");
@@ -40,6 +47,10 @@ public class HugeDoubleMatrix implements Cloneable {
             }
         }
     }
+    
+    private static int getNBlocks(long elements, long blockSize){
+    	return (int) (elements / (long)blockSize + (elements % blockSize == 0 ? 0 : 1));
+    }
 
     public HugeDoubleMatrix(long nrows, long ncols) {
         this(nrows, ncols, 0.0);
@@ -51,6 +62,10 @@ public class HugeDoubleMatrix implements Cloneable {
 
     public long getNumRows() {
         return nrows;
+    }
+    
+    public long getNumCols() {
+    	return ncols;
     }
 
     public double getValue(int row, int col) {

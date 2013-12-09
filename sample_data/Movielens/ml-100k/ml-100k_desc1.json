@@ -1,0 +1,15 @@
+{
+    "ratingsUrl": "file:///media/sda5/Capstone/Movielens/ml-100k/working_dir2/u.data_tr1.mm",
+    "userFeaturesUrl": "file:///media/sda5/Capstone/Movielens/ml-100k/working_dir2/u.user.processed.converted",
+    "itemFeaturesUrl": "file:///media/sda5/Capstone/Movielens/ml-100k/working_dir2/u.item.processed.converted",
+    "validationUrl": "file:///media/sda5/Capstone/Movielens/ml-100k/working_dir2/u.data_val1.mm",
+    "numUsers": "943",
+    "numItems": "1682",
+    "numRatings": "80000",
+    "meanRatings": "0",
+    "numUserFeatures": "38",
+    "numItemFeatures": "20",
+    "numRatingFeatures": "0",
+    "minval": "1",
+    "maxval": "5"
+}

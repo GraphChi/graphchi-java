@@ -25,6 +25,10 @@ import java.util.ArrayList;
 public class ChiFilenames {
 
     public static String vertexDataSuffix = "";
+    
+    // Controls the block size for DataBlockManager. Not the best place to put this and should be
+    // refactored to a better location
+    public static int BLOCK_SIZE_BASE = 1024;
 
     public static String getFilenameOfVertexData(String baseFilename, BytesToValueConverter valueConv, boolean sparse) {
         return baseFilename + "." + valueConv.sizeOf() + "Bj.vout" + vertexDataSuffix  + (sparse ? ".sparse" : "");
@@ -69,13 +73,17 @@ public class ChiFilenames {
     public static String getFilenameIntervals(String baseFilename, int nShards) {
         return baseFilename + "." + nShards + ".intervalsjava";
     }
+    
+    public static String getFilenameMetadata(String baseFilename, int nShards) {
+        return baseFilename + "." + nShards + ".matrixinfo";
+    }
 
     public static String getVertexTranslateDefFile(String baseFilename, int nshards) {
         return baseFilename + "." + nshards + ".vtranslate";
     }
 
     public static int getBlocksize(int sizeOf) {
-        int blocksize = 4096 * 1024;
+        int blocksize = BLOCK_SIZE_BASE * 1024;
         while (blocksize % sizeOf != 0) blocksize++;
         assert(blocksize % sizeOf == 0);
         return blocksize;

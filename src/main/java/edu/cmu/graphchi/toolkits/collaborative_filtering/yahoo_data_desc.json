@@ -1,0 +1,15 @@
+{
+    "ratingsUrl": "file:///home/shuhaoyu/Documents/CMU_semester_III/Capstone/Capstone_workspace/dataset/YahooMusic/ydata-ymusic-kddcup-2011-track1/validationIdx1_notime.txt.mm",
+    "userFeaturesUrl": "",
+    "itemFeaturesUrl": "",
+    "validationUrl": "",
+    "numUsers": "1000990",
+    "numItems": "624961",
+    "numRatings": "252800275",
+    "meanRatings": "0",
+    "numUserFeatures": "0",
+    "numItemFeatures": "0",
+    "numRatingFeatures": "0",
+    "minval": "0",
+    "maxval": "100"
+}

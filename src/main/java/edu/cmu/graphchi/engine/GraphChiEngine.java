@@ -278,6 +278,10 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
                 } catch (InterruptedException ie) {}
             }
             blockManager.reset();
+            if(chiContext.isFinishComputation()) {
+                break;
+            }
+            
             chiContext.setIteration(iter);
             chiContext.setNumVertices(numVertices());
             program.beginIteration(chiContext);
@@ -1048,6 +1052,42 @@ public class GraphChiEngine <VertexDataType, EdgeDataType> {
         protected void setCurInterval(VertexInterval curInterval) {
             super.setCurInterval(curInterval);
         }
+    }
+    
+    public static int getEstimatedMemoryUsage(int numShards, int memoryBudget, 
+            int numVertices, int vertexSize, long numEdges, int edgeSize) {
+        
+        //The memory in the GraphChiEngine is mainly taken by the following things in big graphs:
+        
+        //1. ChiVertices. The amount of memory used by ChiVertices proportional to number of vertices 
+        //loaded into memory (active sub-interval) which in turn depends on the memory budget for sub-intervals 
+        int numVerticesInInterval = numVertices / numShards;
+        int averageEdgesPerVertex = (int) numEdges/numVertices + 1;
+        long numEdgesInInterval = numVerticesInInterval * averageEdgesPerVertex;
+        int averageChiVertexSize = (int)averageEdgesPerVertex*12 + 256; //12 bytes per edge to store offset and 256 bytes of overhead.
+        int maxVerticesInSubInterval = (memoryBudget*1024*1024) / averageChiVertexSize;
+        
+        int numVerticesPerSubInterval = Math.min(numVerticesInInterval, maxVerticesInSubInterval); 
+        
+        //Each edge in ChiVertex utilizes 12 bytes of memory. Also, assuming 128 bytes of overhead per ChiVertex
+        int chiVertexMemUsage = numVerticesPerSubInterval*averageChiVertexSize;
+        
+        // 2. Current Interval's complete vertex, edge data and adjacency data (adjacency data is in MemoryShard's adjData array
+        // whereas edge data is in the blocks of DataBlockManager
+        int intervalDataMemUsage = (int)numEdgesInInterval*(edgeSize + 8) + numVerticesInInterval*vertexSize; 
+        
+        //3. The edge data related to sliding shards. Here we are double counting the edge data in the active interval
+        int numEdgesInSubInterval = (int) numVerticesInInterval * averageEdgesPerVertex;
+        int edgeSubIntervalMemUsage = numEdgesInSubInterval * edgeSize;
+        
+        //4. Add 2 MB overhead per shard (for buffered streams as well block size overhead.
+        int perShardOverhead = numShards*2*1024*1024;
+        
+        int totalMemoryUsage = chiVertexMemUsage + intervalDataMemUsage + edgeSubIntervalMemUsage + perShardOverhead;
+        
+        totalMemoryUsage = totalMemoryUsage / (1024*1024);
+        
+        return totalMemoryUsage;
     }
 }
 

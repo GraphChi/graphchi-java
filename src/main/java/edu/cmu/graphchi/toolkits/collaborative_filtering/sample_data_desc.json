@@ -1,0 +1,15 @@
+{
+    "ratingsUrl": "/home/shuhaoyu/Documents/CMU_semester_III/Capstone/Capstone_workspace/smallnetflix_mm",
+    "userFeaturesUrl": "",
+    "itemFeaturesUrl": "",
+    "validationUrl": "",
+    "numUsers": "95526",
+    "numItems": "3561",
+    "numRatings": "3298163",
+    "meanRatings": "0",
+    "numUserFeatures": "0",
+    "numItemFeatures": "0",
+    "numRatingFeatures": "0",
+    "minval": "1",
+    "maxval": "5"
+}

@@ -1,0 +1,15 @@
+[
+    {
+        "algorithm": "BIAS_SGD",
+        "id": "<DEFAULT>",
+        "regularization": "0.5",
+        "num_latent_factors": "10",
+        "step_size": "0.001"
+    },
+    {
+        "algorithm": "ALS",
+        "id": "<DEFAULT>",
+        "reg": "0.5",
+        "latentFactors": "10"
+    }
+]

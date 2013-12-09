@@ -1,0 +1,15 @@
+{
+    "ratingsUrl": "https://s3.amazonaws.com/CapstoneData/Movielens/ml-100k/u.data_tr1.mm",
+    "userFeaturesUrl": "https://s3.amazonaws.com/CapstoneData/Movielens/ml-100k/u.user.processed.converted",
+    "itemFeaturesUrl": "https://s3.amazonaws.com/CapstoneData/Movielens/ml-100k/u.item.processed.converted",
+    "validationUrl": "https://s3.amazonaws.com/CapstoneData/Movielens/ml-100k/u.data_val1.mm",
+    "numUsers": "943",
+    "numItems": "1682",
+    "numRatings": "80000",
+    "meanRatings": "0",
+    "numUserFeatures": "38",
+    "numItemFeatures": "20",
+    "numRatingFeatures": "0",
+    "minval": "1",
+    "maxval": "5"
+}
