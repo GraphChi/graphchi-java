@@ -12,6 +12,11 @@ import edu.cmu.graphchi.toolkits.collaborative_filtering.utils.ModelParametersPr
 import edu.cmu.graphchi.toolkits.collaborative_filtering.utils.ProblemSetup;
 import edu.cmu.graphchi.toolkits.collaborative_filtering.utils.SerializationUtils;
 
+/**
+ * The main class to use existing model to predict new testing file.
+ * @author shuhaoyu
+ *
+ */
 public class PredictTesting {
 	//final static String delim = " ";
 	final static String DELIM = "\\s+";

@@ -23,6 +23,11 @@ import org.mortbay.io.RuntimeIOException;
 
 import edu.cmu.graphchi.util.HugeDoubleMatrix;
 
+/**
+ * This is the util class for various use in serialization
+ * @author shuhaoyu
+ *
+ */
 public class SerializationUtils {
 	public static final String SERIALIZED_FILE_KEY = "serializedFile";
 	public static final String OUTPUTFILE_KEY = "outputFile";
@@ -33,6 +38,12 @@ public class SerializationUtils {
 		return false;
 	}
 	
+	/**
+	 * createLocationStr creates formal path in either HDFS or local file system
+	 * @param prefix
+	 * @param fileName
+	 * @return
+	 */
 	public static String createLocationStr(String prefix, String fileName) {
 	    String location = null;
 	    if(prefix.startsWith(IO.HDFS_PREFIX)) {
@@ -53,6 +64,12 @@ public class SerializationUtils {
 	    return location;
 	}
 	
+	/**
+	 * serializeParam serializes the ModelParameters Object to specified location. 
+	 * @param location
+	 * @param param
+	 * @throws Exception
+	 */
 	public static void serializeParam(String location, ModelParameters param) throws Exception {
 	    OutputStream out = null;
 	    if(location.startsWith(IO.HDFS_PREFIX)) {
@@ -74,7 +91,13 @@ public class SerializationUtils {
 	    }
         System.out.printf("Serialized Params is saved in " + location + "\n");
 	}
-	
+	/**
+	 * deserializeMatrix read a text file, which represents a matrix, into
+	 * a HugeDoubleMatrix object. 
+	 * @param filename
+	 * @return
+	 * @throws IOException
+	 */
 	public static HugeDoubleMatrix deserializeMatrix(String filename) throws IOException{
 		final String delim = "\t";
 		BufferedReader br = new BufferedReader(new FileReader(filename));
@@ -97,7 +120,13 @@ public class SerializationUtils {
 		br.close();
 		return latentFactors;
 	}
-	
+	/**
+	 * deserializeVector read a text file, which represents a vector, into
+	 * a RealVector object. 
+	 * @param filename
+	 * @return
+	 * @throws IOException
+	 */	
 	public static RealVector deserializeVector(String filename) throws IOException{
 		final String delim = "\t";
 		BufferedReader br = new BufferedReader(new FileReader(filename));
@@ -119,7 +148,13 @@ public class SerializationUtils {
 		br.close();
 		return bias;
 	}
-	
+	/**
+	 * deserialize read a object file, which represents a Model, into
+	 * a ModelParameters object. 
+	 * @param filename
+	 * @return
+	 * @throws IOException
+	 */	
 	public static ModelParameters deserialize(String filename) throws IOException, ClassNotFoundException{
 		ModelParameters params = null; 
 	    FileInputStream fileIn = new FileInputStream(filename);
@@ -131,6 +166,11 @@ public class SerializationUtils {
 	    return params;
 	}
 
+	/**
+	 * Determine the error measurement type.
+	 * @param errorMeasureString
+	 * @return
+	 */
 	private static ErrorMeasurement getErrorMeasureClass(String errorMeasureString){
 		if(errorMeasureString == null || errorMeasureString.equalsIgnoreCase(("RMSE"))){
 			return new RmseError();
@@ -142,6 +182,12 @@ public class SerializationUtils {
 		return new RmseError();
 	}
 
+	/**
+	 * Parse the JSON file for predicting on testing file, which should include
+	 * the model location, error measurement, and the output location.
+	 * @param serializeJsonFile
+	 * @return
+	 */
 	public static List<ModelParametersPrediction> deserializeJSON(String serializeJsonFile){
 		List<ModelParametersPrediction> paramsPredict = new ArrayList<ModelParametersPrediction>();
 		try {

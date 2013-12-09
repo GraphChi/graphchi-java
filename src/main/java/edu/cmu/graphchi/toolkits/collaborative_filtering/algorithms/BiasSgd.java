@@ -23,6 +23,14 @@ import edu.cmu.graphchi.toolkits.collaborative_filtering.utils.SerializationUtil
 import edu.cmu.graphchi.util.HugeDoubleMatrix;
 import gov.sandia.cognition.math.matrix.mtj.SparseVector;
 
+/**
+ * Matrix factorization with the Bias Stochastic Gradient Descent (BIASSGD) algorithm.
+ * Algorithm is described in the paper:
+ *  Y. Koren. Factorization Meets the Neighborhood: 
+ *  a Multifaceted Collaborative Filtering Model. ACM SIGKDD 2008. Equation (5)
+ * @author shuhaoyu
+ *
+ */
 
 class BiasSgdParams extends ModelParameters {
 	private static final long serialVersionUID = -5531511598859363016L;

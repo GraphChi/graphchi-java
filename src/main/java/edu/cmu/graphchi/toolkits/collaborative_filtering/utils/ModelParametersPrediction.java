@@ -1,5 +1,11 @@
 package edu.cmu.graphchi.toolkits.collaborative_filtering.utils;
 
+/**
+ * The class is used for predicting a new testing file. The class should include the model object,
+ * the error measurement and the location of output prediction file.
+ * @author shuhaoyu
+ *
+ */
 public class ModelParametersPrediction {
 	private final ModelParameters params;
 	private final ErrorMeasurement errorMeasure;
