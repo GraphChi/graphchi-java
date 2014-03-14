@@ -157,7 +157,7 @@ public class FriendsOfFriends {
     private String namify(Integer value) throws IOException {
         File f = new File(baseFilename + "_names.dat");
         if (!f.exists()) {
-        	System.out.println("didn't find name file: " + f.getPath());
+        //	System.out.println("didn't find name file: " + f.getPath());
             return value+"";
         }
         int i = value * 16;

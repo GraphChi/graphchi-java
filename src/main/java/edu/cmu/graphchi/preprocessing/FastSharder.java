@@ -754,7 +754,7 @@ public class FastSharder <VertexValueType, EdgeValueType> {
                             /* Vertex - ids on the right side of the bipartite graph have id numLeft + originalId */
                             try {
                                 String lastTok = tok[tok.length - 1];
-                                this.addEdge(Integer.parseInt(tok[0]) - 1, numLeft + Integer.parseInt(tok[1]), lastTok);
+                                this.addEdge(Integer.parseInt(tok[0]) - 1, numLeft + Integer.parseInt(tok[1]) - 1, lastTok);
                             } catch (NumberFormatException nfe) {
                                 logger.severe("Could not parse line: " + ln);
                                 throw nfe;
