@@ -132,8 +132,3 @@ Java and .NET applications. Take a look at YourKit's leading software products:
 akyrola@cs.cmu.edu
 
 
-
-
-
-[![Bitdeli Badge](https://d2weczhvl823v0.cloudfront.net/GraphChi/graphchi-java/trend.png)](https://bitdeli.com/free "Bitdeli Badge")
-
