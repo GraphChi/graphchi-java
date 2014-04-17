@@ -27,6 +27,7 @@ import java.util.logging.Logger;
  * @author akyrola
  */
 public class WeightedPagerank implements GraphChiProgram<Float, FloatPair> {
+    
     private static Logger logger = ChiLogger.getLogger("weighted_pagerank");
 
     public void update(ChiVertex<Float, FloatPair> vertex, GraphChiContext context)  {
