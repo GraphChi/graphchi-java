@@ -85,7 +85,7 @@ public class WeightedPagerank implements GraphChiProgram<Float, FloatPair> {
             }
         }, new EdgeProcessor<FloatPair>() {
             public FloatPair receiveEdge(int from, int to, String token) {
-                return (new FloatPair(Float.parseFloat(token), 0.f));
+                return new FloatPair(Float.parseFloat(token), 0.f);
             }
         }, new FloatConverter(), new FloatPairConverter());
     }
