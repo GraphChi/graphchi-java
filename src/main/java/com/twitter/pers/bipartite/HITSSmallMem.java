@@ -83,7 +83,7 @@ public class HITSSmallMem extends PigGraphChiBase implements GraphChiProgram<Flo
 
             FloatPair curValue = vertex.getValue();
             if (side == LEFTSIDE && vertex.numOutEdges() > 0) {
-                curValue.first = newValue;
+                curValue = new FloatPair(newValue, curValue.second);
                 synchronized (this) {
                     leftSideSqrSum += newValue * newValue;
                 }
@@ -140,8 +140,7 @@ public class HITSSmallMem extends PigGraphChiBase implements GraphChiProgram<Flo
                 leftNorm = (float) Math.sqrt(leftSideSqrSum);
                 VertexTransformer.transform((int) ctx.getNumVertices(), graphName, new FloatPairConverter(), new VertexTransformCallBack<FloatPair>() {
                     public FloatPair map(int vertexId, FloatPair value) {
-                        value.first /= leftNorm;
-                        return value;
+                        return new FloatPair(value.first/leftNorm, value.second);
                     }
                 });
 

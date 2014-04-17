@@ -77,7 +77,7 @@ public class SALSASmallMem extends PigGraphChiBase implements GraphChiProgram<Fl
 
             FloatPair curValue = vertex.getValue();
             if (side == LEFTSIDE && vertex.numOutEdges() > 0) {
-                curValue.first = newValue;
+                curValue = new FloatPair(newValue, curValue.second);
                 // Write value to outedges
                 float broadcastValue = newValue / vertex.numOutEdges();
                 for(int i=0; i < vertex.numOutEdges(); i++) {
