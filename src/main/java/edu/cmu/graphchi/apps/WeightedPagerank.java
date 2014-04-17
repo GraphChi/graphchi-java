@@ -21,10 +21,8 @@ import java.util.TreeSet;
 import java.util.logging.Logger;
 
 /**
- * Example application: PageRank (http://en.wikipedia.org/wiki/Pagerank)
- * Iteratively computes a pagerank for each vertex by averaging the pageranks
- * of in-neighbors pageranks.
- * @author akyrola
+ * Weighted Pagerank.
+ * Contributed by Jerry Ye, 2014.
  */
 public class WeightedPagerank implements GraphChiProgram<Float, FloatPair> {
     
@@ -55,8 +53,7 @@ public class WeightedPagerank implements GraphChiProgram<Float, FloatPair> {
         for(int i=0; i<vertex.numOutEdges(); i++) {
             FloatPair curValue = vertex.outEdge(i).getValue();
             float edgeWeight = vertex.outEdge(i).getValue().first;
-            curValue.second = vertex.getValue() * edgeWeight/edgeWeightSum;
-            vertex.outEdge(i).setValue(curValue);
+            vertex.outEdge(i).setValue(new FloatPair(curValue.first, vertex.getValue() * edgeWeight/edgeWeightSum));
         }
 
     }

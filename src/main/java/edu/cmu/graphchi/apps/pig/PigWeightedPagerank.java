@@ -23,9 +23,9 @@ import java.util.Iterator;
 import java.util.logging.Logger;
 
 /**
- * Example application: PageRank (http://en.wikipedia.org/wiki/Pagerank)
+ * Example application:  WeightedPageRank (http://en.wikipedia.org/wiki/Pagerank)
  * Iteratively computes a pagerank for each vertex by averaging the pageranks
- * of in-neighbors pageranks.
+ * of in-neighbors pageranks. Uses edge weights to implemented weighted version of pagerank.
  *
  * This version can be used with <a href="http://pig.apache.org">Pig</a> in a Hadoop cluster.
  *
@@ -42,7 +42,7 @@ import java.util.logging.Logger;
  * (To get the livejournal graph, visit: http://snap.stanford.edu/data/soc-LiveJournal1.html)
  *
  * @see edu.cmu.graphchi.hadoop.PigGraphChiBase
- * @author Aapo Kyrola, akyrola@cs.cmu.edu
+ * @author Jerry Ye
  */
 public class PigWeightedPagerank extends PigGraphChiBase implements GraphChiProgram<Float, FloatPair> {
 
@@ -73,8 +73,7 @@ public class PigWeightedPagerank extends PigGraphChiBase implements GraphChiProg
         for(int i=0; i<vertex.numOutEdges(); i++) {
             FloatPair curValue = vertex.outEdge(i).getValue();
             float edgeWeight = vertex.outEdge(i).getValue().first;
-            curValue.second = vertex.getValue() * edgeWeight/edgeWeightSum;
-            vertex.outEdge(i).setValue(curValue);
+            vertex.outEdge(i).setValue(new FloatPair(edgeWeight, vertex.getValue() * edgeWeight/edgeWeightSum));
         }
 
     }
