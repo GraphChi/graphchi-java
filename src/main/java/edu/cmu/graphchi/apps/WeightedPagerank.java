@@ -48,7 +48,9 @@ public class WeightedPagerank implements GraphChiProgram<Float, FloatPair> {
         /* Write my value (divided by my out-degree) to my out-edges so neighbors can read it. */
         float outValue = vertex.getValue() / vertex.numOutEdges();
         for(int i=0; i<vertex.numOutEdges(); i++) {
-            vertex.outEdge(i).getValue().second = outValue;
+            FloatPair curValue = vertex.outEdge(i).getValue();
+            curValue.second = outValue;
+            vertex.outEdge(i).setValue(curValue);
         }
 
     }
