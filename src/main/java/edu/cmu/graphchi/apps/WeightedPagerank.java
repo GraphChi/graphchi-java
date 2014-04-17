@@ -2,6 +2,8 @@ package edu.cmu.graphchi.apps;
 
 import edu.cmu.graphchi.*;
 import edu.cmu.graphchi.datablocks.FloatConverter;
+import edu.cmu.graphchi.datablocks.FloatPair;
+import edu.cmu.graphchi.datablocks.FloatPairConverter;
 import edu.cmu.graphchi.engine.GraphChiEngine;
 import edu.cmu.graphchi.engine.VertexInterval;
 import edu.cmu.graphchi.io.CompressedIO;
@@ -24,11 +26,10 @@ import java.util.logging.Logger;
  * of in-neighbors pageranks.
  * @author akyrola
  */
-public class WeightedPagerank implements GraphChiProgram<Float, Float> {
+public class WeightedPagerank implements GraphChiProgram<Float, FloatPair> {
+    private static Logger logger = ChiLogger.getLogger("weighted_pagerank");
 
-    private static Logger logger = ChiLogger.getLogger("pagerank");
-
-    public void update(ChiVertex<Float, Float> vertex, GraphChiContext context)  {
+    public void update(ChiVertex<Float, FloatPair> vertex, GraphChiContext context)  {
         if (context.getIteration() == 0) {
             /* Initialize on first iteration */
             vertex.setValue(1.0f);
@@ -38,7 +39,8 @@ public class WeightedPagerank implements GraphChiProgram<Float, Float> {
              */
             float sum = 0.f;
             for(int i=0; i<vertex.numInEdges(); i++) {
-                sum += vertex.inEdge(i).getValue();
+                float edgeWeight = vertex.inEdge(i).getValue().first;
+                sum += vertex.inEdge(i).getValue().second;
             }
             vertex.setValue(0.15f + 0.85f * sum);
         }
@@ -46,7 +48,7 @@ public class WeightedPagerank implements GraphChiProgram<Float, Float> {
         /* Write my value (divided by my out-degree) to my out-edges so neighbors can read it. */
         float outValue = vertex.getValue() / vertex.numOutEdges();
         for(int i=0; i<vertex.numOutEdges(); i++) {
-            vertex.outEdge(i).setValue(outValue);
+            vertex.outEdge(i).getValue().second = outValue;
         }
 
     }
@@ -70,15 +72,15 @@ public class WeightedPagerank implements GraphChiProgram<Float, Float> {
      * @throws java.io.IOException
      */
     protected static FastSharder createSharder(String graphName, int numShards) throws IOException {
-        return new FastSharder<Float, Float>(graphName, numShards, new VertexProcessor<Float>() {
+        return new FastSharder<Float, FloatPair>(graphName, numShards, new VertexProcessor<Float>() {
             public Float receiveVertexValue(int vertexId, String token) {
                 return (token == null ? 0.0f : Float.parseFloat(token));
             }
-        }, new EdgeProcessor<Float>() {
-            public Float receiveEdge(int from, int to, String token) {
-                return (token == null ? 0.0f : Float.parseFloat(token));
+        }, new EdgeProcessor<FloatPair>() {
+            public FloatPair receiveEdge(int from, int to, String token) {
+                return (new FloatPair(Float.parseFloat(token), 0.0f));
             }
-        }, new FloatConverter(), new FloatConverter());
+        }, new FloatConverter(), new FloatPairConverter());
     }
 
     /**
@@ -105,8 +107,8 @@ public class WeightedPagerank implements GraphChiProgram<Float, Float> {
         }
 
         /* Run GraphChi */
-        GraphChiEngine<Float, Float> engine = new GraphChiEngine<Float, Float>(baseFilename, nShards);
-        engine.setEdataConverter(new FloatConverter());
+        GraphChiEngine<Float, FloatPair> engine = new GraphChiEngine<Float, FloatPair>(baseFilename, nShards);
+        engine.setEdataConverter(new FloatPairConverter());
         engine.setVertexDataConverter(new FloatConverter());
         engine.setModifiesInedges(false); // Important optimization
 
