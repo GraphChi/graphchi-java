@@ -39,17 +39,22 @@ public class WeightedPagerank implements GraphChiProgram<Float, FloatPair> {
              */
             float sum = 0.f;
             for(int i=0; i<vertex.numInEdges(); i++) {
-                float edgeWeight = vertex.inEdge(i).getValue().first;
                 sum += vertex.inEdge(i).getValue().second;
             }
             vertex.setValue(0.15f + 0.85f * sum);
         }
 
+        /* Accumulate edge weights */
+        float edgeWeightSum = 0.f;
+        for(int i=0; i<vertex.numOutEdges(); i++) {
+            edgeWeightSum += vertex.outEdge(i).getValue().first;
+        }
+
         /* Write my value (divided by my out-degree) to my out-edges so neighbors can read it. */
-        float outValue = vertex.getValue() / vertex.numOutEdges();
         for(int i=0; i<vertex.numOutEdges(); i++) {
             FloatPair curValue = vertex.outEdge(i).getValue();
-            curValue.second = outValue;
+            float edgeWeight = vertex.outEdge(i).getValue().first;
+            curValue.second = vertex.getValue() * edgeWeight/edgeWeightSum;
             vertex.outEdge(i).setValue(curValue);
         }
 
@@ -76,11 +81,11 @@ public class WeightedPagerank implements GraphChiProgram<Float, FloatPair> {
     protected static FastSharder createSharder(String graphName, int numShards) throws IOException {
         return new FastSharder<Float, FloatPair>(graphName, numShards, new VertexProcessor<Float>() {
             public Float receiveVertexValue(int vertexId, String token) {
-                return (token == null ? 0.0f : Float.parseFloat(token));
+                return (token == null ? 0.f : Float.parseFloat(token));
             }
         }, new EdgeProcessor<FloatPair>() {
             public FloatPair receiveEdge(int from, int to, String token) {
-                return (new FloatPair(Float.parseFloat(token), 0.0f));
+                return (new FloatPair(Float.parseFloat(token), 0.f));
             }
         }, new FloatConverter(), new FloatPairConverter());
     }

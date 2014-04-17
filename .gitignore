@@ -4,3 +4,6 @@
 *.jar
 *.war
 *.ear
+.idea
+target
+walkmanager.log
