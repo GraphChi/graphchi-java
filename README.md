@@ -5,11 +5,13 @@ Version 0.2
 ## News
 
 * Performance has been improved by parallelizing shard loading better (Oct 22, 2013)
-* GraphChi was moved to GitHub from Google Code (July 24). Please report/fix any broken links.
 * GraphChi's Java version has a new cool random walk simulation engine: https://github.com/GraphChi/graphchi-java/wiki/Personalized-Pagerank-with-DrunkardMob
 
 
+### Survey
 
+If you use GraphChi, please fill the form to tell about your experience (it is short!):
+https://docs.google.com/forms/d/1E4jjAqQiW76hKAjXpjL1SbkBauC3_V5BfCXQU6yz-I4/edit
 
 
 # Introduction
