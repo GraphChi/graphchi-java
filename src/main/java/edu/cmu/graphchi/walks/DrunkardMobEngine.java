@@ -20,15 +20,27 @@ import java.util.logging.Logger;
  */
 public class DrunkardMobEngine<VertexDataType, EdgeDataType> {
 
-    protected GraphChiEngine<VertexDataType, EdgeDataType> engine;
-    protected List<DrunkardDriver> drivers;
+    private GraphChiEngine<VertexDataType, EdgeDataType> engine;
+    private List<DrunkardDriver> drivers;
 
-    protected static Logger logger = ChiLogger.getLogger("drunkardmob-engine");
+    private static Logger logger = ChiLogger.getLogger("drunkardmob-engine");
+    private DrunkardFactory<VertexDataType, EdgeDataType> factory;
 
-
-    public DrunkardMobEngine(String baseFilename, int nShards) throws IOException {
+    /**
+     * Create the engine
+     * @param factory we allow walks to be represented either as ints or as longs (if more
+     * information needs to be stored, e.g. to retrieve path information from the walks).  In order
+     * to avoid autoboxing, we do a little bit of fancy footwork here.  The caller must pass in an
+     * IntDrunkardFactory or a LongDrunkardFactory, and then when processing WalkArrays and
+     * DrunkardContexts, they must be cast to IntWalkArrays or LongWalkArrays (and Contexts, and
+     * whatever else) in order to get the actual values out.  This way we can keep the primitive
+     * typing while still sharing as much code as possible between the int and the long processing.
+     */
+    public DrunkardMobEngine(String baseFilename, int nShards,
+            DrunkardFactory<VertexDataType, EdgeDataType> factory) throws IOException {
         createGraphChiEngine(baseFilename, nShards);
         this.drivers = new ArrayList<DrunkardDriver>();
+        this.factory = factory;
 
         // Disable all edge directions by default
         engine.setDisableInedges(true);
@@ -37,7 +49,7 @@ public class DrunkardMobEngine<VertexDataType, EdgeDataType> {
         engine.setModifiesOutedges(false);
     }
 
-    protected void createGraphChiEngine(String baseFilename, int nShards) throws IOException {
+    private void createGraphChiEngine(String baseFilename, int nShards) throws IOException {
         this.engine = new GraphChiEngine<VertexDataType, EdgeDataType>(baseFilename, nShards);
         this.engine.setOnlyAdjacency(true);
         this.engine.setVertexDataConverter(null);
@@ -88,7 +100,7 @@ public class DrunkardMobEngine<VertexDataType, EdgeDataType> {
      */
     public DrunkardJob addJob(String jobName, EdgeDirection edgeDirection,
                               WalkUpdateFunction<VertexDataType, EdgeDataType> callback,
-                              RemoteDrunkardCompanion companion) throws IOException {
+                              RemoteDrunkardCompanion companion) {
 
         /* Configure engine parameters */
         switch(edgeDirection) {
@@ -107,8 +119,8 @@ public class DrunkardMobEngine<VertexDataType, EdgeDataType> {
         /**
          * Create job object and the driver-object.
          */
-        DrunkardJob job = new DrunkardJob(jobName, companion, engine.numVertices());
-        drivers.add(new DrunkardDriver<VertexDataType, EdgeDataType>(job, callback));
+        DrunkardJob job = new DrunkardJob(jobName, companion, engine.numVertices(), factory);
+        drivers.add(factory.createDrunkardDriver(job, callback));
         return job;
     }
 
@@ -169,7 +181,7 @@ public class DrunkardMobEngine<VertexDataType, EdgeDataType> {
                 if (context.getThreadLocal() == null) {
                     ArrayList<LocalWalkBuffer> multiplexedLocalBuffers = new ArrayList<LocalWalkBuffer>(drivers.size());
                     for(DrunkardDriver driver: drivers) {
-                        LocalWalkBuffer buf = new  LocalWalkBuffer();
+                        LocalWalkBuffer buf = factory.createLocalWalkBuffer();
                         driver.addLocalBuffer(buf);
                         multiplexedLocalBuffers.add(buf);
                     }

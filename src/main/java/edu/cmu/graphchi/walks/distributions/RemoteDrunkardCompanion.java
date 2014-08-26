@@ -1,6 +1,7 @@
 package edu.cmu.graphchi.walks.distributions;
 
 import edu.cmu.graphchi.util.IdCount;
+import edu.cmu.graphchi.walks.WalkArray;
 
 import java.rmi.Remote;
 import java.rmi.RemoteException;
@@ -20,7 +21,7 @@ public interface RemoteDrunkardCompanion extends Remote {
 
     void setSources(int[] sources) throws RemoteException;
 
-    void processWalks(int[] walks, int[] atVertices) throws RemoteException;
+    void processWalks(WalkArray walks, int[] atVertices) throws RemoteException;
 
 
     void outputDistributions(String outputFile) throws RemoteException;

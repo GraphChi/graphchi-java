@@ -11,18 +11,6 @@ import java.util.Random;
 public interface WalkUpdateFunction<VertexDataType, EdgeDataType> {
 
     /**
-     * Callback
-     * @param walks
-     * @param vertex
-     * @param drunkardContext
-     * @param randomGenerator random-generator
-     */
-    void processWalksAtVertex(int[] walks,
-                              ChiVertex<VertexDataType, EdgeDataType> vertex,
-                              DrunkardContext drunkardContext,
-                              Random randomGenerator);
-
-    /**
      * Called for each source vertex. Return an int-array of vertices to which walk visits should not
      * be tracked. For example, if you are not interested about the walks to the immediate neighbors,
      * you should returns an array of the vertex ids of the neighbors.
@@ -30,4 +18,16 @@ public interface WalkUpdateFunction<VertexDataType, EdgeDataType> {
      * @return
      */
     int[] getNotTrackedVertices(ChiVertex<VertexDataType, EdgeDataType> vertex);
+
+    /**
+     * Callback
+     * @param walks
+     * @param vertex
+     * @param drunkardContext
+     * @param randomGenerator random-generator
+     */
+    void processWalksAtVertex(WalkArray walks,
+                              ChiVertex<VertexDataType, EdgeDataType> vertex,
+                              DrunkardContext drunkardContext,
+                              Random randomGenerator);
 }

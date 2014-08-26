@@ -1,7 +1,7 @@
 package edu.cmu.graphchi.walks.distributions;
 
 import edu.cmu.graphchi.ChiLogger;
-import edu.cmu.graphchi.walks.WalkManager;
+import edu.cmu.graphchi.walks.WalkArray;
 import edu.cmu.graphchi.util.IdCount;
 import edu.cmu.graphchi.util.IntegerBuffer;
 
@@ -25,13 +25,13 @@ import java.util.logging.Logger;
  * Done partially during internship at Twitter, Fall 2012
  * @author Aapo Kyrola, akyrola@cs.cmu.edu
  */
-public class DrunkardCompanion extends UnicastRemoteObject implements RemoteDrunkardCompanion {
+public abstract class DrunkardCompanion extends UnicastRemoteObject implements RemoteDrunkardCompanion {
 
     protected static class WalkSubmission {
-        int[] walks;
+        WalkArray walks;
         int[] atVertices;
 
-        private WalkSubmission(int[] walks, int[] atVertices) {
+        private WalkSubmission(WalkArray walks, int[] atVertices) {
             this.walks = walks;
             this.atVertices = atVertices;
         }
@@ -158,7 +158,7 @@ public class DrunkardCompanion extends UnicastRemoteObject implements RemoteDrun
                             WalkSubmission subm = pendingQueue.poll(2000, TimeUnit.MILLISECONDS);
                             if (subm != null) {
                                 _processWalks(subm.walks, subm.atVertices);
-                                unpurgedWalks += subm.walks.length;
+                                unpurgedWalks += subm.walks.size();
                             }
                             if (sourceVertexIds != null) {
                                 if (unpurgedWalks > sourceVertexIds.length * 10 || (subm == null && unpurgedWalks > 100000)) {
@@ -270,31 +270,7 @@ public class DrunkardCompanion extends UnicastRemoteObject implements RemoteDrun
         }, 5000, 60000);
     }
 
-
-
-
-
-    protected void _processWalks(int[] walks, int[] atVertices) {
-        long t1 = System.currentTimeMillis();
-        for(int i=0; i < walks.length; i++) {
-            int w = walks[i];
-            int atVertex = atVertices[i];
-            int sourceIdx = WalkManager.sourceIdx(w);
-
-            if (atVertex == sourceVertexIds[sourceIdx]) {
-                continue;
-            }
-
-            synchronized (buffers[sourceIdx]) {
-                buffers[sourceIdx].add(atVertex);
-            }
-        }
-
-        long tt = (System.currentTimeMillis() - t1);
-        if (tt > 1000) {
-            logger.info("Processing " + walks.length + " took " + tt + " ms.");
-        }
-    }
+    protected abstract void _processWalks(WalkArray walkArray, int[] atVertices);
 
     @Override
     public IdCount[] getTop(int vertexId, int nTop) throws RemoteException {
@@ -320,7 +296,7 @@ public class DrunkardCompanion extends UnicastRemoteObject implements RemoteDrun
     }
 
     @Override
-    public void processWalks(final int[] walks, final int[] atVertices) throws RemoteException {
+    public void processWalks(final WalkArray walks, final int[] atVertices) throws RemoteException {
         try {
             pendingQueue.put(new WalkSubmission(walks, atVertices));
             int pending = pendingQueue.size();
@@ -392,7 +368,9 @@ public class DrunkardCompanion extends UnicastRemoteObject implements RemoteDrun
         } catch (Exception err) {
             logger.info("Registry already created?");
         }
-        Naming.rebind(bindAddress, new DrunkardCompanion(4, (long) (Runtime.getRuntime().maxMemory() * 0.75)));
+        // TODO? Not sure what the main class is used for; just for testing?  This may need to be
+        // put into the subclass.
+        Naming.rebind(bindAddress, new IntDrunkardCompanion(4, (long) (Runtime.getRuntime().maxMemory() * 0.75)));
         logger.info("Prune fraction: " + pruneFraction);
     }
 

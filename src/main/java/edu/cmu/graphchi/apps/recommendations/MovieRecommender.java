@@ -10,9 +10,13 @@ import edu.cmu.graphchi.util.IdCount;
 import edu.cmu.graphchi.walks.DrunkardContext;
 import edu.cmu.graphchi.walks.DrunkardJob;
 import edu.cmu.graphchi.walks.DrunkardMobEngine;
+import edu.cmu.graphchi.walks.IntDrunkardContext;
+import edu.cmu.graphchi.walks.IntDrunkardFactory;
+import edu.cmu.graphchi.walks.IntWalkArray;
+import edu.cmu.graphchi.walks.WalkArray;
 import edu.cmu.graphchi.walks.WalkUpdateFunction;
 import edu.cmu.graphchi.walks.WeightedHopper;
-import edu.cmu.graphchi.walks.distributions.DrunkardCompanion;
+import edu.cmu.graphchi.walks.distributions.IntDrunkardCompanion;
 import org.apache.commons.cli.*;
 
 
@@ -51,11 +55,11 @@ public class MovieRecommender {
         logger.info("Computed ALS, now random walks");
 
         /* Initialize drunkardmob */
-        DrunkardMobEngine<Integer, Float> drunkardMobEngine = new DrunkardMobEngine<Integer, Float>(baseFilename, nShards);
+        DrunkardMobEngine<Integer, Float> drunkardMobEngine = new DrunkardMobEngine<Integer, Float>(baseFilename, nShards, new IntDrunkardFactory());
         DrunkardJob positiveJob = drunkardMobEngine.addJob("positive", EdgeDirection.IN_AND_OUT_EDGES,
-                new PositiveWalkUpdate(), new DrunkardCompanion(2, Runtime.getRuntime().maxMemory() / 8));
+                new PositiveWalkUpdate(), new IntDrunkardCompanion(2, Runtime.getRuntime().maxMemory() / 8));
         DrunkardJob negativeJob = drunkardMobEngine.addJob("negative", EdgeDirection.IN_AND_OUT_EDGES,
-                new NegativeWalkUpdate(), new DrunkardCompanion(2, Runtime.getRuntime().maxMemory() / 8));
+                new NegativeWalkUpdate(), new IntDrunkardCompanion(2, Runtime.getRuntime().maxMemory() / 8));
 
         drunkardMobEngine.setEdataConverter(new FloatConverter());
 
@@ -117,14 +121,15 @@ public class MovieRecommender {
     protected static class PositiveWalkUpdate implements WalkUpdateFunction<Integer, Float> {
 
         @Override
-        public void processWalksAtVertex(int[] walks, ChiVertex<Integer, Float> vertex, DrunkardContext drunkardContext, Random randomGenerator) {
-            hopToHighRatings(walks, vertex, drunkardContext, randomGenerator);
+        public void processWalksAtVertex(WalkArray walkArray, ChiVertex<Integer, Float> vertex, DrunkardContext drunkardContext, Random randomGenerator) {
+            int[] walks = ((IntWalkArray)walkArray).getArray();
+            hopToHighRatings(walks, vertex, (IntDrunkardContext)drunkardContext, randomGenerator);
         }
 
         // Have some weight for <= 3 ratings to avoid divide by zeroes.
         private static final float weightedRating[] = {0.0f, 0.00001f, 0.00001f, 0.0001f, 100.0f, 1000.0f};
 
-        protected static void hopToHighRatings(int[] walks, ChiVertex<Integer, Float> vertex, DrunkardContext drunkardContext, Random randomGenerator) {
+        protected static void hopToHighRatings(int[] walks, ChiVertex<Integer, Float> vertex, IntDrunkardContext drunkardContext, Random randomGenerator) {
             int[] hops = WeightedHopper.generateRandomHopsAliasMethod(randomGenerator, vertex, walks.length,
                     EdgeDirection.IN_AND_OUT_EDGES,
                     new WeightedHopper.EdgeWeightMap() {
@@ -164,7 +169,9 @@ public class MovieRecommender {
 
     protected class NegativeWalkUpdate extends PositiveWalkUpdate {
         @Override
-        public void processWalksAtVertex(int[] walks, ChiVertex<Integer, Float> vertex, DrunkardContext drunkardContext, Random randomGenerator) {
+        public void processWalksAtVertex(WalkArray walkArray, ChiVertex<Integer, Float> vertex, DrunkardContext drunkardContext_, Random randomGenerator) {
+            int[] walks = ((IntWalkArray)walkArray).getArray();
+            IntDrunkardContext drunkardContext = (IntDrunkardContext) drunkardContext_;
             // Movie vertex - do same as the positive
             if (vertex.numInEdges() > 0 || drunkardContext.getIteration() > 0) {
                 hopToHighRatings(walks, vertex, drunkardContext, randomGenerator);
