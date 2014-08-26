@@ -1,6 +1,27 @@
 # GraphChi-java
 Version 0.2
 
+## Fork Info
+
+I made this fork around April 2013, working with Aapo when he was at CMU.  The
+point was to allow for storing more information in each walk than an int would
+allow for.  If we used a long instead, we could store more information within
+each random walk (such as a random walk type or a walk id).  But using
+generics and autoboxing would take too much of a performance hit.  So I
+refactored the code and made it so you could use ints and longs directly, only
+making the higher-level parts abstract.  This worked well, and I could
+successfully use GraphChi for doing random walks with either ints or longs
+representing the walk, depending on how much information needed to be in the
+walk for the particular application.
+
+The code changes I made never made it into GraphChi proper, though I used them
+in my PRA code.  Now I'm trying to make my PRA code available via maven, and
+it's convenient to have this modified version of GraphChi available as well.
+So, in August 2014, I forked the current graphchi-java code on github and
+ported the changes that I made over to it, then added a mvn-repo branch so
+that it's accessible via maven.  I followed the instructions for doing that
+here:
+http://stackoverflow.com/questions/14013644/hosting-a-maven-repository-on-github.
 
 ## News
 
