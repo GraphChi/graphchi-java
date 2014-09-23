@@ -275,6 +275,12 @@ public abstract class TwoKeyCompanion extends UnicastRemoteObject
                     }
                     bmap.put(secondKey, new IntegerBuffer(BUFFER_CAPACITY));
                 }
+            } else {
+                synchronized(lock) {
+                    // We're just waiting for the other thread to release the lock, so that we can
+                    // get the buffer without crashing later.  Another thread actually added it,
+                    // but we have to wait for them.
+                }
             }
         }
     }
