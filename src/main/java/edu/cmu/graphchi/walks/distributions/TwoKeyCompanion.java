@@ -417,5 +417,12 @@ public abstract class TwoKeyCompanion extends UnicastRemoteObject
     public void close() {
         parallelExecutor.shutdown();
         timer.cancel();
+        clearMemory();
+    }
+
+    protected void clearMemory() {
+        distributions.clear();
+        buffers.clear();
+        distrLocks.clear();
     }
 }
