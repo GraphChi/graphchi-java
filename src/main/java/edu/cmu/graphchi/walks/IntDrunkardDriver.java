@@ -1,6 +1,10 @@
 package edu.cmu.graphchi.walks;
 
-import edu.cmu.graphchi.*;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
+
+import edu.cmu.graphchi.GraphChiContext;
 import edu.cmu.graphchi.preprocessing.VertexIdTranslate;
 
 /**
@@ -17,56 +21,7 @@ public class IntDrunkardDriver<VertexDataType, EdgeDataType>
 
     @Override
     protected IntDumperThread createDumperThread() {
-        return new IntDumperThread();
-    }
-
-    protected class IntDumperThread extends DrunkardDriver.DumperThread {
-        private int[] walks = new int[256 * 1024];
-        private int[] vertices = new int[256 * 1024];
-        private int idx = 0;
-
-        @Override
-        protected void processWalks(BucketsToSend bucket, int i) {
-            IntWalkManager manager = (IntWalkManager) job.getWalkManager();
-            IntWalkArray bucketWalks = (IntWalkArray) bucket.walks;
-            int w = bucketWalks.getArray()[i];
-            int v = manager.off(w) + bucket.firstVertex;
-
-
-            // Skip walks with the track-bit (hop-bit) not set
-            boolean trackBit = manager.trackBit(w);
-
-            if (!trackBit) {
-                return;
-            }
-
-            walks[idx] = w;
-            vertices[idx] = v;
-            idx++;
-
-            if (idx >= walks.length) {
-                try {
-                    job.getCompanion().processWalks(new IntWalkArray(walks), vertices);
-                } catch (Exception err) {
-                    err.printStackTrace();
-                }
-                idx = 0;
-            }
-        }
-
-        @Override
-        protected void sendRest() {
-            // Send rest
-            try {
-                int[] tmpWalks = new int[idx];
-                int[] tmpVertices = new int[idx];
-                System.arraycopy(walks, 0, tmpWalks, 0, idx);
-                System.arraycopy(vertices, 0, tmpVertices, 0, idx);
-                job.getCompanion().processWalks(new IntWalkArray(tmpWalks), tmpVertices);
-            } catch (Exception err) {
-                err.printStackTrace();
-            }
-        }
+        return new IntDumperThread(bucketQueue, pendingWalksToSubmit, finished, job);
     }
 
     @Override

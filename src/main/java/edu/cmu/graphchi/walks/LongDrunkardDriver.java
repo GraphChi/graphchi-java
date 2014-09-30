@@ -1,6 +1,10 @@
 package edu.cmu.graphchi.walks;
 
-import edu.cmu.graphchi.*;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
+
+import edu.cmu.graphchi.GraphChiContext;
 import edu.cmu.graphchi.preprocessing.VertexIdTranslate;
 
 /**
@@ -17,56 +21,7 @@ public class LongDrunkardDriver<VertexDataType, EdgeDataType>
 
     @Override
     protected LongDumperThread createDumperThread() {
-        return new LongDumperThread();
-    }
-
-    protected class LongDumperThread extends DrunkardDriver.DumperThread {
-        protected long[] walks = new long[256 * 1024];
-        protected int[] vertices = new int[256 * 1024];
-        protected int idx = 0;
-
-        @Override
-        protected void processWalks(BucketsToSend bucket, int i) {
-            LongWalkArray bucketWalks = (LongWalkArray) bucket.walks;
-            long w = bucketWalks.getArray()[i];
-            LongWalkManager manager = (LongWalkManager) job.getWalkManager();
-            int v = manager.off(w) + bucket.firstVertex;
-
-
-            // Skip walks with the track-bit (hop-bit) not set
-            boolean trackBit = manager.trackBit(w);
-
-            if (!trackBit) {
-                return;
-            }
-
-            walks[idx] = w;
-            vertices[idx] = v;
-            idx++;
-
-            if (idx >= walks.length) {
-                try {
-                    job.getCompanion().processWalks(new LongWalkArray(walks), vertices);
-                } catch (Exception err) {
-                    err.printStackTrace();
-                }
-                idx = 0;
-            }
-        }
-
-        @Override
-        protected void sendRest() {
-            // Send rest
-            try {
-                long[] tmpWalks = new long[idx];
-                int[] tmpVertices = new int[idx];
-                System.arraycopy(walks, 0, tmpWalks, 0, idx);
-                System.arraycopy(vertices, 0, tmpVertices, 0, idx);
-                job.getCompanion().processWalks(new LongWalkArray(tmpWalks), tmpVertices);
-            } catch (Exception err) {
-                err.printStackTrace();
-            }
-        }
+        return new LongDumperThread(bucketQueue, pendingWalksToSubmit, finished, job);
     }
 
     @Override

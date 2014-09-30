@@ -1,18 +1,22 @@
 package edu.cmu.graphchi.walks;
 
+import java.rmi.RemoteException;
+import java.util.ArrayList;
+import java.util.Random;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.logging.Logger;
+
 import com.yammer.metrics.Metrics;
 import com.yammer.metrics.core.Timer;
 import com.yammer.metrics.core.TimerContext;
-import edu.cmu.graphchi.*;
-import edu.cmu.graphchi.engine.VertexInterval;
-import edu.cmu.graphchi.preprocessing.VertexIdTranslate;
 
-import java.rmi.RemoteException;
-import java.util.*;
-import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicLong;
-import java.util.logging.Logger;
+import edu.cmu.graphchi.ChiLogger;
+import edu.cmu.graphchi.ChiVertex;
+import edu.cmu.graphchi.GraphChiContext;
+import edu.cmu.graphchi.engine.VertexInterval;
 
 /**
  * Class to encapsulate the graphchi program running the show.
@@ -24,9 +28,9 @@ public abstract class DrunkardDriver<VertexDataType, EdgeDataType> implements Gr
     protected static Logger logger = ChiLogger.getLogger("drunkard-driver");
 
     protected LinkedBlockingQueue<BucketsToSend> bucketQueue = new LinkedBlockingQueue<BucketsToSend>();
-    private boolean finished = false;
+    protected AtomicBoolean finished = new AtomicBoolean(false);
+    protected AtomicLong pendingWalksToSubmit = new AtomicLong(0);
     private Thread dumperThread;
-    private AtomicLong pendingWalksToSubmit = new AtomicLong(0);
     WalkUpdateFunction<VertexDataType, EdgeDataType> callback;
 
     private final Timer purgeTimer =
@@ -44,30 +48,6 @@ public abstract class DrunkardDriver<VertexDataType, EdgeDataType> implements Gr
     }
 
     protected abstract DumperThread createDumperThread();
-
-    protected abstract class DumperThread implements Runnable {
-
-        public void run() {
-            while(!finished || bucketQueue.size() > 0) {
-                BucketsToSend bucket = null;
-                try {
-                    bucket = bucketQueue.poll(1000, TimeUnit.MILLISECONDS);
-                } catch (InterruptedException e) {
-                }
-                if (bucket != null) {
-                    pendingWalksToSubmit.addAndGet(-bucket.length);
-                    for(int i=0; i<bucket.length; i++) {
-                        processWalks(bucket, i);
-                    }
-                }
-            }
-            sendRest();
-        }
-
-        protected abstract void processWalks(BucketsToSend bucket, int i);
-
-        protected abstract void sendRest();
-    }
 
     public DrunkardJob getJob() {
         return job;
@@ -129,7 +109,7 @@ public abstract class DrunkardDriver<VertexDataType, EdgeDataType> implements Gr
     public void endIteration(GraphChiContext ctx) {}
 
     public void spinUntilFinish() {
-        finished = true;
+        finished.set(true);
         while (bucketQueue.size() > 0) {
             try {
                 System.out.println("Waiting ..." + bucketQueue.size());
