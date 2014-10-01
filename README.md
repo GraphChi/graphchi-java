@@ -16,7 +16,21 @@ Project for developing the Java version of GraphChi ( http://www.graphchi.org ),
 ### How to use
 
  
-Read the README.txt for information on how to build and run the example applications. You are going to need [Maven](http://maven.apache.org/download.cgi) for building.
+Read the README.txt for information on how to build and run the example applications. You are going to need [Maven](http://maven.apache.org/download.cgi) or [sbt](http://www.scala-sbt.org/) for building.
+
+graphchi-java is hosted in the maven central repository, so you can include it as a managed dependency in your maven or sbt builds.  For sbt, include the following line in your `build.sbt`:
+
+`libraryDependencies += "org.graphchi" %% "graphchi-java" % "0.2.1"`
+
+For maven, include the following in `<dependencies>`:
+
+```
+<dependency>
+  <groupId>org.graphchi</groupId>
+  <artifactId>graphchi-java_2.11</artifactId>
+  <version>0.2.1</version>
+</dependency>
+```
 
 It is a very good idea to study the example applications carefully. There are currently three example applications in the package **edu.cmu.graphchi.apps**:
 * [PageRank](https://github.com/GraphChi/graphchi-java/tree/master/src/main/java/edu/cmu/graphchi/apps/Pagerank.java) for computing the famous [PageRank](http://en.wikipedia.org/wiki/PageRank) ranking
