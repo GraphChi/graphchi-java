@@ -7,7 +7,13 @@ import edu.cmu.graphchi.util.IdCount;
 import edu.cmu.graphchi.walks.DrunkardContext;
 import edu.cmu.graphchi.walks.DrunkardJob;
 import edu.cmu.graphchi.walks.DrunkardMobEngine;
+import edu.cmu.graphchi.walks.IntDrunkardContext;
+import edu.cmu.graphchi.walks.IntDrunkardFactory;
+import edu.cmu.graphchi.walks.IntWalkArray;
 import edu.cmu.graphchi.walks.WalkUpdateFunction;
+import edu.cmu.graphchi.walks.WalkArray;
+import edu.cmu.graphchi.walks.WeightedHopper;
+import edu.cmu.graphchi.walks.distributions.IntDrunkardCompanion;
 import edu.cmu.graphchi.walks.distributions.DrunkardCompanion;
 import edu.cmu.graphchi.walks.distributions.RemoteDrunkardCompanion;
 import org.apache.commons.cli.*;
@@ -39,7 +45,8 @@ public class PersonalizedPageRank implements WalkUpdateFunction<EmptyType, Empty
 
     public PersonalizedPageRank(String companionUrl, String baseFilename, int nShards, int firstSource, int numSources, int walksPerSource) throws Exception{
         this.baseFilename = baseFilename;
-        this.drunkardMobEngine = new DrunkardMobEngine<EmptyType, EmptyType>(baseFilename, nShards);
+        this.drunkardMobEngine = new DrunkardMobEngine<EmptyType, EmptyType>(baseFilename, nShards,
+                new IntDrunkardFactory());
 
         this.companionUrl = companionUrl;
         this.firstSource = firstSource;
@@ -55,7 +62,7 @@ public class PersonalizedPageRank implements WalkUpdateFunction<EmptyType, Empty
          */
         RemoteDrunkardCompanion companion;
         if (companionUrl.equals("local")) {
-            companion = new DrunkardCompanion(4, Runtime.getRuntime().maxMemory() / 3);
+            companion = new IntDrunkardCompanion(4, Runtime.getRuntime().maxMemory() / 3);
         }  else {
             companion = (RemoteDrunkardCompanion) Naming.lookup(companionUrl);
         }
@@ -91,10 +98,12 @@ public class PersonalizedPageRank implements WalkUpdateFunction<EmptyType, Empty
      * WalkUpdateFunction interface implementations
      */
     @Override
-    public void processWalksAtVertex(int[] walks,
+    public void processWalksAtVertex(WalkArray walkArray,
                                      ChiVertex<EmptyType, EmptyType> vertex,
-                                     DrunkardContext drunkardContext,
+                                     DrunkardContext drunkardContext_,
                                      Random randomGenerator) {
+        int[] walks = ((IntWalkArray)walkArray).getArray();
+        IntDrunkardContext drunkardContext = (IntDrunkardContext) drunkardContext_;
         int numWalks = walks.length;
         int numOutEdges = vertex.numOutEdges();
 

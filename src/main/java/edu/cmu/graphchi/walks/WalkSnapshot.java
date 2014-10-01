@@ -5,9 +5,6 @@ package edu.cmu.graphchi.walks;
  */
 public interface WalkSnapshot {
 
-    /** Returns walk at vertex, or null if none **/
-    int[] getWalksAtVertex(int vertexId, boolean processed);
-
     int getFirstVertex();
 
     int getLastVertex();
@@ -17,4 +14,6 @@ public interface WalkSnapshot {
     public long numWalks();
 
     public void restoreUngrabbed();
+
+    WalkArray getWalksAtVertex(int vertexId, boolean processed);
 }

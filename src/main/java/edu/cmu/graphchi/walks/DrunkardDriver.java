@@ -1,32 +1,36 @@
 package edu.cmu.graphchi.walks;
 
+import java.rmi.RemoteException;
+import java.util.ArrayList;
+import java.util.Random;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.logging.Logger;
+
 import com.yammer.metrics.Metrics;
 import com.yammer.metrics.core.Timer;
 import com.yammer.metrics.core.TimerContext;
-import edu.cmu.graphchi.*;
-import edu.cmu.graphchi.engine.VertexInterval;
-import edu.cmu.graphchi.preprocessing.VertexIdTranslate;
 
-import java.rmi.RemoteException;
-import java.util.*;
-import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicLong;
-import java.util.logging.Logger;
+import edu.cmu.graphchi.ChiLogger;
+import edu.cmu.graphchi.ChiVertex;
+import edu.cmu.graphchi.GraphChiContext;
+import edu.cmu.graphchi.engine.VertexInterval;
 
 /**
  * Class to encapsulate the graphchi program running the show.
  * Due to several optimizations, it is quite complicated!
  */
-public class DrunkardDriver<VertexDataType, EdgeDataType> implements GrabbedBucketConsumer {
+public abstract class DrunkardDriver<VertexDataType, EdgeDataType> implements GrabbedBucketConsumer {
     private WalkSnapshot curWalkSnapshot;
-    private final DrunkardJob job;
-    private static Logger logger = ChiLogger.getLogger("drunkard-driver");
+    protected final DrunkardJob job;
+    protected static Logger logger = ChiLogger.getLogger("drunkard-driver");
 
-    private LinkedBlockingQueue<BucketsToSend> bucketQueue = new LinkedBlockingQueue<BucketsToSend>();
-    private boolean finished = false;
+    protected LinkedBlockingQueue<BucketsToSend> bucketQueue = new LinkedBlockingQueue<BucketsToSend>();
+    protected AtomicBoolean finished = new AtomicBoolean(false);
+    protected AtomicLong pendingWalksToSubmit = new AtomicLong(0);
     private Thread dumperThread;
-    private AtomicLong pendingWalksToSubmit = new AtomicLong(0);
     WalkUpdateFunction<VertexDataType, EdgeDataType> callback;
 
     private final Timer purgeTimer =
@@ -39,72 +43,21 @@ public class DrunkardDriver<VertexDataType, EdgeDataType> implements GrabbedBuck
 
         // Setup thread for sending walks to the companion (i.e tracker)
         // Launch a thread to send to the companion
-        dumperThread = new Thread(new Runnable() {
-            public void run() {
-                int[] walks = new int[256 * 1024];
-                int[] vertices = new int[256 * 1024];
-                int idx = 0;
-
-                while(!finished || bucketQueue.size() > 0) {
-                    BucketsToSend bucket = null;
-                    try {
-                        bucket = bucketQueue.poll(1000, TimeUnit.MILLISECONDS);
-                    } catch (InterruptedException e) {
-                    }
-                    if (bucket != null) {
-                        pendingWalksToSubmit.addAndGet(-bucket.length);
-                        for(int i=0; i<bucket.length; i++) {
-                            int w = bucket.walks[i];
-                            int v = WalkManager.off(w) + bucket.firstVertex;
-
-
-                            // Skip walks with the track-bit (hop-bit) not set
-                            boolean trackBit = WalkManager.hop(w);
-
-                            if (!trackBit) {
-                                continue;
-                            }
-
-                            walks[idx] = w;
-                            vertices[idx] = v;
-                            idx++;
-
-                            if (idx >= walks.length) {
-                                try {
-                                    job.getCompanion().processWalks(walks, vertices);
-                                } catch (Exception err) {
-                                    err.printStackTrace();
-                                }
-                                idx = 0;
-                            }
-
-                        }
-                    }
-                }
-
-                // Send rest
-                try {
-                    int[] tmpWalks = new int[idx];
-                    int[] tmpVertices = new int[idx];
-                    System.arraycopy(walks, 0, tmpWalks, 0, idx);
-                    System.arraycopy(vertices, 0, tmpVertices, 0, idx);
-                    job.getCompanion().processWalks(tmpWalks, tmpVertices);
-                } catch (Exception err) {
-                    err.printStackTrace();
-                }
-            }
-        });
+        dumperThread = new Thread(createDumperThread());
         dumperThread.start();
     }
+
+    protected abstract DumperThread createDumperThread();
 
     public DrunkardJob getJob() {
         return job;
     }
 
-    public void update(ChiVertex<VertexDataType, EdgeDataType> vertex, final GraphChiContext context,
-                       final LocalWalkBuffer localBuf) {
+    protected abstract DrunkardContext createDrunkardContext(int vertexId, GraphChiContext context,
+            LocalWalkBuffer localBuf);
 
-
+    public void update(ChiVertex<VertexDataType, EdgeDataType> vertex,
+            final GraphChiContext context, final LocalWalkBuffer localBuf) {
         try {
             // Flow control
             while (pendingWalksToSubmit.get() > job.getWalkManager().getTotalWalks() / 40) {
@@ -116,7 +69,7 @@ public class DrunkardDriver<VertexDataType, EdgeDataType> implements GrabbedBuck
             }
 
             boolean  firstIteration = (context.getIteration() == 0);
-            int[] walksAtMe = curWalkSnapshot.getWalksAtVertex(vertex.getId(), true);
+            WalkArray walksAtMe = curWalkSnapshot.getWalksAtVertex(vertex.getId(), true);
 
             // Very dirty memory management
             curWalkSnapshot.clear(vertex.getId());
@@ -130,61 +83,12 @@ public class DrunkardDriver<VertexDataType, EdgeDataType> implements GrabbedBuck
                     job.getCompanion().setAvoidList(mySourceIdx, callback.getNotTrackedVertices(vertex));
                 }
             }
-            if (walksAtMe == null || walksAtMe.length == 0)  {
-                return;
-            }
+            if (walksAtMe == null || walksAtMe.size() == 0) return;
 
             Random randomGenerator = localBuf.random;
 
-            final boolean  isSource = job.getWalkManager().isSource(vertex.getId());
-            final int mySourceIndex = (isSource ? job.getWalkManager().getVertexSourceIdx(vertex.getId()) : -1);
-
-            callback.processWalksAtVertex(walksAtMe, vertex, new DrunkardContext() {
-                @Override
-                public boolean isSource() {
-                    return isSource;
-                }
-
-                @Override
-                public int sourceIndex() {
-                    return mySourceIndex;
-                }
-
-                @Override
-                public int getIteration() {
-                    return context.getIteration();
-                }
-
-                @Override
-                public void forwardWalkTo(int walk, int destinationVertex, boolean trackBit) {
-                    localBuf.add(WalkManager.sourceIdx(walk), destinationVertex, trackBit);
-                }
-
-                @Override
-                public void resetWalk(int walk, boolean trackBit) {
-                    forwardWalkTo(walk, job.getWalkManager().getSourceVertex(WalkManager.sourceIdx(walk)), false);
-                }
-
-                @Override
-                public boolean getTrackBit(int walk) {
-                    return WalkManager.hop(walk);
-                }
-
-                @Override
-                public boolean isWalkStartedFromVertex(int walk) {
-                    return mySourceIndex == WalkManager.sourceIdx(walk);
-                }
-
-                @Override
-                public VertexIdTranslate getVertexIdTranslate() {
-                    return getVertexIdTranslate();
-                }
-
-                @Override
-                public void resetAll(int[] walks) {
-                    for(int w : walks) resetWalk(w, false);
-                }
-            }, randomGenerator);
+            DrunkardContext drunkardContext = createDrunkardContext(vertex.getId(), context, localBuf);
+            callback.processWalksAtVertex(walksAtMe, vertex, drunkardContext, randomGenerator);
         } catch (RemoteException re) {
             throw new RuntimeException(re);
         }
@@ -194,9 +98,6 @@ public class DrunkardDriver<VertexDataType, EdgeDataType> implements GrabbedBuck
         job.getWalkManager().initializeWalks();
         job.getCompanion().setSources(job.getWalkManager().getSources());
     }
-
-
-
 
     public void beginIteration(GraphChiContext ctx) {
         if (ctx.getIteration() == 0) {
@@ -208,7 +109,7 @@ public class DrunkardDriver<VertexDataType, EdgeDataType> implements GrabbedBuck
     public void endIteration(GraphChiContext ctx) {}
 
     public void spinUntilFinish() {
-        finished = true;
+        finished.set(true);
         while (bucketQueue.size() > 0) {
             try {
                 System.out.println("Waiting ..." + bucketQueue.size());
@@ -262,8 +163,6 @@ public class DrunkardDriver<VertexDataType, EdgeDataType> implements GrabbedBuck
         }
     }
 
-
-
     public void beginInterval(GraphChiContext ctx, VertexInterval interval) {
         /* Count walks */
         long initializedWalks = job.getWalkManager().getTotalWalks();
@@ -279,7 +178,7 @@ public class DrunkardDriver<VertexDataType, EdgeDataType> implements GrabbedBuck
 
     public void endInterval(GraphChiContext ctx, VertexInterval interval) {}
 
-    public void consume(int firstVertexInBucket, int[] walkBucket, int len) {
+    public void consume(int firstVertexInBucket, WalkArray walkBucket, int len) {
         try {
             pendingWalksToSubmit.addAndGet(len);
             bucketQueue.put(new BucketsToSend(firstVertexInBucket, walkBucket, len));
@@ -287,18 +186,4 @@ public class DrunkardDriver<VertexDataType, EdgeDataType> implements GrabbedBuck
             e.printStackTrace();
         }
     }
-
-    private static class BucketsToSend {
-        int firstVertex;
-        int[] walks;
-        int length;
-
-        BucketsToSend(int firstVertex, int[] walks, int length) {
-            this.firstVertex = firstVertex;
-            this.walks = walks;
-            this.length = length;
-        }
-    }
-
 }
-
