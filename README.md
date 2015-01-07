@@ -20,7 +20,7 @@ Read the README.txt for information on how to build and run the example applicat
 
 graphchi-java is hosted in the maven central repository, so you can include it as a managed dependency in your maven or sbt builds.  For sbt, include the following line in your `build.sbt`:
 
-`libraryDependencies += "org.graphchi" %% "graphchi-java" % "0.2.1"`
+`libraryDependencies += "org.graphchi" %% "graphchi-java" % "0.2.2"`
 
 For maven, include the following in `<dependencies>`:
 
@@ -28,7 +28,7 @@ For maven, include the following in `<dependencies>`:
 <dependency>
   <groupId>org.graphchi</groupId>
   <artifactId>graphchi-java_2.11</artifactId>
-  <version>0.2.1</version>
+  <version>0.2.2</version>
 </dependency>
 ```
 
