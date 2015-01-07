@@ -241,7 +241,9 @@ public abstract class TwoKeyCompanion extends UnicastRemoteObject
                     }
                 }
             } catch (Exception err) {
-                err.printStackTrace();
+                if (!(err instanceof InterruptedException)) {
+                    err.printStackTrace();
+                }
             }
         }
     }
