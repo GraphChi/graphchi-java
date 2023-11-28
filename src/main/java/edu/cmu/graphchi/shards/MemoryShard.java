@@ -285,7 +285,7 @@ public class MemoryShard <EdgeDataType> {
     }
 
 
-    private DataInput loadAdj() throws FileNotFoundException, IOException {
+    private DataInput loadAdj() throws IOException {
         File compressedFile = new File(adjDataFilename + ".gz");
         InputStream adjStreamRaw;
         long fileSizeEstimate = 0;
@@ -300,30 +300,24 @@ public class MemoryShard <EdgeDataType> {
 
         /* Load index */
         index = new ShardIndex(new File(adjDataFilename)).sparserIndex(1204 * 1024);
-        BufferedInputStream adjStream =	new BufferedInputStream(adjStreamRaw, (int) fileSizeEstimate /
-                4);
-
+        byte[] buf = new byte[(int)fileSizeEstimate];
         // Hack for cases when the load is not divided into subwindows
         TimerContext _timer = loadAdjTimer.time();
 
-        ByteArrayOutputStream adjDataStream = new ByteArrayOutputStream((int) fileSizeEstimate);
         try {
-            byte[] buf = new byte[(int) fileSizeEstimate / 4];   // Read in 16 chunks
-            while (true) {
-                int read =  adjStream.read(buf);
-                if (read > 0) {
-                    adjDataStream.write(buf, 0, read);
-                } else break;
+            int nread = adjStreamRaw.read(buf, 0, buf.length);
+            if (nread < buf.length) {
+                // compressed
+                byte[] buf2 = new byte[nread];
+                System.arraycopy(buf, 0, buf2, 0, nread);
+                buf = buf2;
             }
         } catch (EOFException err) {
             // Done
         }
 
-        adjData = adjDataStream.toByteArray();
+        adjData = buf;
         adjDataLength = adjData.length;
-
-        adjStream.close();
-        adjDataStream.close();
 
         _timer.stop();
         return null;
